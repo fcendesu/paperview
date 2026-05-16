@@ -18,6 +18,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI History Open](completed/gui-history-open.md) - clickable GUI history entries that reopen and persist recent documents.
 - [GUI Drag And Drop](completed/gui-drag-and-drop.md) - native GUI file-drop opening.
 - [Live Reload Foundation](completed/live-reload-foundation.md) - core file watcher and GUI active-document reload.
+- [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.
 - [TUI History Dashboard](completed/tui-history-dashboard.md) - no-file Ratatui recent-files dashboard with selection and open.
 

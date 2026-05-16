@@ -1,7 +1,13 @@
-use std::io;
+use std::{
+    io,
+    sync::mpsc::{self, Receiver},
+    time::Duration,
+};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use paperview_core::{Document, FileEntry, History, HistoryStore};
+use paperview_core::{
+    Document, FileEntry, FileWatcher, History, HistoryStore, WatchEvent, watch_file,
+};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -26,32 +32,40 @@ pub fn run_dashboard() -> io::Result<()> {
     result
 }
 
-#[derive(Debug)]
 struct ReaderApp {
     document: Document,
     document_lines: Vec<String>,
     toc_lines: Vec<String>,
     scroll: u16,
+    status: Option<String>,
+    _watcher: Option<FileWatcher>,
+    watch_receiver: Option<Receiver<WatchEvent>>,
 }
 
 impl ReaderApp {
     fn new(document: Document) -> Self {
         let document_lines = render::render_document_lines(&document);
         let toc_lines = render::render_toc_lines(&document.parsed().toc());
+        let (watcher, watch_receiver, status) = watch_document(&document);
 
         Self {
             document,
             document_lines,
             toc_lines,
             scroll: 0,
+            status,
+            _watcher: watcher,
+            watch_receiver,
         }
     }
 
     fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         loop {
             terminal.draw(|frame| self.draw(frame))?;
+            self.handle_watch_events();
 
-            if let Event::Key(key) = event::read()?
+            if event::poll(Duration::from_millis(100))?
+                && let Event::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
             {
                 match key.code {
@@ -79,6 +93,17 @@ impl ReaderApp {
                 .block(Block::default().borders(Borders::BOTTOM)),
             header,
         );
+
+        if let Some(status) = &self.status {
+            let status_area = header.inner(ratatui::layout::Margin {
+                vertical: 1,
+                horizontal: 2,
+            });
+            frame.render_widget(
+                Paragraph::new(status.as_str()).style(Style::default().fg(Color::DarkGray)),
+                status_area,
+            );
+        }
 
         frame.render_widget(
             Paragraph::new(Text::from(document_text(&self.document_lines)))
@@ -112,6 +137,57 @@ impl ReaderApp {
 
     fn max_scroll(&self) -> u16 {
         self.document_lines.len().saturating_sub(1) as u16
+    }
+
+    fn handle_watch_events(&mut self) {
+        let Some(receiver) = self.watch_receiver.take() else {
+            return;
+        };
+
+        while let Ok(event) = receiver.try_recv() {
+            match event {
+                WatchEvent::Changed(path) => self.reload_path(path),
+            }
+        }
+
+        self.watch_receiver = Some(receiver);
+    }
+
+    fn reload_path(&mut self, path: std::path::PathBuf) {
+        if self.document.path() != Some(&path) {
+            return;
+        }
+
+        match Document::open(&path) {
+            Ok(document) => {
+                self.document_lines = render::render_document_lines(&document);
+                self.toc_lines = render::render_toc_lines(&document.parsed().toc());
+                self.scroll = self.scroll.min(self.max_scroll());
+                self.document = document;
+                self.status = Some(format!("Reloaded {}", path.display()));
+            }
+            Err(error) => {
+                self.status = Some(error.to_string());
+            }
+        }
+    }
+}
+
+fn watch_document(
+    document: &Document,
+) -> (
+    Option<FileWatcher>,
+    Option<Receiver<WatchEvent>>,
+    Option<String>,
+) {
+    let Some(path) = document.path() else {
+        return (None, None, None);
+    };
+    let (sender, receiver) = mpsc::channel();
+
+    match watch_file(path, sender) {
+        Ok(watcher) => (Some(watcher), Some(receiver), None),
+        Err(error) => (None, None, Some(error.to_string())),
     }
 }
 
@@ -318,6 +394,11 @@ fn toc_text(lines: &[String]) -> Vec<Line<'static>> {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
     use paperview_core::{Document, FileEntry, HistoryStore};
 
     use super::{DashboardApp, ReaderApp};
@@ -348,5 +429,38 @@ mod tests {
         app.select_next();
         app.select_next();
         assert_eq!(app.list_state.selected(), Some(1));
+    }
+
+    #[test]
+    fn reload_path_updates_document_and_clamps_scroll() {
+        let path = temp_doc("tui-live-reload.md", "# Before\n\nLine one.\n\nLine two.");
+        let document = Document::open(&path).expect("open initial document");
+        let mut app = ReaderApp::new(document);
+        app.scroll_to_bottom();
+
+        fs::write(&path, "# After\n\nShort.").expect("rewrite test document");
+        app.reload_path(path.clone());
+
+        assert_eq!(app.document.title(), "After");
+        assert_eq!(app.scroll, app.max_scroll());
+        assert!(
+            app.status
+                .as_deref()
+                .is_some_and(|status| status.starts_with("Reloaded "))
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    fn temp_doc(name: &str, source: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("paperview-tui-{nanos}-{name}"));
+
+        fs::write(&path, source).expect("write test document");
+
+        path
     }
 }

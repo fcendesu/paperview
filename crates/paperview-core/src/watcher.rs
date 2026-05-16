@@ -71,13 +71,14 @@ pub fn watch_file(
         .ok_or_else(|| WatchError::MissingParent { path: path.clone() })?
         .to_path_buf();
     let target = normalize_path(&path);
+    let watched_path = path.clone();
 
     let mut watcher = RecommendedWatcher::new(
         move |event| {
             if let Ok(event) = event
                 && event_touches_path(&event, &target)
             {
-                let _ = sender.send(WatchEvent::Changed(target.clone()));
+                let _ = sender.send(WatchEvent::Changed(watched_path.clone()));
             }
         },
         Config::default(),
