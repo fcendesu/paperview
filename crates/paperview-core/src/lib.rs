@@ -1,4 +1,4 @@
 pub mod document;
 pub mod parser;
 
-pub use document::Document;
+pub use document::{Document, DocumentError, SupportedFileType};

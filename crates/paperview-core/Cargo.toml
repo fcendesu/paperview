@@ -9,3 +9,4 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+pulldown-cmark = "0.13.3"

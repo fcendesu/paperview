@@ -5,6 +5,8 @@ This directory stores one specification file per major feature. Feature specs ar
 ## Inventory
 
 - [Project Setup](project-setup.md) - workspace layout, crate boundaries, and initial core/frontend shells.
+- [File Opening](file-opening.md) - supported document formats and core file loading behavior.
+- [Basic Markdown Rendering](basic-markdown-rendering.md) - initial shared Markdown parse model for frontend renderers.
 
 Each feature spec should include:
 
