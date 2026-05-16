@@ -4,7 +4,7 @@ use iced::{
     Element, Fill, Never,
     widget::{column, container, row, text},
 };
-use paperview_core::{Document, History};
+use paperview_core::{Document, History, HistoryStore};
 
 use crate::{history, navigation, reader, theme};
 
@@ -12,6 +12,7 @@ use crate::{history, navigation, reader, theme};
 pub struct PaperView {
     document: Option<Document>,
     history: History,
+    history_store: HistoryStore,
     status: Status,
 }
 
@@ -25,41 +26,75 @@ enum Status {
 impl PaperView {
     #[must_use]
     pub fn from_args(args: impl IntoIterator<Item = OsString>) -> Self {
+        Self::from_args_with_store(args, HistoryStore::default())
+    }
+
+    #[must_use]
+    fn from_args_with_store(
+        args: impl IntoIterator<Item = OsString>,
+        history_store: HistoryStore,
+    ) -> Self {
         let args = args.into_iter().collect::<Vec<_>>();
 
         match args.as_slice() {
-            [] => Self {
-                document: None,
-                history: History::new(),
-                status: Status::Empty,
-            },
+            [] => {
+                let history = load_history(&history_store);
+
+                Self {
+                    document: None,
+                    history,
+                    history_store,
+                    status: Status::Empty,
+                }
+            }
             [path] => {
                 let path = PathBuf::from(path);
+                let mut history = load_history(&history_store);
 
                 match Document::open(&path) {
                     Ok(document) => {
-                        let mut history = History::new();
                         history.record_document(&document);
+                        save_history(&history_store, &history);
 
                         Self {
                             document: Some(document),
                             history,
+                            history_store,
                             status: Status::Loaded(path),
                         }
                     }
                     Err(error) => Self {
                         document: None,
-                        history: History::new(),
+                        history,
+                        history_store,
                         status: Status::Error(error.to_string()),
                     },
                 }
             }
-            _ => Self {
-                document: None,
-                history: History::new(),
-                status: Status::Error("usage: paperview-gui [file]".to_owned()),
-            },
+            _ => {
+                let history = load_history(&history_store);
+
+                Self {
+                    document: None,
+                    history,
+                    history_store,
+                    status: Status::Error("usage: paperview-gui [file]".to_owned()),
+                }
+            }
         }
+    }
+}
+
+fn load_history(store: &HistoryStore) -> History {
+    store.load().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        History::new()
+    })
+}
+
+fn save_history(store: &HistoryStore, history: &History) {
+    if let Err(error) = store.save(history) {
+        eprintln!("{error}");
     }
 }
 
@@ -100,7 +135,10 @@ pub fn view(state: &PaperView) -> Element<'_, Never> {
 
 fn header(state: &PaperView) -> Element<'_, Never> {
     let subtitle = match &state.status {
-        Status::Empty => "No document open".to_owned(),
+        Status::Empty => format!(
+            "No document open - {}",
+            state.history_store.path().display()
+        ),
         Status::Loaded(path) => path.display().to_string(),
         Status::Error(error) => error.clone(),
     };
@@ -183,21 +221,38 @@ fn empty_state(status: &Status) -> Element<'_, Never> {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
+    use std::{
+        ffi::OsString,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use paperview_core::HistoryStore;
 
     use super::{PaperView, title};
 
     #[test]
     fn empty_window_title_is_app_name() {
-        let state = PaperView::from_args([]);
+        let state = PaperView::from_args_with_store([], temp_store("empty.toml"));
 
         assert_eq!(title(&state), "PaperView");
     }
 
     #[test]
     fn too_many_args_keeps_app_open_with_error_state() {
-        let state = PaperView::from_args([OsString::from("one.md"), OsString::from("two.md")]);
+        let state = PaperView::from_args_with_store(
+            [OsString::from("one.md"), OsString::from("two.md")],
+            temp_store("too-many.toml"),
+        );
 
         assert_eq!(title(&state), "PaperView");
+    }
+
+    fn temp_store(name: &str) -> HistoryStore {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after Unix epoch")
+            .as_nanos();
+
+        HistoryStore::new(std::env::temp_dir().join(format!("paperview-gui-{nanos}-{name}")))
     }
 }
