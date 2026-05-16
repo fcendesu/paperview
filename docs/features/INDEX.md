@@ -7,6 +7,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Project Setup](project-setup.md) - workspace layout, crate boundaries, and initial core/frontend shells.
 - [File Opening](file-opening.md) - supported document formats and core file loading behavior.
 - [Basic Markdown Rendering](basic-markdown-rendering.md) - initial shared Markdown parse model for frontend renderers.
+- [Drag And Drop](drag-and-drop.md) - GUI native file-drop opening.
 - [Hybrid Theme](hybrid-theme.md) - dark shell, cream reader surface, and GUI visual token contract.
 - [History Sidebar](history-sidebar.md) - shared recent-file model and first GUI history rail.
 - [Live Reload](live-reload.md) - notify-backed active-document reload foundation.

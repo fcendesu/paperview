@@ -17,11 +17,12 @@ Unsupported extensions are rejected before disk reads. Supported files are read 
 - File read errors preserve the source path and underlying `std::io::Error`.
 - `paperview-tui [file]` loads one file into an interactive Ratatui terminal shell.
 - `paperview-gui [file]` opens a native Iced window and renders the loaded document. Launching without a file shows an empty state.
+- GUI drag-and-drop uses the same `Document::open` path as launch and history open flows.
 
 ## Open Decisions
 
 - Binary/non-UTF-8 recovery behavior is deferred until richer launch flows exist.
-- Recent-file persistence belongs with the later history feature.
+- Multi-file drag-and-drop behavior is deferred until tabs exist.
 
 ## Verification Expectations
 

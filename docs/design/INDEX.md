@@ -79,7 +79,7 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 - **Active State:** The current open file in the left sidebar should have a subtle background highlight (`#1B1F27`) and a thin blue vertical line on the left edge.
 - **Hover State:** Sidebar items should transition to a slightly lighter grey.
 - **Scroll Sync:** As the user scrolls, the corresponding entry in the "On this page" TOC should turn blue and bold.
-- **Drag & Drop Overlay:** When a file is dragged over the window, a subtle blue border or semi-transparent overlay should appear to indicate the app is ready to "accept" the document.
+- **Drag & Drop Overlay:** When a file is dragged over the window, the GUI shows a subtle accent border around the shell and a header status prompt indicating the hovered path.
 
 ## 5. Zen Mode & Edit Mode
 

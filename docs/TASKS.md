@@ -27,7 +27,7 @@ This document tracks the progress of features across the three workspace crates.
 | **LaTeX Support** | ⬜ | ⬜ | ⬜ |
 | **Mermaid Support** | ⬜ | ⬜ | ⬜ |
 | **Zen Mode** | ⬜ | ⬜ | ⬜ |
-| **Drag & Drop** | ⬜ | ⬜ | ⬜ |
+| **Drag & Drop** | ✅ | ✅ | ⬜ |
 
 ---
 
@@ -35,6 +35,7 @@ This document tracks the progress of features across the three workspace crates.
 
 - History Sidebar includes shared persistence, GUI click-to-open behavior, and the TUI recent-files dashboard.
 - Live Reload currently covers the core watcher and active GUI document; TUI integration is still open.
+- Drag & Drop currently covers native GUI file drops; multi-file behavior waits for tabs.
 
 ---
 

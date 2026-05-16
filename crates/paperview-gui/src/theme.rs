@@ -28,10 +28,23 @@ pub fn application_style() -> iced::theme::Style {
     }
 }
 
-pub fn shell_container() -> container::Style {
-    container::Style::default()
-        .background(SHELL_BACKGROUND)
-        .color(SHELL_TEXT)
+pub fn shell_container(is_drag_hovered: bool) -> container::Style {
+    let border = if is_drag_hovered {
+        Border {
+            color: SHELL_ACCENT,
+            width: 2.0,
+            radius: border::radius(0),
+        }
+    } else {
+        Border::default()
+    };
+
+    container::Style {
+        background: Some(Background::Color(SHELL_BACKGROUND)),
+        text_color: Some(SHELL_TEXT),
+        border,
+        ..container::Style::default()
+    }
 }
 
 pub fn header_container() -> container::Style {

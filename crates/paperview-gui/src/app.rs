@@ -1,9 +1,11 @@
 use std::{ffi::OsString, path::PathBuf, sync::mpsc};
 
 use iced::{
-    Element, Fill, Subscription,
+    Element, Event, Fill, Subscription,
+    event::{self, Status as EventStatus},
     futures::{SinkExt, StreamExt, stream::BoxStream},
     widget::{column, container, row, text},
+    window,
 };
 use paperview_core::{Document, History, HistoryStore, WatchEvent, watch_file};
 
@@ -15,12 +17,14 @@ pub struct PaperView {
     history: History,
     history_store: HistoryStore,
     status: Status,
+    is_drag_hovered: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Status {
     Empty,
     Loaded(PathBuf),
+    Hovering(PathBuf),
     Error(String),
 }
 
@@ -29,6 +33,9 @@ pub enum Message {
     OpenHistory(PathBuf),
     FileChanged(PathBuf),
     WatchFailed(String),
+    FileHovered(PathBuf),
+    FilesHoveredLeft,
+    FileDropped(PathBuf),
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -56,6 +63,7 @@ impl PaperView {
                     history,
                     history_store,
                     status: Status::Empty,
+                    is_drag_hovered: false,
                 }
             }
             [path] => {
@@ -72,6 +80,7 @@ impl PaperView {
                             history,
                             history_store,
                             status: Status::Loaded(path),
+                            is_drag_hovered: false,
                         }
                     }
                     Err(error) => Self {
@@ -79,6 +88,7 @@ impl PaperView {
                         history,
                         history_store,
                         status: Status::Error(error.to_string()),
+                        is_drag_hovered: false,
                     },
                 }
             }
@@ -90,6 +100,7 @@ impl PaperView {
                     history,
                     history_store,
                     status: Status::Error("usage: paperview-gui [file]".to_owned()),
+                    is_drag_hovered: false,
                 }
             }
         }
@@ -102,6 +113,20 @@ pub fn update(state: &mut PaperView, message: Message) {
         Message::FileChanged(path) => state.reload_path(path),
         Message::WatchFailed(error) => {
             state.status = Status::Error(error);
+        }
+        Message::FileHovered(path) => {
+            state.is_drag_hovered = true;
+            state.status = Status::Hovering(path);
+        }
+        Message::FilesHoveredLeft => {
+            state.is_drag_hovered = false;
+            if matches!(state.status, Status::Hovering(_)) {
+                state.status = state.active_path().map_or(Status::Empty, Status::Loaded);
+            }
+        }
+        Message::FileDropped(path) => {
+            state.is_drag_hovered = false;
+            state.open_path(path);
         }
     }
 }
@@ -152,9 +177,21 @@ impl PaperView {
 }
 
 pub fn subscription(state: &PaperView) -> Subscription<Message> {
-    state.active_path().map_or_else(Subscription::none, |path| {
+    let file_drop = event::listen_with(window_file_event);
+    let file_watch = state.active_path().map_or_else(Subscription::none, |path| {
         Subscription::run_with(ActiveWatchPath(path), watch_active_document)
-    })
+    });
+
+    Subscription::batch([file_drop, file_watch])
+}
+
+fn window_file_event(event: Event, _status: EventStatus, _window: window::Id) -> Option<Message> {
+    match event {
+        Event::Window(window::Event::FileHovered(path)) => Some(Message::FileHovered(path)),
+        Event::Window(window::Event::FilesHoveredLeft) => Some(Message::FilesHoveredLeft),
+        Event::Window(window::Event::FileDropped(path)) => Some(Message::FileDropped(path)),
+        _ => None,
+    }
 }
 
 fn watch_active_document(path: &ActiveWatchPath) -> BoxStream<'static, Message> {
@@ -227,7 +264,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
     container(column![header, tab_bar, body].height(Fill))
         .width(Fill)
         .height(Fill)
-        .style(|_| theme::shell_container())
+        .style(|_| theme::shell_container(state.is_drag_hovered))
         .into()
 }
 
@@ -238,6 +275,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
             state.history_store.path().display()
         ),
         Status::Loaded(path) => path.display().to_string(),
+        Status::Hovering(path) => format!("Drop to open {}", path.display()),
         Status::Error(error) => error.clone(),
     };
 
@@ -295,6 +333,10 @@ fn empty_state(status: &Status) -> Element<'_, Message> {
             "Launch with paperview-gui <file> to preview the native reader shell.",
         ),
         Status::Loaded(_) => ("Document loaded", ""),
+        Status::Hovering(_) => (
+            "Drop to open",
+            "Release the file to preview it in PaperView.",
+        ),
         Status::Error(error) => ("Could not open document", error.as_str()),
     };
 
@@ -380,6 +422,47 @@ mod tests {
         );
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn dropped_file_opens_document() {
+        let path = temp_doc("dropped.md", "# Dropped\n\nOpened from drop.");
+        let mut state = PaperView::from_args_with_store([], temp_store("drop.toml"));
+
+        update(&mut state, Message::FileDropped(path.clone()));
+
+        assert_eq!(
+            state.document.as_ref().map(|document| document.title()),
+            Some("Dropped")
+        );
+        assert!(!state.is_drag_hovered);
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn hover_leave_restores_loaded_status() {
+        let path = temp_doc("active.md", "# Active\n\nCurrent.");
+        let hover_path = temp_doc("hovered.md", "# Hovered\n\nMaybe next.");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("hover.toml"));
+
+        update(&mut state, Message::FileHovered(hover_path.clone()));
+        assert!(state.is_drag_hovered);
+        assert!(matches!(state.status, super::Status::Hovering(_)));
+
+        update(&mut state, Message::FilesHoveredLeft);
+
+        assert!(!state.is_drag_hovered);
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
+        );
+
+        fs::remove_file(path).expect("remove active test document");
+        fs::remove_file(hover_path).expect("remove hovered test document");
     }
 
     fn temp_store(name: &str) -> HistoryStore {
