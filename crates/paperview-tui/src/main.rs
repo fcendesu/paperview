@@ -1,6 +1,31 @@
-use paperview_core::Document;
+mod render;
+
+use std::{env, ffi::OsString, process::ExitCode};
 
 fn main() {
-    let document = Document::from_source("# PaperView");
-    println!("PaperView TUI shell ready: {}", document.title());
+    match run(env::args_os().skip(1)) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    };
+}
+
+fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
+    let args = args.into_iter().collect::<Vec<_>>();
+
+    match args.as_slice() {
+        [] => {
+            println!("PaperView TUI shell ready. Pass a file path to render a document.");
+            Ok(())
+        }
+        [path] => {
+            let document =
+                paperview_core::Document::open(path).map_err(|error| error.to_string())?;
+            print!("{}", render::render_document(&document));
+            Ok(())
+        }
+        _ => Err("usage: paperview-tui [file]".to_owned()),
+    }
 }

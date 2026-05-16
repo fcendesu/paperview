@@ -1,6 +1,8 @@
 pub mod elements;
 
-use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{
+    CodeBlockKind, Event, HeadingLevel as CmarkHeadingLevel, Options, Parser, Tag, TagEnd,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedDocument {
@@ -37,6 +39,43 @@ pub enum Block {
         items: Vec<String>,
     },
     Rule,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeadingLevel {
+    H1,
+    H2,
+    H3,
+    H4,
+    H5,
+    H6,
+}
+
+impl HeadingLevel {
+    #[must_use]
+    pub fn as_depth(self) -> u8 {
+        match self {
+            Self::H1 => 1,
+            Self::H2 => 2,
+            Self::H3 => 3,
+            Self::H4 => 4,
+            Self::H5 => 5,
+            Self::H6 => 6,
+        }
+    }
+}
+
+impl From<CmarkHeadingLevel> for HeadingLevel {
+    fn from(level: CmarkHeadingLevel) -> Self {
+        match level {
+            CmarkHeadingLevel::H1 => Self::H1,
+            CmarkHeadingLevel::H2 => Self::H2,
+            CmarkHeadingLevel::H3 => Self::H3,
+            CmarkHeadingLevel::H4 => Self::H4,
+            CmarkHeadingLevel::H5 => Self::H5,
+            CmarkHeadingLevel::H6 => Self::H6,
+        }
+    }
 }
 
 #[must_use]
@@ -101,7 +140,7 @@ impl DocumentBuilder {
         match tag {
             Tag::Heading { level, .. } => {
                 self.open_block = Some(OpenBlock::Heading {
-                    level,
+                    level: level.into(),
                     text: String::new(),
                 });
             }
@@ -217,9 +256,7 @@ fn normalize_text(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use pulldown_cmark::HeadingLevel;
-
-    use super::{Block, parse_markdown};
+    use super::{Block, HeadingLevel, parse_markdown};
 
     #[test]
     fn parses_headings_and_paragraphs() {

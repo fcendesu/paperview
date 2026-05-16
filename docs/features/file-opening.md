@@ -15,11 +15,12 @@ Unsupported extensions are rejected before disk reads. Supported files are read 
 - Core file loading lives in `paperview-core::Document::open`.
 - `SupportedFileType` centralizes extension detection so GUI, TUI, drag-and-drop, and future CLI entrypoints can share the same allowlist.
 - File read errors preserve the source path and underlying `std::io::Error`.
-- GUI and TUI entrypoints are not wired to command-line file opening yet.
+- `paperview-tui [file]` loads one file and renders it as simple terminal text.
+- `paperview-gui [file]` loads one file and prints a GUI-shell preview summary until the real Iced app shell lands.
 
 ## Open Decisions
 
-- Binary/non-UTF-8 recovery behavior is deferred until real launch flows exist.
+- Binary/non-UTF-8 recovery behavior is deferred until richer launch flows exist.
 - Recent-file persistence belongs with the later history feature.
 
 ## Verification Expectations
