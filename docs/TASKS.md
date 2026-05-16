@@ -18,7 +18,7 @@ This document tracks the progress of features across the three workspace crates.
 | **File Opening (CLI/Open)** | ✅ | ✅ | ✅ |
 | **Basic Markdown Rendering** | ✅ | ✅ | ✅ |
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
-| **Live Reload (Watcher)** | ⬜ | ⬜ | ⬜ |
+| **Live Reload (Watcher)** | ✅ | ✅ | ⬜ |
 | **Tabbed Interface** | ⬜ | ⬜ | ⬜ |
 | **Split View (Side-by-Side)** | ⬜ | ⬜ | ⬜ |
 | **History Sidebar** | ✅ | ✅ | ✅ |
@@ -34,6 +34,7 @@ This document tracks the progress of features across the three workspace crates.
 ## MVP Notes
 
 - History Sidebar includes shared persistence, GUI click-to-open behavior, and the TUI recent-files dashboard.
+- Live Reload currently covers the core watcher and active GUI document; TUI integration is still open.
 
 ---
 

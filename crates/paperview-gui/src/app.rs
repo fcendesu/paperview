@@ -1,10 +1,11 @@
-use std::{ffi::OsString, path::PathBuf};
+use std::{ffi::OsString, path::PathBuf, sync::mpsc};
 
 use iced::{
-    Element, Fill,
+    Element, Fill, Subscription,
+    futures::{SinkExt, StreamExt, stream::BoxStream},
     widget::{column, container, row, text},
 };
-use paperview_core::{Document, History, HistoryStore};
+use paperview_core::{Document, History, HistoryStore, WatchEvent, watch_file};
 
 use crate::{history, navigation, reader, theme};
 
@@ -26,7 +27,12 @@ enum Status {
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenHistory(PathBuf),
+    FileChanged(PathBuf),
+    WatchFailed(String),
 }
+
+#[derive(Debug, Clone, Hash)]
+struct ActiveWatchPath(PathBuf);
 
 impl PaperView {
     #[must_use]
@@ -93,6 +99,10 @@ impl PaperView {
 pub fn update(state: &mut PaperView, message: Message) {
     match message {
         Message::OpenHistory(path) => state.open_path(path),
+        Message::FileChanged(path) => state.reload_path(path),
+        Message::WatchFailed(error) => {
+            state.status = Status::Error(error);
+        }
     }
 }
 
@@ -110,6 +120,67 @@ impl PaperView {
             }
         }
     }
+
+    fn reload_path(&mut self, path: PathBuf) {
+        if !self.is_active_path(&path) {
+            return;
+        }
+
+        match Document::open(&path) {
+            Ok(document) => {
+                self.history.record_document(&document);
+                save_history(&self.history_store, &self.history);
+                self.document = Some(document);
+                self.status = Status::Loaded(path);
+            }
+            Err(error) => {
+                self.status = Status::Error(error.to_string());
+            }
+        }
+    }
+
+    fn active_path(&self) -> Option<PathBuf> {
+        self.document
+            .as_ref()
+            .and_then(Document::path)
+            .map(PathBuf::from)
+    }
+
+    fn is_active_path(&self, path: &PathBuf) -> bool {
+        self.document.as_ref().and_then(Document::path) == Some(path)
+    }
+}
+
+pub fn subscription(state: &PaperView) -> Subscription<Message> {
+    state.active_path().map_or_else(Subscription::none, |path| {
+        Subscription::run_with(ActiveWatchPath(path), watch_active_document)
+    })
+}
+
+fn watch_active_document(path: &ActiveWatchPath) -> BoxStream<'static, Message> {
+    let path = path.0.clone();
+
+    iced::stream::channel(32, async move |mut output| {
+        let (sender, receiver) = mpsc::channel();
+        let _watcher = match watch_file(&path, sender) {
+            Ok(watcher) => watcher,
+            Err(error) => {
+                let _ = output.send(Message::WatchFailed(error.to_string())).await;
+                return;
+            }
+        };
+
+        while let Ok(event) = receiver.recv() {
+            match event {
+                WatchEvent::Changed(path) => {
+                    if output.send(Message::FileChanged(path)).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    })
+    .boxed()
 }
 
 fn load_history(store: &HistoryStore) -> History {
@@ -250,6 +321,7 @@ fn empty_state(status: &Status) -> Element<'_, Message> {
 mod tests {
     use std::{
         ffi::OsString,
+        fs,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -290,6 +362,26 @@ mod tests {
         );
     }
 
+    #[test]
+    fn file_changed_reloads_active_document() {
+        let path = temp_doc("live-reload.md", "# Before\n\nInitial body.");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("reload.toml"));
+
+        fs::write(&path, "# After\n\nUpdated body.").expect("rewrite test document");
+        update(&mut state, Message::FileChanged(path.clone()));
+
+        assert_eq!(
+            state.document.as_ref().map(|document| document.title()),
+            Some("After")
+        );
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
     fn temp_store(name: &str) -> HistoryStore {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -297,5 +389,17 @@ mod tests {
             .as_nanos();
 
         HistoryStore::new(std::env::temp_dir().join(format!("paperview-gui-{nanos}-{name}")))
+    }
+
+    fn temp_doc(name: &str, source: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("paperview-gui-{nanos}-{name}"));
+
+        fs::write(&path, source).expect("write test document");
+
+        path
     }
 }

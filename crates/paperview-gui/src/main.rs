@@ -11,6 +11,7 @@ fn main() -> iced::Result {
 
     iced::application(move || initial_state.clone(), app::update, app::view)
         .title(app::title)
+        .subscription(app::subscription)
         .theme(app::iced_theme)
         .style(app::style)
         .window_size(iced::Size::new(1120.0, 760.0))

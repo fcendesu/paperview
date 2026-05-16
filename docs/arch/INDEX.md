@@ -81,6 +81,8 @@ PaperView uses Iced `Subscription`s to handle non-blocking tasks:
 - **File Watcher (`notify`):** Runs in a separate thread. Sends a `FileChanged` message when the current file is saved in another editor (like NeoVim or VSCode).
 - **Keyboard Listener:** Captures global shortcuts (e.g., `Cmd+O`) even when the reader is focused.
 
+The first live-reload implementation keeps watcher ownership in `paperview-core` and exposes frontend-neutral `WatchEvent` values. The GUI adapts those events into Iced subscriptions for the active document path.
+
 ---
 
 ## 5. Performance Optimizations
