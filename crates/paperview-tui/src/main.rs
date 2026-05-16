@@ -1,7 +1,7 @@
 mod app;
 mod render;
 
-use std::{env, ffi::OsString, process::ExitCode};
+use std::{env, ffi::OsString, path::PathBuf, process::ExitCode};
 
 fn main() {
     match run(env::args_os().skip(1)) {
@@ -18,12 +18,12 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 
     match args.as_slice() {
         [] => {
-            println!("PaperView TUI shell ready. Pass a file path to render a document.");
+            app::run_dashboard().map_err(|error| error.to_string())?;
             Ok(())
         }
         [path] => {
-            let document =
-                paperview_core::Document::open(path).map_err(|error| error.to_string())?;
+            let document = paperview_core::Document::open(PathBuf::from(path))
+                .map_err(|error| error.to_string())?;
             app::run(document).map_err(|error| error.to_string())?;
             Ok(())
         }

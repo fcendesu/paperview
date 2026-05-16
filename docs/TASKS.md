@@ -21,7 +21,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Live Reload (Watcher)** | ⬜ | ⬜ | ⬜ |
 | **Tabbed Interface** | ⬜ | ⬜ | ⬜ |
 | **Split View (Side-by-Side)** | ⬜ | ⬜ | ⬜ |
-| **History Sidebar** | ✅ | ✅ | ⬜ |
+| **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
 | **Scroll Synchronization** | ⬜ | ⬜ | ⬜ |
 | **LaTeX Support** | ⬜ | ⬜ | ⬜ |

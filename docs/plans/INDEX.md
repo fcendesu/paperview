@@ -16,6 +16,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [History Sidebar Foundation](completed/history-sidebar-foundation.md) - shared recent-file model and first GUI history rail.
 - [History Persistence](completed/history-persistence.md) - TOML-backed recent-file storage loaded and saved by the GUI.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.
+- [TUI History Dashboard](completed/tui-history-dashboard.md) - no-file Ratatui recent-files dashboard with selection and open.
 
 Each plan should include:
 

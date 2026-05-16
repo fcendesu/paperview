@@ -16,7 +16,7 @@ The first shell supports:
   - `g` jumps to the top.
   - `G` jumps to the bottom.
 
-Launching without a file still prints a short prompt rather than opening a dashboard. The dashboard is deferred until recent-file navigation is interactive.
+Launching without a file opens a recent-files dashboard backed by persisted history.
 
 ## Implementation Notes
 
@@ -24,10 +24,10 @@ Launching without a file still prints a short prompt rather than opening a dashb
 - Plain text conversion helpers remain in `crates/paperview-tui/src/render.rs` for tests and widget input.
 - The TUI uses `ratatui` with the Crossterm backend and `crossterm` for keyboard events.
 - The app restores the terminal after the run loop exits.
+- The dashboard shares the same terminal setup and opens selected recent files into the reader shell.
 
 ## Open Decisions
 
-- TUI history dashboard is still open.
 - Mouse support is still open.
 - TOC selection and active-section synchronization are still open.
 - The current scroll limit is line-count based; future viewport-aware scroll state should account for wrapping.

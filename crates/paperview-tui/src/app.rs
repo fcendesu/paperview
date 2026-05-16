@@ -1,33 +1,40 @@
 use std::io;
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use paperview_core::Document;
+use paperview_core::{Document, FileEntry, History, HistoryStore};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 
 use crate::render;
 
 pub fn run(document: Document) -> io::Result<()> {
     let mut terminal = ratatui::try_init()?;
-    let result = TuiApp::new(document).run(&mut terminal);
+    let result = ReaderApp::new(document).run(&mut terminal);
+    ratatui::restore();
+    result
+}
+
+pub fn run_dashboard() -> io::Result<()> {
+    let mut terminal = ratatui::try_init()?;
+    let result = DashboardApp::new(HistoryStore::default()).run(&mut terminal);
     ratatui::restore();
     result
 }
 
 #[derive(Debug)]
-struct TuiApp {
+struct ReaderApp {
     document: Document,
     document_lines: Vec<String>,
     toc_lines: Vec<String>,
     scroll: u16,
 }
 
-impl TuiApp {
+impl ReaderApp {
     fn new(document: Document) -> Self {
         let document_lines = render::render_document_lines(&document);
         let toc_lines = render::render_toc_lines(&document.parsed().toc());
@@ -108,6 +115,177 @@ impl TuiApp {
     }
 }
 
+#[derive(Debug)]
+struct DashboardApp {
+    history: History,
+    store: HistoryStore,
+    list_state: ListState,
+    status: Option<String>,
+}
+
+impl DashboardApp {
+    fn new(store: HistoryStore) -> Self {
+        let history = store.load().unwrap_or_else(|error| {
+            eprintln!("{error}");
+            History::new()
+        });
+        let mut list_state = ListState::default();
+
+        if !history.is_empty() {
+            list_state.select(Some(0));
+        }
+
+        Self {
+            history,
+            store,
+            list_state,
+            status: None,
+        }
+    }
+
+    fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        loop {
+            terminal.draw(|frame| self.draw(frame))?;
+
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                    KeyCode::Char('j') | KeyCode::Down => self.select_next(),
+                    KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
+                    KeyCode::Enter => {
+                        if let Some(document) = self.open_selected() {
+                            ReaderApp::new(document).run(terminal)?;
+                            self.history = self.store.load().unwrap_or_else(|error| {
+                                eprintln!("{error}");
+                                History::new()
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        let [header, body, footer] = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(2),
+        ])
+        .areas(frame.area());
+
+        frame.render_widget(
+            Paragraph::new(" PaperView - Recent files ")
+                .style(Style::default().fg(Color::White).bg(Color::Black))
+                .block(Block::default().borders(Borders::BOTTOM)),
+            header,
+        );
+
+        if self.history.is_empty() {
+            frame.render_widget(
+                Paragraph::new("No recent files yet.\n\nOpen a file with paperview-tui <file>.")
+                    .block(Block::default().title("History").borders(Borders::ALL))
+                    .style(Style::default().fg(Color::Gray))
+                    .wrap(Wrap { trim: true }),
+                body,
+            );
+        } else {
+            let items = self
+                .history
+                .entries()
+                .iter()
+                .map(history_item)
+                .collect::<Vec<_>>();
+            let list = List::new(items)
+                .block(Block::default().title("History").borders(Borders::ALL))
+                .highlight_symbol("> ")
+                .highlight_style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                );
+
+            frame.render_stateful_widget(list, body, &mut self.list_state);
+        }
+
+        let status = self
+            .status
+            .as_deref()
+            .unwrap_or("Enter opens selected file - j/k move - q quits");
+        frame.render_widget(
+            Paragraph::new(status).style(Style::default().fg(Color::DarkGray)),
+            footer,
+        );
+    }
+
+    fn select_next(&mut self) {
+        let len = self.history.entries().len();
+        if len == 0 {
+            return;
+        }
+
+        let next = self
+            .list_state
+            .selected()
+            .map_or(0, |index| (index + 1).min(len - 1));
+        self.list_state.select(Some(next));
+    }
+
+    fn select_previous(&mut self) {
+        let len = self.history.entries().len();
+        if len == 0 {
+            return;
+        }
+
+        let previous = self
+            .list_state
+            .selected()
+            .map_or(0, |index| index.saturating_sub(1));
+        self.list_state.select(Some(previous));
+    }
+
+    fn open_selected(&mut self) -> Option<Document> {
+        let index = self.list_state.selected()?;
+        let entry = self.history.entries().get(index)?;
+        let path = entry.path().to_path_buf();
+
+        match Document::open(&path) {
+            Ok(document) => {
+                self.record_opened_document(&document);
+                self.status = None;
+                Some(document)
+            }
+            Err(error) => {
+                self.status = Some(error.to_string());
+                None
+            }
+        }
+    }
+
+    fn record_opened_document(&mut self, document: &Document) {
+        self.history.record_document(document);
+        if let Err(error) = self.store.save(&self.history) {
+            self.status = Some(error.to_string());
+        }
+    }
+}
+
+fn history_item(entry: &FileEntry) -> ListItem<'static> {
+    ListItem::new(vec![
+        Line::from(Span::styled(
+            entry.title().to_owned(),
+            Style::default().fg(Color::White),
+        )),
+        Line::from(Span::styled(
+            entry.path().display().to_string(),
+            Style::default().fg(Color::DarkGray),
+        )),
+    ])
+}
+
 fn document_text(lines: &[String]) -> Vec<Line<'static>> {
     lines.iter().map(|line| document_line(line)).collect()
 }
@@ -140,13 +318,13 @@ fn toc_text(lines: &[String]) -> Vec<Line<'static>> {
 
 #[cfg(test)]
 mod tests {
-    use paperview_core::Document;
+    use paperview_core::{Document, FileEntry, HistoryStore};
 
-    use super::TuiApp;
+    use super::{DashboardApp, ReaderApp};
 
     #[test]
     fn scrolling_is_saturating() {
-        let mut app = TuiApp::new(Document::from_source("# Title\n\nBody"));
+        let mut app = ReaderApp::new(Document::from_source("# Title\n\nBody"));
 
         app.scroll_up();
         assert_eq!(app.scroll, 0);
@@ -155,5 +333,20 @@ mod tests {
         let bottom = app.scroll;
         app.scroll_down();
         assert_eq!(app.scroll, bottom);
+    }
+
+    #[test]
+    fn dashboard_selection_is_bounded() {
+        let mut app = DashboardApp::new(HistoryStore::new("missing-history.toml"));
+        app.history.record(FileEntry::new("one.md", "One"));
+        app.history.record(FileEntry::new("two.md", "Two"));
+        app.list_state.select(Some(0));
+
+        app.select_previous();
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        app.select_next();
+        app.select_next();
+        assert_eq!(app.list_state.selected(), Some(1));
     }
 }
