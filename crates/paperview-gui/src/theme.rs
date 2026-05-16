@@ -103,16 +103,31 @@ pub fn history_item_button(status: button::Status) -> button::Style {
     }
 }
 
-pub fn active_tab_container() -> container::Style {
-    container::Style {
-        background: Some(Background::Color(READER_BACKGROUND)),
-        text_color: Some(READER_TEXT),
+pub fn tab_button(is_active: bool, status: button::Status) -> button::Style {
+    let background = if is_active {
+        READER_BACKGROUND
+    } else {
+        match status {
+            button::Status::Hovered | button::Status::Pressed => SHELL_ACTIVE_SURFACE,
+            button::Status::Active | button::Status::Disabled => SHELL_BACKGROUND,
+        }
+    };
+    let text_color = if is_active {
+        READER_TEXT
+    } else {
+        SHELL_TEXT_MUTED
+    };
+    let border_color = if is_active { SHELL_ACCENT } else { background };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color,
         border: Border {
-            color: SHELL_ACCENT,
+            color: border_color,
             width: 1.0,
             radius: border::radius(6),
         },
-        ..container::Style::default()
+        ..button::Style::default()
     }
 }
 

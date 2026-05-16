@@ -5,16 +5,16 @@ use iced::{
     event::{self, Status as EventStatus},
     futures::{SinkExt, StreamExt, stream::BoxStream},
     keyboard,
-    widget::{column, container, row, text},
+    widget::{button, column, container, row, text},
     window,
 };
-use paperview_core::{Document, History, HistoryStore, WatchEvent, watch_file};
+use paperview_core::{Document, History, HistoryStore, OpenDocuments, WatchEvent, watch_file};
 
 use crate::{history, navigation, reader, theme};
 
 #[derive(Debug, Clone)]
 pub struct PaperView {
-    document: Option<Document>,
+    documents: OpenDocuments,
     history: History,
     history_store: HistoryStore,
     status: Status,
@@ -39,6 +39,7 @@ pub enum Message {
     FilesHoveredLeft,
     FileDropped(PathBuf),
     ToggleZen,
+    SelectTab(usize),
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -62,7 +63,7 @@ impl PaperView {
                 let history = load_history(&history_store);
 
                 Self {
-                    document: None,
+                    documents: OpenDocuments::new(),
                     history,
                     history_store,
                     status: Status::Empty,
@@ -80,7 +81,7 @@ impl PaperView {
                         save_history(&history_store, &history);
 
                         Self {
-                            document: Some(document),
+                            documents: OpenDocuments::from_document(document),
                             history,
                             history_store,
                             status: Status::Loaded(path),
@@ -89,7 +90,7 @@ impl PaperView {
                         }
                     }
                     Err(error) => Self {
-                        document: None,
+                        documents: OpenDocuments::new(),
                         history,
                         history_store,
                         status: Status::Error(error.to_string()),
@@ -102,7 +103,7 @@ impl PaperView {
                 let history = load_history(&history_store);
 
                 Self {
-                    document: None,
+                    documents: OpenDocuments::new(),
                     history,
                     history_store,
                     status: Status::Error("usage: paperview-gui [file]".to_owned()),
@@ -138,6 +139,7 @@ pub fn update(state: &mut PaperView, message: Message) {
         Message::ToggleZen => {
             state.is_zen = !state.is_zen;
         }
+        Message::SelectTab(index) => state.select_tab(index),
     }
 }
 
@@ -147,7 +149,7 @@ impl PaperView {
             Ok(document) => {
                 self.history.record_document(&document);
                 save_history(&self.history_store, &self.history);
-                self.document = Some(document);
+                self.documents.open_or_activate(document);
                 self.status = Status::Loaded(path);
             }
             Err(error) => {
@@ -165,7 +167,7 @@ impl PaperView {
             Ok(document) => {
                 self.history.record_document(&document);
                 save_history(&self.history_store, &self.history);
-                self.document = Some(document);
+                self.documents.replace_active(document);
                 self.status = Status::Loaded(path);
             }
             Err(error) => {
@@ -175,14 +177,19 @@ impl PaperView {
     }
 
     fn active_path(&self) -> Option<PathBuf> {
-        self.document
-            .as_ref()
+        self.documents
+            .active()
             .and_then(Document::path)
             .map(PathBuf::from)
     }
 
     fn is_active_path(&self, path: &PathBuf) -> bool {
-        self.document.as_ref().and_then(Document::path) == Some(path)
+        self.documents.active().and_then(Document::path) == Some(path)
+    }
+
+    fn select_tab(&mut self, index: usize) {
+        self.documents.select(index);
+        self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
     }
 }
 
@@ -258,7 +265,7 @@ fn save_history(store: &HistoryStore, history: &History) {
 }
 
 pub fn title(state: &PaperView) -> String {
-    state.document.as_ref().map_or_else(
+    state.documents.active().map_or_else(
         || "PaperView".to_owned(),
         |document| format!("{} - PaperView", document.title()),
     )
@@ -274,7 +281,7 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 
 pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
-    let body = match &state.document {
+    let body = match state.documents.active() {
         Some(document) if state.is_zen => reader::view(document),
         Some(document) => row![
             history::view(&state.history),
@@ -325,30 +332,47 @@ fn header(state: &PaperView) -> Element<'_, Message> {
 }
 
 fn tab_bar(state: &PaperView) -> Element<'_, Message> {
-    let content = match &state.document {
-        Some(document) => {
+    let mut tabs = row![].height(48).spacing(8);
+
+    if state.documents.is_empty() {
+        tabs = tabs.push(
+            container(text("No file").size(13).color(theme::SHELL_TEXT_MUTED))
+                .padding([8, 14])
+                .width(160)
+                .style(|_| theme::inactive_tab_container()),
+        );
+    } else {
+        for (index, document) in state.documents.iter() {
             let path = document
                 .path()
                 .map_or_else(|| "<memory>".to_owned(), |path| path.display().to_string());
+            let is_active = state.documents.active_index() == Some(index);
 
-            container(
+            let tab = button(
                 column![
-                    text(document.title()).size(14).color(theme::READER_TEXT),
-                    text(path).size(11).color(theme::READER_TEXT_MUTED)
+                    text(document.title()).size(14).color(if is_active {
+                        theme::READER_TEXT
+                    } else {
+                        theme::SHELL_TEXT
+                    }),
+                    text(path).size(11).color(if is_active {
+                        theme::READER_TEXT_MUTED
+                    } else {
+                        theme::SHELL_TEXT_MUTED
+                    })
                 ]
                 .spacing(2),
             )
             .padding([8, 14])
             .width(360)
-            .style(|_| theme::active_tab_container())
-        }
-        None => container(text("No file").size(13).color(theme::SHELL_TEXT_MUTED))
-            .padding([8, 14])
-            .width(160)
-            .style(|_| theme::inactive_tab_container()),
-    };
+            .style(move |_, status| theme::tab_button(is_active, status))
+            .on_press(Message::SelectTab(index));
 
-    container(row![content].height(48))
+            tabs = tabs.push(tab);
+        }
+    }
+
+    container(tabs)
         .padding([8, 18])
         .width(Fill)
         .style(|_| theme::tab_bar_container())
@@ -403,7 +427,7 @@ mod tests {
             key::{Code, Physical},
         },
     };
-    use paperview_core::HistoryStore;
+    use paperview_core::{Document, HistoryStore};
 
     use super::{Message, PaperView, runtime_event, title, update};
 
@@ -432,7 +456,7 @@ mod tests {
         update(&mut state, Message::OpenHistory(path.clone()));
 
         assert_eq!(
-            state.document.as_ref().map(|document| document.title()),
+            state.documents.active().map(Document::title),
             Some("PaperView — Product Requirements Document (PRD)")
         );
         assert!(
@@ -449,10 +473,7 @@ mod tests {
         fs::write(&path, "# After\n\nUpdated body.").expect("rewrite test document");
         update(&mut state, Message::FileChanged(path.clone()));
 
-        assert_eq!(
-            state.document.as_ref().map(|document| document.title()),
-            Some("After")
-        );
+        assert_eq!(state.documents.active().map(Document::title), Some("After"));
         assert!(
             matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
         );
@@ -468,7 +489,7 @@ mod tests {
         update(&mut state, Message::FileDropped(path.clone()));
 
         assert_eq!(
-            state.document.as_ref().map(|document| document.title()),
+            state.documents.active().map(Document::title),
             Some("Dropped")
         );
         assert!(!state.is_drag_hovered);
@@ -477,6 +498,46 @@ mod tests {
         );
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn opening_second_file_adds_active_tab() {
+        let first = temp_doc("first-tab.md", "# First\n\nOne.");
+        let second = temp_doc("second-tab.md", "# Second\n\nTwo.");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&first)], temp_store("tabs.toml"));
+
+        update(&mut state, Message::FileDropped(second.clone()));
+
+        assert_eq!(state.documents.len(), 2);
+        assert_eq!(state.documents.active_index(), Some(1));
+        assert_eq!(
+            state.documents.active().map(Document::title),
+            Some("Second")
+        );
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn selecting_tab_changes_active_document() {
+        let first = temp_doc("select-first.md", "# First\n\nOne.");
+        let second = temp_doc("select-second.md", "# Second\n\nTwo.");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&first)], temp_store("select.toml"));
+        update(&mut state, Message::FileDropped(second.clone()));
+
+        update(&mut state, Message::SelectTab(0));
+
+        assert_eq!(state.documents.active_index(), Some(0));
+        assert_eq!(state.documents.active().map(Document::title), Some("First"));
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &first)
+        );
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
     }
 
     #[test]

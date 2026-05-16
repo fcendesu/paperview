@@ -29,7 +29,7 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
     - **Styling:** Dark background (`#111318`) with individual tabs.
     - **Active Tab:** Matches the Reader's cream background (`#FDF8EF`) or has a blue bottom border.
     - **Inactive Tab:** Dimmed text, matching the sidebar background.
-    - **Close Button:** Visible on hover for each tab.
+    - **Close Button:** Deferred; the current GUI tab foundation supports activation only.
 - **Split View Button:** Toggle in the header to split the current view.
 
 ### 2.2 Left Sidebar: "History"

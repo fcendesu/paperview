@@ -19,7 +19,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Basic Markdown Rendering** | ✅ | ✅ | ✅ |
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
 | **Live Reload (Watcher)** | ✅ | ✅ | ✅ |
-| **Tabbed Interface** | ⬜ | ⬜ | ⬜ |
+| **Tabbed Interface** | ✅ | ✅ | ⬜ |
 | **Split View (Side-by-Side)** | ⬜ | ⬜ | ⬜ |
 | **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
@@ -37,6 +37,7 @@ This document tracks the progress of features across the three workspace crates.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
 - Drag & Drop currently covers native GUI file drops; multi-file behavior waits for tabs.
 - Zen Mode currently covers the GUI focused reader layout; TUI and persisted preferences are deferred.
+- Tabbed Interface currently covers shared open-document state and GUI tab activation; close/reorder/TUI tabs are deferred.
 
 ---
 
