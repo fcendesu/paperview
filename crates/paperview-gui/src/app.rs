@@ -4,13 +4,14 @@ use iced::{
     Element, Fill, Never,
     widget::{column, container, row, text},
 };
-use paperview_core::Document;
+use paperview_core::{Document, History};
 
-use crate::{navigation, reader, theme};
+use crate::{history, navigation, reader, theme};
 
 #[derive(Debug, Clone)]
 pub struct PaperView {
     document: Option<Document>,
+    history: History,
     status: Status,
 }
 
@@ -29,24 +30,33 @@ impl PaperView {
         match args.as_slice() {
             [] => Self {
                 document: None,
+                history: History::new(),
                 status: Status::Empty,
             },
             [path] => {
                 let path = PathBuf::from(path);
 
                 match Document::open(&path) {
-                    Ok(document) => Self {
-                        document: Some(document),
-                        status: Status::Loaded(path),
-                    },
+                    Ok(document) => {
+                        let mut history = History::new();
+                        history.record_document(&document);
+
+                        Self {
+                            document: Some(document),
+                            history,
+                            status: Status::Loaded(path),
+                        }
+                    }
                     Err(error) => Self {
                         document: None,
+                        history: History::new(),
                         status: Status::Error(error.to_string()),
                     },
                 }
             }
             _ => Self {
                 document: None,
+                history: History::new(),
                 status: Status::Error("usage: paperview-gui [file]".to_owned()),
             },
         }
@@ -72,7 +82,12 @@ pub fn view(state: &PaperView) -> Element<'_, Never> {
     let header = header(state);
     let tab_bar = tab_bar(state);
     let body = match &state.document {
-        Some(document) => row![reader::view(document), navigation::view(document.parsed())].into(),
+        Some(document) => row![
+            history::view(&state.history),
+            reader::view(document),
+            navigation::view(document.parsed())
+        ]
+        .into(),
         None => empty_state(&state.status),
     };
 

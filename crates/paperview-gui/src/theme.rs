@@ -56,6 +56,32 @@ pub fn navigation_container() -> container::Style {
     }
 }
 
+pub fn history_container() -> container::Style {
+    container::Style {
+        background: Some(Background::Color(SHELL_SURFACE)),
+        text_color: Some(SHELL_TEXT),
+        border: Border {
+            color: SHELL_BACKGROUND,
+            width: 1.0,
+            radius: border::radius(0),
+        },
+        ..container::Style::default()
+    }
+}
+
+pub fn active_history_item_container() -> container::Style {
+    container::Style {
+        background: Some(Background::Color(SHELL_ACTIVE_SURFACE)),
+        text_color: Some(SHELL_TEXT),
+        border: Border {
+            color: SHELL_ACCENT,
+            width: 1.0,
+            radius: border::radius(6),
+        },
+        ..container::Style::default()
+    }
+}
+
 pub fn active_tab_container() -> container::Style {
     container::Style {
         background: Some(Background::Color(READER_BACKGROUND)),

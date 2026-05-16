@@ -1,4 +1,5 @@
 mod app;
+mod history;
 mod navigation;
 mod reader;
 mod theme;

@@ -13,6 +13,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 ## Completed Plans
 
 - [GUI Iced Shell](completed/gui-iced-shell.md) - first native GUI window with optional file loading and simple reader widgets.
+- [History Sidebar Foundation](completed/history-sidebar-foundation.md) - shared recent-file model and first GUI history rail.
 
 Each plan should include:
 
