@@ -1,5 +1,7 @@
 pub mod elements;
 
+use std::collections::HashMap;
+
 use pulldown_cmark::{
     CodeBlockKind, Event, HeadingLevel as CmarkHeadingLevel, Options, Parser, Tag, TagEnd,
 };
@@ -20,6 +22,45 @@ impl ParsedDocument {
             _ => None,
         })
     }
+
+    #[must_use]
+    pub fn toc(&self) -> Vec<TocItem> {
+        let mut seen_slugs = HashMap::<String, usize>::new();
+
+        self.blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(block_index, block)| match block {
+                Block::Heading { level, text } => {
+                    let base_slug = slugify(text);
+                    let count = seen_slugs.entry(base_slug.clone()).or_insert(0);
+                    *count += 1;
+
+                    let slug = if *count == 1 {
+                        base_slug
+                    } else {
+                        format!("{base_slug}-{count}")
+                    };
+
+                    Some(TocItem {
+                        level: *level,
+                        title: text.clone(),
+                        slug,
+                        block_index,
+                    })
+                }
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TocItem {
+    pub level: HeadingLevel,
+    pub title: String,
+    pub slug: String,
+    pub block_index: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -254,9 +295,34 @@ fn normalize_text(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+fn slugify(text: &str) -> String {
+    let mut slug = String::new();
+    let mut previous_was_separator = false;
+
+    for character in text.chars().flat_map(char::to_lowercase) {
+        if character.is_ascii_alphanumeric() {
+            slug.push(character);
+            previous_was_separator = false;
+        } else if !previous_was_separator && !slug.is_empty() {
+            slug.push('-');
+            previous_was_separator = true;
+        }
+    }
+
+    if slug.ends_with('-') {
+        slug.pop();
+    }
+
+    if slug.is_empty() {
+        "section".to_owned()
+    } else {
+        slug
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Block, HeadingLevel, parse_markdown};
+    use super::{Block, HeadingLevel, TocItem, parse_markdown};
 
     #[test]
     fn parses_headings_and_paragraphs() {
@@ -300,6 +366,35 @@ mod tests {
                     code: "fn main() {}\n".to_owned()
                 },
                 Block::Rule
+            ]
+        );
+    }
+
+    #[test]
+    fn derives_toc_from_heading_blocks() {
+        let parsed = parse_markdown("# Intro\n\nText.\n\n## Details\n\n### Details!");
+
+        assert_eq!(
+            parsed.toc(),
+            vec![
+                TocItem {
+                    level: HeadingLevel::H1,
+                    title: "Intro".to_owned(),
+                    slug: "intro".to_owned(),
+                    block_index: 0
+                },
+                TocItem {
+                    level: HeadingLevel::H2,
+                    title: "Details".to_owned(),
+                    slug: "details".to_owned(),
+                    block_index: 2
+                },
+                TocItem {
+                    level: HeadingLevel::H3,
+                    title: "Details!".to_owned(),
+                    slug: "details-2".to_owned(),
+                    block_index: 3
+                }
             ]
         );
     }

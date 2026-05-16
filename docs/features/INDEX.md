@@ -8,6 +8,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [File Opening](file-opening.md) - supported document formats and core file loading behavior.
 - [Basic Markdown Rendering](basic-markdown-rendering.md) - initial shared Markdown parse model for frontend renderers.
 - [Hybrid Theme](hybrid-theme.md) - dark shell, cream reader surface, and GUI visual token contract.
+- [Table of Contents](table-of-contents.md) - heading-derived navigation metadata and GUI sidebar.
 
 Each feature spec should include:
 

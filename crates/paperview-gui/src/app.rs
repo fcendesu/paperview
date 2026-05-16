@@ -6,7 +6,7 @@ use iced::{
 };
 use paperview_core::Document;
 
-use crate::{reader, theme};
+use crate::{navigation, reader, theme};
 
 #[derive(Debug, Clone)]
 pub struct PaperView {
@@ -72,7 +72,7 @@ pub fn view(state: &PaperView) -> Element<'_, Never> {
     let header = header(state);
     let tab_bar = tab_bar(state);
     let body = match &state.document {
-        Some(document) => reader::view(document),
+        Some(document) => row![reader::view(document), navigation::view(document.parsed())].into(),
         None => empty_state(&state.status),
     };
 
