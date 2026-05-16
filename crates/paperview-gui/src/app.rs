@@ -1,7 +1,7 @@
 use std::{ffi::OsString, path::PathBuf};
 
 use iced::{
-    Element, Fill, Never,
+    Element, Fill,
     widget::{column, container, row, text},
 };
 use paperview_core::{Document, History, HistoryStore};
@@ -21,6 +21,11 @@ enum Status {
     Empty,
     Loaded(PathBuf),
     Error(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    OpenHistory(PathBuf),
 }
 
 impl PaperView {
@@ -85,6 +90,28 @@ impl PaperView {
     }
 }
 
+pub fn update(state: &mut PaperView, message: Message) {
+    match message {
+        Message::OpenHistory(path) => state.open_path(path),
+    }
+}
+
+impl PaperView {
+    fn open_path(&mut self, path: PathBuf) {
+        match Document::open(&path) {
+            Ok(document) => {
+                self.history.record_document(&document);
+                save_history(&self.history_store, &self.history);
+                self.document = Some(document);
+                self.status = Status::Loaded(path);
+            }
+            Err(error) => {
+                self.status = Status::Error(error.to_string());
+            }
+        }
+    }
+}
+
 fn load_history(store: &HistoryStore) -> History {
     store.load().unwrap_or_else(|error| {
         eprintln!("{error}");
@@ -113,7 +140,7 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
     theme::application_style()
 }
 
-pub fn view(state: &PaperView) -> Element<'_, Never> {
+pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let tab_bar = tab_bar(state);
     let body = match &state.document {
@@ -133,7 +160,7 @@ pub fn view(state: &PaperView) -> Element<'_, Never> {
         .into()
 }
 
-fn header(state: &PaperView) -> Element<'_, Never> {
+fn header(state: &PaperView) -> Element<'_, Message> {
     let subtitle = match &state.status {
         Status::Empty => format!(
             "No document open - {}",
@@ -159,7 +186,7 @@ fn header(state: &PaperView) -> Element<'_, Never> {
     .into()
 }
 
-fn tab_bar(state: &PaperView) -> Element<'_, Never> {
+fn tab_bar(state: &PaperView) -> Element<'_, Message> {
     let content = match &state.document {
         Some(document) => {
             let path = document
@@ -190,7 +217,7 @@ fn tab_bar(state: &PaperView) -> Element<'_, Never> {
         .into()
 }
 
-fn empty_state(status: &Status) -> Element<'_, Never> {
+fn empty_state(status: &Status) -> Element<'_, Message> {
     let (title, detail) = match status {
         Status::Empty => (
             "Open a Markdown file",
@@ -228,7 +255,7 @@ mod tests {
 
     use paperview_core::HistoryStore;
 
-    use super::{PaperView, title};
+    use super::{Message, PaperView, title, update};
 
     #[test]
     fn empty_window_title_is_app_name() {
@@ -245,6 +272,22 @@ mod tests {
         );
 
         assert_eq!(title(&state), "PaperView");
+    }
+
+    #[test]
+    fn opening_history_path_updates_loaded_document() {
+        let mut state = PaperView::from_args_with_store([], temp_store("open-history.toml"));
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/PRD.md");
+
+        update(&mut state, Message::OpenHistory(path.clone()));
+
+        assert_eq!(
+            state.document.as_ref().map(|document| document.title()),
+            Some("PaperView — Product Requirements Document (PRD)")
+        );
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
+        );
     }
 
     fn temp_store(name: &str) -> HistoryStore {

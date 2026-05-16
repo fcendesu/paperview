@@ -1,5 +1,5 @@
 use iced::{
-    Element, Fill, Never,
+    Element, Fill,
     widget::{Column, column, container, rule, scrollable, text},
 };
 use paperview_core::{
@@ -9,7 +9,7 @@ use paperview_core::{
 
 use crate::theme;
 
-pub fn view(document: &Document) -> Element<'_, Never> {
+pub fn view<Message: 'static>(document: &Document) -> Element<'_, Message> {
     let mut content = column![].spacing(18).width(Fill);
 
     for block in &document.parsed().blocks {
@@ -30,7 +30,7 @@ pub fn view(document: &Document) -> Element<'_, Never> {
     .into()
 }
 
-fn block_view(block: &Block) -> Element<'_, Never> {
+fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
     match block {
         Block::Heading { level, text } => heading(*level, text),
         Block::Paragraph(text) => paragraph(text),
@@ -41,7 +41,7 @@ fn block_view(block: &Block) -> Element<'_, Never> {
     }
 }
 
-fn heading(level: HeadingLevel, value: &str) -> Element<'_, Never> {
+fn heading<Message: 'static>(level: HeadingLevel, value: &str) -> Element<'_, Message> {
     let size = match level {
         HeadingLevel::H1 => 32,
         HeadingLevel::H2 => 24,
@@ -52,11 +52,11 @@ fn heading(level: HeadingLevel, value: &str) -> Element<'_, Never> {
     text(value).size(size).color(theme::READER_TEXT).into()
 }
 
-fn paragraph(value: &str) -> Element<'_, Never> {
+fn paragraph<Message: 'static>(value: &str) -> Element<'_, Message> {
     text(value).size(16).color(theme::READER_TEXT).into()
 }
 
-fn blockquote(value: &str) -> Element<'_, Never> {
+fn blockquote<Message: 'static>(value: &str) -> Element<'_, Message> {
     container(text(value).size(16).color(theme::READER_TEXT_MUTED))
         .padding([8, 14])
         .width(Fill)
@@ -64,7 +64,10 @@ fn blockquote(value: &str) -> Element<'_, Never> {
         .into()
 }
 
-fn code_block<'a>(language: Option<&'a str>, code: &'a str) -> Element<'a, Never> {
+fn code_block<'a, Message: 'static>(
+    language: Option<&'a str>,
+    code: &'a str,
+) -> Element<'a, Message> {
     let label = language.unwrap_or("plain");
 
     container(
@@ -80,7 +83,7 @@ fn code_block<'a>(language: Option<&'a str>, code: &'a str) -> Element<'a, Never
     .into()
 }
 
-fn list(ordered: bool, items: &[String]) -> Element<'_, Never> {
+fn list<Message: 'static>(ordered: bool, items: &[String]) -> Element<'_, Message> {
     let mut list = Column::new().spacing(8);
 
     for (index, item) in items.iter().enumerate() {

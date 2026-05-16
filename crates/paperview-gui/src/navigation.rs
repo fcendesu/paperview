@@ -1,12 +1,12 @@
 use iced::{
-    Element, Fill, Never, Padding,
+    Element, Fill, Padding,
     widget::{Column, column, container, scrollable, text},
 };
 use paperview_core::parser::{ParsedDocument, TocItem};
 
 use crate::theme;
 
-pub fn view(document: &ParsedDocument) -> Element<'_, Never> {
+pub fn view<Message: 'static>(document: &ParsedDocument) -> Element<'_, Message> {
     container(scrollable(toc_content(document.toc())))
         .width(280)
         .height(Fill)
@@ -15,7 +15,7 @@ pub fn view(document: &ParsedDocument) -> Element<'_, Never> {
         .into()
 }
 
-fn toc_content(toc: Vec<TocItem>) -> Column<'static, Never> {
+fn toc_content<Message: 'static>(toc: Vec<TocItem>) -> Column<'static, Message> {
     let mut content = column![text("On this page").size(14).color(theme::SHELL_TEXT)].spacing(10);
 
     if toc.is_empty() {
@@ -29,7 +29,7 @@ fn toc_content(toc: Vec<TocItem>) -> Column<'static, Never> {
     content
 }
 
-fn toc_item(item: TocItem) -> Element<'static, Never> {
+fn toc_item<Message: 'static>(item: TocItem) -> Element<'static, Message> {
     let indent = f32::from(item.level.as_depth().saturating_sub(1)) * 12.0;
 
     container(

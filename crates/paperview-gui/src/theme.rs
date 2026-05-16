@@ -1,4 +1,7 @@
-use iced::{Background, Border, Color, Shadow, Vector, border, widget::container};
+use iced::{
+    Background, Border, Color, Shadow, Vector, border,
+    widget::{button, container},
+};
 
 pub const SHELL_BACKGROUND: Color = Color::from_rgb(0.067, 0.075, 0.094);
 pub const SHELL_SURFACE: Color = Color::from_rgb(0.086, 0.102, 0.133);
@@ -69,16 +72,21 @@ pub fn history_container() -> container::Style {
     }
 }
 
-pub fn active_history_item_container() -> container::Style {
-    container::Style {
-        background: Some(Background::Color(SHELL_ACTIVE_SURFACE)),
-        text_color: Some(SHELL_TEXT),
+pub fn history_item_button(status: button::Status) -> button::Style {
+    let background = match status {
+        button::Status::Hovered | button::Status::Pressed => SHELL_ACCENT,
+        button::Status::Active | button::Status::Disabled => SHELL_ACTIVE_SURFACE,
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color: SHELL_TEXT,
         border: Border {
-            color: SHELL_ACCENT,
+            color: background,
             width: 1.0,
             radius: border::radius(6),
         },
-        ..container::Style::default()
+        ..button::Style::default()
     }
 }
 

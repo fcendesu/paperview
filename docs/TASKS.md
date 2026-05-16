@@ -31,6 +31,12 @@ This document tracks the progress of features across the three workspace crates.
 
 ---
 
+## MVP Notes
+
+- History Sidebar includes shared persistence, GUI click-to-open behavior, and the TUI recent-files dashboard.
+
+---
+
 ## CLI Toolkit (Headless)
 
 | Command | Status | Notes |

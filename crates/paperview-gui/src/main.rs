@@ -9,7 +9,7 @@ use std::env;
 fn main() -> iced::Result {
     let initial_state = app::PaperView::from_args(env::args_os().skip(1));
 
-    iced::application(move || initial_state.clone(), (), app::view)
+    iced::application(move || initial_state.clone(), app::update, app::view)
         .title(app::title)
         .theme(app::iced_theme)
         .style(app::style)

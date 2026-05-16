@@ -1,12 +1,12 @@
 use iced::{
-    Element, Fill, Never,
-    widget::{Column, column, container, scrollable, text},
+    Element, Fill,
+    widget::{Column, button, column, container, scrollable, text},
 };
 use paperview_core::{FileEntry, History};
 
-use crate::theme;
+use crate::{app::Message, theme};
 
-pub fn view(history: &History) -> Element<'_, Never> {
+pub fn view(history: &History) -> Element<'_, Message> {
     container(scrollable(content(history)))
         .width(280)
         .height(Fill)
@@ -15,7 +15,7 @@ pub fn view(history: &History) -> Element<'_, Never> {
         .into()
 }
 
-fn content(history: &History) -> Column<'_, Never> {
+fn content(history: &History) -> Column<'_, Message> {
     let mut content = column![text("History").size(14).color(theme::SHELL_TEXT)].spacing(12);
 
     if history.is_empty() {
@@ -33,8 +33,8 @@ fn content(history: &History) -> Column<'_, Never> {
     content
 }
 
-fn history_item(entry: &FileEntry) -> Element<'_, Never> {
-    container(
+fn history_item(entry: &FileEntry) -> Element<'_, Message> {
+    button(
         column![
             text(entry.title()).size(13).color(theme::SHELL_TEXT),
             text(entry.path().display().to_string())
@@ -45,6 +45,7 @@ fn history_item(entry: &FileEntry) -> Element<'_, Never> {
     )
     .padding([9, 10])
     .width(Fill)
-    .style(|_| theme::active_history_item_container())
+    .style(|_, status| theme::history_item_button(status))
+    .on_press(Message::OpenHistory(entry.path().to_path_buf()))
     .into()
 }
