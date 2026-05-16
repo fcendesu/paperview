@@ -70,12 +70,13 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 
 pub fn view(state: &PaperView) -> Element<'_, Never> {
     let header = header(state);
+    let tab_bar = tab_bar(state);
     let body = match &state.document {
         Some(document) => reader::view(document),
         None => empty_state(&state.status),
     };
 
-    container(column![header, body].height(Fill))
+    container(column![header, tab_bar, body].height(Fill))
         .width(Fill)
         .height(Fill)
         .style(|_| theme::shell_container())
@@ -103,6 +104,37 @@ fn header(state: &PaperView) -> Element<'_, Never> {
     .width(Fill)
     .style(|_| theme::header_container())
     .into()
+}
+
+fn tab_bar(state: &PaperView) -> Element<'_, Never> {
+    let content = match &state.document {
+        Some(document) => {
+            let path = document
+                .path()
+                .map_or_else(|| "<memory>".to_owned(), |path| path.display().to_string());
+
+            container(
+                column![
+                    text(document.title()).size(14).color(theme::READER_TEXT),
+                    text(path).size(11).color(theme::READER_TEXT_MUTED)
+                ]
+                .spacing(2),
+            )
+            .padding([8, 14])
+            .width(360)
+            .style(|_| theme::active_tab_container())
+        }
+        None => container(text("No file").size(13).color(theme::SHELL_TEXT_MUTED))
+            .padding([8, 14])
+            .width(160)
+            .style(|_| theme::inactive_tab_container()),
+    };
+
+    container(row![content].height(48))
+        .padding([8, 18])
+        .width(Fill)
+        .style(|_| theme::tab_bar_container())
+        .into()
 }
 
 fn empty_state(status: &Status) -> Element<'_, Never> {

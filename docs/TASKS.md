@@ -17,7 +17,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Project Setup** | ✅ | ✅ | ✅ |
 | **File Opening (CLI/Open)** | ✅ | ✅ | ✅ |
 | **Basic Markdown Rendering** | ✅ | ✅ | ✅ |
-| **Hybrid Theme (Dark/Cream)** | ⬜ | 🏗️ | ⬜ |
+| **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
 | **Live Reload (Watcher)** | ⬜ | ⬜ | ⬜ |
 | **Tabbed Interface** | ⬜ | ⬜ | ⬜ |
 | **Split View (Side-by-Side)** | ⬜ | ⬜ | ⬜ |
