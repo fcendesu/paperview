@@ -13,7 +13,7 @@ The initial block model supports:
 - Ordered and unordered lists
 - Horizontal rules
 
-This remains an early rendering foundation, not a polished native UI. TUI rendering outputs simple terminal Markdown-like text. GUI rendering currently reports a document summary while the Iced shell is still pending.
+This remains an early rendering foundation, not a polished final UI. TUI rendering outputs simple terminal Markdown-like text. GUI rendering uses native Iced widgets in a first-pass PaperView reader shell.
 
 ## Implementation Notes
 
@@ -27,7 +27,7 @@ This remains an early rendering foundation, not a polished native UI. TUI render
 
 - Preserve structured inline spans before implementing rich GUI/TUI text styling.
 - Add tables and task lists as dedicated element modules rather than expanding the parser orchestrator indefinitely.
-- Replace the GUI preview summary with real Iced widgets in the native window shell slice.
+- Preserve scroll position and richer inline spans before adding live reload and TOC synchronization.
 
 ## Verification Expectations
 

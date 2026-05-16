@@ -9,4 +9,5 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+iced = "0.14.0"
 paperview-core = { path = "../paperview-core" }

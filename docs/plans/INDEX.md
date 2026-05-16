@@ -10,6 +10,10 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - `completed/` - retained records of finished plans.
 - `tech-debt-tracker.md` - known shortcuts, deferred cleanup, and follow-up work.
 
+## Completed Plans
+
+- [GUI Iced Shell](completed/gui-iced-shell.md) - first native GUI window with optional file loading and simple reader widgets.
+
 Each plan should include:
 
 - Goal and scope.
