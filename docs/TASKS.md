@@ -14,7 +14,7 @@ This document tracks the progress of features across the three workspace crates.
 
 | Feature | Core Logic | GUI (Iced) | TUI (Ratatui) |
 | :--- | :---: | :---: | :---: |
-| **Project Setup** | ⬜ | ⬜ | ⬜ |
+| **Project Setup** | ✅ | ✅ | ✅ |
 | **File Opening (CLI/Open)** | ⬜ | ⬜ | ⬜ |
 | **Basic Markdown Rendering** | ⬜ | ⬜ | ⬜ |
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ⬜ | ⬜ |
