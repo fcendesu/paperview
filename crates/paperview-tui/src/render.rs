@@ -1,6 +1,6 @@
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel},
+    parser::{Block, HeadingLevel, TocItem},
 };
 
 pub fn render_document(document: &Document) -> String {
@@ -10,6 +10,8 @@ pub fn render_document(document: &Document) -> String {
         render_block(block, &mut output);
         output.push('\n');
     }
+
+    render_toc(&document.parsed().toc(), &mut output);
 
     output
 }
@@ -58,6 +60,21 @@ fn render_heading(level: HeadingLevel, text: &str, output: &mut String) {
     output.push('\n');
 }
 
+fn render_toc(toc: &[TocItem], output: &mut String) {
+    output.push_str("On this page\n");
+    output.push_str("------------\n");
+
+    if toc.is_empty() {
+        output.push_str("No headings\n");
+        return;
+    }
+
+    for item in toc {
+        let indent = "  ".repeat(usize::from(item.level.as_depth().saturating_sub(1)));
+        output.push_str(&format!("{indent}- {}\n", item.title));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use paperview_core::Document;
@@ -70,7 +87,18 @@ mod tests {
 
         assert_eq!(
             render_document(&document),
-            "# PaperView\n\n- Fast\n- Native\n\n---\n\n"
+            "# PaperView\n\n- Fast\n- Native\n\n---\n\nOn this page\n------------\n- PaperView\n"
+        );
+    }
+
+    #[test]
+    fn renders_nested_toc_entries() {
+        let document = Document::from_source("# PaperView\n\n## Reader\n\n### Navigation");
+
+        assert!(
+            render_document(&document).contains(
+                "On this page\n------------\n- PaperView\n  - Reader\n    - Navigation\n"
+            )
         );
     }
 }

@@ -22,7 +22,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Tabbed Interface** | ⬜ | ⬜ | ⬜ |
 | **Split View (Side-by-Side)** | ⬜ | ⬜ | ⬜ |
 | **History Sidebar** | ⬜ | ⬜ | ⬜ |
-| **Table of Contents (TOC)** | ✅ | ✅ | ⬜ |
+| **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
 | **Scroll Synchronization** | ⬜ | ⬜ | ⬜ |
 | **LaTeX Support** | ⬜ | ⬜ | ⬜ |
 | **Mermaid Support** | ⬜ | ⬜ | ⬜ |
