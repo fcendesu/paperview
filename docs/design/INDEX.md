@@ -1,0 +1,95 @@
+# PaperView — Design Specification
+
+This document details the visual identity and UI components of PaperView, based on the reference design.
+
+## 1. Visual Language
+The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anchoring a high-contrast, physical-feeling document area.
+
+### 1.1 Color Palette
+#### **Sidebars & UI Shell (Dark Mode)**
+- **Background:** `#111318` (Primary sidebar/header background)
+- **Secondary Background:** `#161A22` (Active item highlights)
+- **Text (Primary):** `#FFFFFF` (Titles, active items)
+- **Text (Secondary):** `#8B949E` (Paths, inactive items, timestamps)
+- **Accent:** `#58A6FF` (Links, active indicators, badges)
+
+#### **Main Reader (The "Paper")**
+- **Background:** `#FDF8EF` (Soft cream/off-white)
+- **Text:** `#1F2328` (Deep charcoal for maximum readability)
+- **Table Borders:** `#D0D7DE`
+- **Table Header Shading:** `#F6F8FA`
+
+---
+
+## 2. Layout & Components
+
+### 2.1 Header & Tab Bar
+- **Header:** Top-most bar containing the "History" and "Navigation" toggle buttons and global search.
+- **Tab Bar:** Located directly above the Reader area, spanning the width of the center column.
+    - **Styling:** Dark background (`#111318`) with individual tabs.
+    - **Active Tab:** Matches the Reader's cream background (`#FDF8EF`) or has a blue bottom border.
+    - **Inactive Tab:** Dimmed text, matching the sidebar background.
+    - **Close Button:** Visible on hover for each tab.
+- **Split View Button:** Toggle in the header to split the current view.
+
+### 2.2 Left Sidebar: "History"
+- **Structure:**
+    - Top: "History" title with Search and Filter icons.
+    - Content: Vertical list grouped by date (e.g., "Today", "Yesterday").
+    - Item Meta: File icon + Filename (Bold) + Full path (Small/Dimmed).
+    - Bottom Utility Bar: Sidebar toggle, History/Clock icon, Settings gear.
+
+### 2.3 Main Reader & Split Layout
+- **Single View:** Centered content with a max width of 720–860px.
+- **Split View:** The reader area divides vertically into two panes.
+    - **Independent Scrolling:** Each side maintains its own scroll position.
+    - **Comparison Mode:** Highlighting a section on one side can sync the other side (optional toggle).
+- **Margins:** Generous white space (padding: ~40px - 60px).
+- **Typography:**
+    - **Headings:** Serif font (e.g., *Source Serif Pro* or *Georgia*). Bold, heavy weight.
+    - **Body:** Sans-serif font (e.g., *Inter* or *SF Pro*). 1.6 line height for readability.
+- **Table Design:** 
+    - Rounded corners (4px - 6px).
+    - Light grey borders.
+    - Alternating row highlights or distinct header shading.
+
+### 2.4 Right Sidebar: "Navigation"
+- **"On this page" (TOC):**
+    - Hierarchical numbering (1., 1.1, etc.).
+    - Active section highlighted in accent blue.
+- **"Bookmarks":**
+    - List of saved files.
+    - Blue bookmark icon + Filename + Badge for page/count.
+
+---
+
+## 3. Typography Specs
+| Element | Font Family | Size | Weight | Color |
+| :--- | :--- | :--- | :--- | :--- |
+| **H1** | Serif | 32px | 700 | `#1F2328` |
+| **H2** | Serif | 24px | 600 | `#1F2328` |
+| **Body** | Sans-Serif | 16px | 400 | `#1F2328` |
+| **Sidebar Title** | Sans-Serif | 14px | 600 | `#FFFFFF` |
+| **Sidebar Path** | Sans-Serif | 11px | 400 | `#8B949E` |
+| **Code Block** | Monospace | 14px | 400 | `#1F2328` |
+
+---
+
+## 4. Interaction Details
+- **Active State:** The current open file in the left sidebar should have a subtle background highlight (`#1B1F27`) and a thin blue vertical line on the left edge.
+- **Hover State:** Sidebar items should transition to a slightly lighter grey.
+- **Scroll Sync:** As the user scrolls, the corresponding entry in the "On this page" TOC should turn blue and bold.
+- **Drag & Drop Overlay:** When a file is dragged over the window, a subtle blue border or semi-transparent overlay should appear to indicate the app is ready to "accept" the document.
+
+## 5. Zen Mode & Edit Mode
+
+### 5.1 Zen Mode (Phase 1)
+- **Concept:** Ultimate distraction-free reading.
+- **Visuals:** Hides the left sidebar, right sidebar, and tab bar. Only the Header (in a minimal state, auto-hiding on scroll) and the Main Reader are visible.
+- **Trigger:** Configurable shortcut (e.g., `Cmd/Ctrl + Shift + F`).
+
+### 5.2 Edit Mode (Phase 2)
+- **Editor Background:** Matches the Sidebar (`#111318`) or a slightly lighter grey to distinguish from the "Paper" preview.
+- **Cursor:** Accent blue (`#58A6FF`) block or line cursor.
+- **Syntax Highlighting:** Minimalist scheme following the UI colors (Greys, Blues, and Whites).
+- **Split Pane:** Vertical divider between the raw Markdown text and the rendered "Paper" view.
