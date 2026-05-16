@@ -13,6 +13,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Live Reload](live-reload.md) - notify-backed active-document reload foundation.
 - [Ratatui Shell](ratatui-shell.md) - first interactive terminal reader shell.
 - [Table of Contents](table-of-contents.md) - heading-derived navigation metadata and GUI sidebar.
+- [Zen Mode](zen-mode.md) - GUI focused reading layout.
 
 Each feature spec should include:
 

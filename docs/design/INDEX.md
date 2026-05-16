@@ -85,8 +85,8 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 
 ### 5.1 Zen Mode (Phase 1)
 - **Concept:** Ultimate distraction-free reading.
-- **Visuals:** Hides the left sidebar, right sidebar, and tab bar. Only the Header (in a minimal state, auto-hiding on scroll) and the Main Reader are visible.
-- **Trigger:** Configurable shortcut (e.g., `Cmd/Ctrl + Shift + F`).
+- **Visuals:** Hides the left sidebar, right sidebar, and tab bar. The current implementation keeps the Header visible and lets the Main Reader fill the remaining space.
+- **Trigger:** Platform command shortcut: `Cmd + Shift + F` on macOS and `Ctrl + Shift + F` elsewhere.
 
 ### 5.2 Edit Mode (Phase 2)
 - **Editor Background:** Matches the Sidebar (`#111318`) or a slightly lighter grey to distinguish from the "Paper" preview.

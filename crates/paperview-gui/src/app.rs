@@ -4,6 +4,7 @@ use iced::{
     Element, Event, Fill, Subscription,
     event::{self, Status as EventStatus},
     futures::{SinkExt, StreamExt, stream::BoxStream},
+    keyboard,
     widget::{column, container, row, text},
     window,
 };
@@ -18,6 +19,7 @@ pub struct PaperView {
     history_store: HistoryStore,
     status: Status,
     is_drag_hovered: bool,
+    is_zen: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +38,7 @@ pub enum Message {
     FileHovered(PathBuf),
     FilesHoveredLeft,
     FileDropped(PathBuf),
+    ToggleZen,
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -64,6 +67,7 @@ impl PaperView {
                     history_store,
                     status: Status::Empty,
                     is_drag_hovered: false,
+                    is_zen: false,
                 }
             }
             [path] => {
@@ -81,6 +85,7 @@ impl PaperView {
                             history_store,
                             status: Status::Loaded(path),
                             is_drag_hovered: false,
+                            is_zen: false,
                         }
                     }
                     Err(error) => Self {
@@ -89,6 +94,7 @@ impl PaperView {
                         history_store,
                         status: Status::Error(error.to_string()),
                         is_drag_hovered: false,
+                        is_zen: false,
                     },
                 }
             }
@@ -101,6 +107,7 @@ impl PaperView {
                     history_store,
                     status: Status::Error("usage: paperview-gui [file]".to_owned()),
                     is_drag_hovered: false,
+                    is_zen: false,
                 }
             }
         }
@@ -127,6 +134,9 @@ pub fn update(state: &mut PaperView, message: Message) {
         Message::FileDropped(path) => {
             state.is_drag_hovered = false;
             state.open_path(path);
+        }
+        Message::ToggleZen => {
+            state.is_zen = !state.is_zen;
         }
     }
 }
@@ -177,19 +187,33 @@ impl PaperView {
 }
 
 pub fn subscription(state: &PaperView) -> Subscription<Message> {
-    let file_drop = event::listen_with(window_file_event);
+    let runtime_events = event::listen_with(runtime_event);
     let file_watch = state.active_path().map_or_else(Subscription::none, |path| {
         Subscription::run_with(ActiveWatchPath(path), watch_active_document)
     });
 
-    Subscription::batch([file_drop, file_watch])
+    Subscription::batch([runtime_events, file_watch])
 }
 
-fn window_file_event(event: Event, _status: EventStatus, _window: window::Id) -> Option<Message> {
+fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Option<Message> {
     match event {
         Event::Window(window::Event::FileHovered(path)) => Some(Message::FileHovered(path)),
         Event::Window(window::Event::FilesHoveredLeft) => Some(Message::FilesHoveredLeft),
         Event::Window(window::Event::FileDropped(path)) => Some(Message::FileDropped(path)),
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.command()
+            && modifiers.shift()
+            && key
+                .to_latin(physical_key)
+                .is_some_and(|character| character.eq_ignore_ascii_case(&'f')) =>
+        {
+            Some(Message::ToggleZen)
+        }
         _ => None,
     }
 }
@@ -250,8 +274,8 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 
 pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
-    let tab_bar = tab_bar(state);
     let body = match &state.document {
+        Some(document) if state.is_zen => reader::view(document),
         Some(document) => row![
             history::view(&state.history),
             reader::view(document),
@@ -260,8 +284,13 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         .into(),
         None => empty_state(&state.status),
     };
+    let layout = if state.is_zen {
+        column![header, body].height(Fill)
+    } else {
+        column![header, tab_bar(state), body].height(Fill)
+    };
 
-    container(column![header, tab_bar, body].height(Fill))
+    container(layout)
         .width(Fill)
         .height(Fill)
         .style(|_| theme::shell_container(state.is_drag_hovered))
@@ -367,9 +396,16 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
+    use iced::{
+        Event,
+        keyboard::{
+            Key, Location, Modifiers,
+            key::{Code, Physical},
+        },
+    };
     use paperview_core::HistoryStore;
 
-    use super::{Message, PaperView, title, update};
+    use super::{Message, PaperView, runtime_event, title, update};
 
     #[test]
     fn empty_window_title_is_app_name() {
@@ -463,6 +499,36 @@ mod tests {
 
         fs::remove_file(path).expect("remove active test document");
         fs::remove_file(hover_path).expect("remove hovered test document");
+    }
+
+    #[test]
+    fn toggle_zen_flips_layout_state() {
+        let mut state = PaperView::from_args_with_store([], temp_store("zen.toml"));
+
+        update(&mut state, Message::ToggleZen);
+        assert!(state.is_zen);
+
+        update(&mut state, Message::ToggleZen);
+        assert!(!state.is_zen);
+    }
+
+    #[test]
+    fn command_shift_f_maps_to_zen_toggle() {
+        let message = runtime_event(
+            Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character("f".into()),
+                modified_key: Key::Character("F".into()),
+                physical_key: Physical::Code(Code::KeyF),
+                location: Location::Standard,
+                modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                text: Some("F".into()),
+                repeat: false,
+            }),
+            iced::event::Status::Ignored,
+            iced::window::Id::unique(),
+        );
+
+        assert!(matches!(message, Some(Message::ToggleZen)));
     }
 
     fn temp_store(name: &str) -> HistoryStore {

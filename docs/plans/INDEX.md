@@ -17,6 +17,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [History Persistence](completed/history-persistence.md) - TOML-backed recent-file storage loaded and saved by the GUI.
 - [GUI History Open](completed/gui-history-open.md) - clickable GUI history entries that reopen and persist recent documents.
 - [GUI Drag And Drop](completed/gui-drag-and-drop.md) - native GUI file-drop opening.
+- [GUI Zen Mode](completed/gui-zen-mode.md) - focused GUI reader layout.
 - [Live Reload Foundation](completed/live-reload-foundation.md) - core file watcher and GUI active-document reload.
 - [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.
