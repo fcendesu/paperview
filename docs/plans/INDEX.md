@@ -15,6 +15,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Iced Shell](completed/gui-iced-shell.md) - first native GUI window with optional file loading and simple reader widgets.
 - [History Sidebar Foundation](completed/history-sidebar-foundation.md) - shared recent-file model and first GUI history rail.
 - [History Persistence](completed/history-persistence.md) - TOML-backed recent-file storage loaded and saved by the GUI.
+- [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.
 
 Each plan should include:
 

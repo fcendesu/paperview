@@ -9,6 +9,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Basic Markdown Rendering](basic-markdown-rendering.md) - initial shared Markdown parse model for frontend renderers.
 - [Hybrid Theme](hybrid-theme.md) - dark shell, cream reader surface, and GUI visual token contract.
 - [History Sidebar](history-sidebar.md) - shared recent-file model and first GUI history rail.
+- [Ratatui Shell](ratatui-shell.md) - first interactive terminal reader shell.
 - [Table of Contents](table-of-contents.md) - heading-derived navigation metadata and GUI sidebar.
 
 Each feature spec should include:

@@ -13,7 +13,7 @@ The initial block model supports:
 - Ordered and unordered lists
 - Horizontal rules
 
-This remains an early rendering foundation, not a polished final UI. TUI rendering outputs simple terminal Markdown-like text. GUI rendering uses native Iced widgets in a first-pass PaperView reader shell.
+This remains an early rendering foundation, not a polished final UI. TUI rendering uses a first-pass Ratatui shell with a scrollable reader. GUI rendering uses native Iced widgets in a first-pass PaperView reader shell.
 
 ## Implementation Notes
 

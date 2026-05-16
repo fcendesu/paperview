@@ -3,7 +3,17 @@ use paperview_core::{
     parser::{Block, HeadingLevel, TocItem},
 };
 
-pub fn render_document(document: &Document) -> String {
+#[cfg(test)]
+fn render_document(document: &Document) -> String {
+    let mut output = render_document_lines(document).join("\n");
+    output.push('\n');
+    output.push_str(&render_toc_lines(&document.parsed().toc()).join("\n"));
+    output.push('\n');
+
+    output
+}
+
+pub fn render_document_lines(document: &Document) -> Vec<String> {
     let mut output = String::new();
 
     for block in &document.parsed().blocks {
@@ -11,9 +21,7 @@ pub fn render_document(document: &Document) -> String {
         output.push('\n');
     }
 
-    render_toc(&document.parsed().toc(), &mut output);
-
-    output
+    output.lines().map(ToOwned::to_owned).collect()
 }
 
 fn render_block(block: &Block, output: &mut String) {
@@ -60,19 +68,20 @@ fn render_heading(level: HeadingLevel, text: &str, output: &mut String) {
     output.push('\n');
 }
 
-fn render_toc(toc: &[TocItem], output: &mut String) {
-    output.push_str("On this page\n");
-    output.push_str("------------\n");
+pub fn render_toc_lines(toc: &[TocItem]) -> Vec<String> {
+    let mut lines = vec!["On this page".to_owned(), "------------".to_owned()];
 
     if toc.is_empty() {
-        output.push_str("No headings\n");
-        return;
+        lines.push("No headings".to_owned());
+        return lines;
     }
 
     for item in toc {
         let indent = "  ".repeat(usize::from(item.level.as_depth().saturating_sub(1)));
-        output.push_str(&format!("{indent}- {}\n", item.title));
+        lines.push(format!("{indent}- {}", item.title));
     }
+
+    lines
 }
 
 #[cfg(test)]

@@ -15,7 +15,7 @@ Unsupported extensions are rejected before disk reads. Supported files are read 
 - Core file loading lives in `paperview-core::Document::open`.
 - `SupportedFileType` centralizes extension detection so GUI, TUI, drag-and-drop, and future CLI entrypoints can share the same allowlist.
 - File read errors preserve the source path and underlying `std::io::Error`.
-- `paperview-tui [file]` loads one file and renders it as simple terminal text.
+- `paperview-tui [file]` loads one file into an interactive Ratatui terminal shell.
 - `paperview-gui [file]` opens a native Iced window and renders the loaded document. Launching without a file shows an empty state.
 
 ## Open Decisions

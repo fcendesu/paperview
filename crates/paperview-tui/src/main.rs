@@ -1,3 +1,4 @@
+mod app;
 mod render;
 
 use std::{env, ffi::OsString, process::ExitCode};
@@ -23,7 +24,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
         [path] => {
             let document =
                 paperview_core::Document::open(path).map_err(|error| error.to_string())?;
-            print!("{}", render::render_document(&document));
+            app::run(document).map_err(|error| error.to_string())?;
             Ok(())
         }
         _ => Err("usage: paperview-tui [file]".to_owned()),

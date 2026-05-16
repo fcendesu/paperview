@@ -2,7 +2,7 @@
 
 ## Product Behavior
 
-PaperView derives a table of contents from Markdown headings. The GUI shows the current document's headings in a right-side "On this page" navigation rail, and the TUI prints an "On this page" section after the rendered document.
+PaperView derives a table of contents from Markdown headings. The GUI shows the current document's headings in a right-side "On this page" navigation rail, and the TUI shows the headings in a right-side Ratatui panel.
 
 The first TOC slice supports:
 
@@ -20,12 +20,12 @@ The TOC views are display-only for now. Clicking headings, keyboard navigation, 
 - TOC records use `TocItem`, which includes `level`, `title`, `slug`, and `block_index`.
 - GUI rendering lives in `crates/paperview-gui/src/navigation.rs`.
 - The GUI reader and TOC are composed side by side only when a document is loaded.
-- TUI rendering lives in `crates/paperview-tui/src/render.rs` and appends the heading list after document content.
+- TUI rendering uses `crates/paperview-tui/src/app.rs` for the interactive shell and `crates/paperview-tui/src/render.rs` for text conversion helpers.
 
 ## Open Decisions
 
 - Slugs are internal metadata for now; future exported HTML may need a shared anchor policy.
-- Interactive TUI TOC behavior is deferred until the Ratatui shell becomes stateful.
+- Interactive TUI TOC navigation is deferred beyond the initial Ratatui shell.
 - Scroll position tracking and active TOC highlighting remain separate from static TOC rendering.
 
 ## Verification Expectations

@@ -9,4 +9,6 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+crossterm = "0.29.0"
 paperview-core = { path = "../paperview-core" }
+ratatui = "0.30.0"
