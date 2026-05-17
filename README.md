@@ -26,9 +26,9 @@ Supported input formats:
 - `.txt`
 
 Implemented Markdown rendering is still intentionally basic: headings,
-paragraphs, lists, blockquotes, code blocks, tables, rules, source-preserving
-LaTeX math, source-preserving Mermaid diagrams, and image metadata panels are
-supported. Richer
+paragraphs with basic inline styling, lists, blockquotes, code blocks, tables,
+rules, source-preserving LaTeX math, source-preserving Mermaid diagrams, and
+image metadata panels are supported. Richer
 technical-document features such as full LaTeX typesetting, rendered Mermaid
 diagrams, bitmap image previews, task lists, search, advanced Split View
 controls, and export are still on the roadmap.
@@ -46,6 +46,7 @@ GUI highlights:
 - Table-of-contents sidebar generated from headings.
 - Active table-of-contents highlighting while scrolling the GUI reader.
 - Click TOC entries to jump the active GUI reader.
+- Paragraph bold, italic, inline code, and link styling.
 - Bordered Markdown tables with shaded headers.
 - Standalone image metadata panels.
 - Source-preserving display math panels for LaTeX blocks.
@@ -88,7 +89,8 @@ TUI controls:
 The TUI highlights the active table-of-contents section while you scroll, can
 jump through headings from the TOC, and preserves LaTeX display math plus
 Mermaid diagram source. Markdown tables render as aligned plain text, and
-standalone images render as Markdown image text.
+standalone images render as Markdown image text. Paragraph inline styling
+renders in Markdown-shaped text.
 
 ## Development Checks
 

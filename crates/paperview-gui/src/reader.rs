@@ -1,10 +1,10 @@
 use iced::{
-    Element, Fill,
-    widget::{Column, Row, column, container, rule, scrollable, text},
+    Background, Element, Fill, Font, font,
+    widget::{Column, Row, column, container, rich_text, rule, scrollable, span, text},
 };
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel, TableAlignment},
+    parser::{Block, HeadingLevel, InlineSpan, TableAlignment, elements::inline},
 };
 
 use crate::theme;
@@ -123,7 +123,9 @@ fn estimated_block_height(block: &Block) -> f32 {
         Block::Heading { level, text } => {
             heading_line_height(*level) * estimated_line_count(text, HEADING_LINE_CHARS)
         }
-        Block::Paragraph(text) => BODY_LINE_HEIGHT * estimated_line_count(text, BODY_LINE_CHARS),
+        Block::Paragraph(spans) => {
+            BODY_LINE_HEIGHT * estimated_line_count(&inline::plain_text(spans), BODY_LINE_CHARS)
+        }
         Block::BlockQuote(text) => {
             BODY_LINE_HEIGHT * estimated_line_count(text, BODY_LINE_CHARS) + 16.0
         }
@@ -185,7 +187,7 @@ fn normalized_progress(progress: f32) -> f32 {
 fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
     match block {
         Block::Heading { level, text } => heading(*level, text),
-        Block::Paragraph(text) => paragraph(text),
+        Block::Paragraph(spans) => paragraph(spans),
         Block::BlockQuote(text) => blockquote(text),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::Diagram { language, source } => diagram_block(language, source),
@@ -212,8 +214,43 @@ fn heading<Message: 'static>(level: HeadingLevel, value: &str) -> Element<'_, Me
     text(value).size(size).color(theme::READER_TEXT).into()
 }
 
-fn paragraph<Message: 'static>(value: &str) -> Element<'_, Message> {
-    text(value).size(16).color(theme::READER_TEXT).into()
+fn paragraph<Message: 'static>(spans: &[InlineSpan]) -> Element<'_, Message> {
+    let spans = spans.iter().map(rich_span).collect::<Vec<_>>();
+
+    rich_text(spans).size(16).into()
+}
+
+fn rich_span(source: &InlineSpan) -> iced::widget::text::Span<'_, (), Font> {
+    let mut output = span(source.text.as_str()).color(theme::READER_TEXT);
+
+    if source.strong || source.emphasis {
+        output = output.font(Font {
+            weight: if source.strong {
+                font::Weight::Bold
+            } else {
+                font::Weight::Normal
+            },
+            style: if source.emphasis {
+                font::Style::Italic
+            } else {
+                font::Style::Normal
+            },
+            ..Font::default()
+        });
+    }
+
+    if source.code {
+        output = output
+            .font(Font::MONOSPACE)
+            .background(Background::Color(theme::CODE_BACKGROUND))
+            .padding([1, 4]);
+    }
+
+    if source.link.is_some() {
+        output = output.color(theme::SHELL_ACCENT).underline(true);
+    }
+
+    output
 }
 
 fn blockquote<Message: 'static>(value: &str) -> Element<'_, Message> {

@@ -13,7 +13,7 @@ pub const READER_BACKGROUND: Color = Color::from_rgb(0.992, 0.973, 0.937);
 pub const READER_TEXT: Color = Color::from_rgb(0.122, 0.137, 0.157);
 pub const READER_TEXT_MUTED: Color = Color::from_rgb(0.325, 0.345, 0.373);
 const READER_BORDER: Color = Color::from_rgb(0.816, 0.843, 0.871);
-const CODE_BACKGROUND: Color = Color::from_rgb(0.965, 0.973, 0.98);
+pub const CODE_BACKGROUND: Color = Color::from_rgb(0.965, 0.973, 0.98);
 const PAPER_SHADOW: Color = Color {
     r: 0.0,
     g: 0.0,

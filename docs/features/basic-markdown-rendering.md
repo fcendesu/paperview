@@ -12,6 +12,7 @@ The initial block model supports:
 - Fenced code blocks with optional language labels
 - Ordered and unordered lists
 - Horizontal rules
+- Paragraph inline spans for bold, italic, inline code, and links
 
 This remains an early rendering foundation, not a polished final UI. TUI rendering uses a first-pass Ratatui shell with a scrollable reader. GUI rendering uses native Iced widgets in a first-pass PaperView reader shell.
 
@@ -19,13 +20,13 @@ This remains an early rendering foundation, not a polished final UI. TUI renderi
 
 - `paperview-core::parser::parse_markdown` uses `pulldown-cmark`.
 - `ParsedDocument::title` returns the first level-one heading.
-- Inline styling is flattened into block text for now so the first AST stays small.
+- Paragraph inline styling is preserved with `InlineSpan`; other block types still flatten inline styling into text.
 - Frontends use PaperView's own `HeadingLevel` type rather than depending on `pulldown-cmark` event types.
 - Markdown element modules remain under `paperview-core/src/parser/elements/`; focused per-element implementations should move there as rendering requirements deepen.
 
 ## Open Decisions
 
-- Preserve structured inline spans before implementing rich GUI/TUI text styling.
+- Extend structured inline spans beyond paragraphs.
 - Add tables and task lists as dedicated element modules rather than expanding the parser orchestrator indefinitely.
 - Preserve scroll position and richer inline spans before adding live reload and TOC synchronization.
 

@@ -7,7 +7,7 @@ use pulldown_cmark::{
     Parser, Tag, TagEnd,
 };
 
-use self::elements::{diagram, image, math, table};
+use self::elements::{diagram, image, inline, math, table};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedDocument {
@@ -72,7 +72,7 @@ pub enum Block {
         level: HeadingLevel,
         text: String,
     },
-    Paragraph(String),
+    Paragraph(Vec<InlineSpan>),
     BlockQuote(String),
     CodeBlock {
         language: Option<String>,
@@ -101,6 +101,15 @@ pub enum Block {
         source: String,
     },
     Rule,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InlineSpan {
+    pub text: String,
+    pub strong: bool,
+    pub emphasis: bool,
+    pub code: bool,
+    pub link: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,7 +187,7 @@ enum OpenBlock {
         level: HeadingLevel,
         text: String,
     },
-    Paragraph(String),
+    Paragraph(Vec<InlineSpan>),
     BlockQuote(String),
     CodeBlock {
         language: Option<String>,
@@ -217,6 +226,7 @@ struct DocumentBuilder {
     open_list: Option<OpenList>,
     open_table: Option<OpenTable>,
     open_image: Option<OpenImage>,
+    inline_state: inline::InlineState,
 }
 
 impl DocumentBuilder {
@@ -225,11 +235,7 @@ impl DocumentBuilder {
             Event::Start(tag) => self.start(tag),
             Event::End(tag) => self.end(tag),
             Event::Text(text) => self.push_text(&text),
-            Event::Code(code) => {
-                self.push_text("`");
-                self.push_text(&code);
-                self.push_text("`");
-            }
+            Event::Code(code) => self.push_code(&code),
             Event::InlineMath(source) => self.push_text(&math::inline_text(&source)),
             Event::DisplayMath(source) => self.push_display_math(&source),
             Event::SoftBreak | Event::HardBreak => self.push_text("\n"),
@@ -247,9 +253,14 @@ impl DocumentBuilder {
                 });
             }
             Tag::Paragraph if self.open_list.is_none() && self.open_block.is_none() => {
-                self.open_block = Some(OpenBlock::Paragraph(String::new()));
+                self.open_block = Some(OpenBlock::Paragraph(Vec::new()));
             }
             Tag::Paragraph => {}
+            Tag::Strong => self.inline_state.strong_depth += 1,
+            Tag::Emphasis => self.inline_state.emphasis_depth += 1,
+            Tag::Link { dest_url, .. } => {
+                self.inline_state.links.push(dest_url.into_string());
+            }
             Tag::BlockQuote(_) => {
                 self.open_block = Some(OpenBlock::BlockQuote(String::new()));
             }
@@ -318,6 +329,16 @@ impl DocumentBuilder {
                 self.close_block();
             }
             TagEnd::Paragraph => {}
+            TagEnd::Strong => {
+                self.inline_state.strong_depth = self.inline_state.strong_depth.saturating_sub(1);
+            }
+            TagEnd::Emphasis => {
+                self.inline_state.emphasis_depth =
+                    self.inline_state.emphasis_depth.saturating_sub(1);
+            }
+            TagEnd::Link => {
+                self.inline_state.links.pop();
+            }
             TagEnd::BlockQuote(_) => self.close_block(),
             TagEnd::CodeBlock => self.close_block(),
             TagEnd::TableCell => {
@@ -397,11 +418,24 @@ impl DocumentBuilder {
         }
 
         match &mut self.open_block {
-            Some(OpenBlock::Heading { text: target, .. })
-            | Some(OpenBlock::Paragraph(target))
-            | Some(OpenBlock::BlockQuote(target)) => target.push_str(text),
+            Some(OpenBlock::Heading { text: target, .. }) | Some(OpenBlock::BlockQuote(target)) => {
+                target.push_str(text)
+            }
+            Some(OpenBlock::Paragraph(spans)) => {
+                inline::push_span(spans, inline::span(text, &self.inline_state));
+            }
             Some(OpenBlock::CodeBlock { code, .. }) => code.push_str(text),
             None => {}
+        }
+    }
+
+    fn push_code(&mut self, code: &str) {
+        if let Some(OpenBlock::Paragraph(spans)) = &mut self.open_block {
+            inline::push_span(spans, inline::code_span(code, &self.inline_state));
+        } else {
+            self.push_text("`");
+            self.push_text(code);
+            self.push_text("`");
         }
     }
 
@@ -418,7 +452,7 @@ impl DocumentBuilder {
         }
 
         let is_standalone =
-            matches!(&self.open_block, Some(OpenBlock::Paragraph(text)) if text.is_empty());
+            matches!(&self.open_block, Some(OpenBlock::Paragraph(spans)) if spans.is_empty());
         if is_standalone {
             self.close_block();
             self.blocks.push(Block::Image {
@@ -449,10 +483,9 @@ impl DocumentBuilder {
                 level,
                 text: normalize_text(&text),
             }),
-            OpenBlock::Paragraph(text) => {
-                let text = normalize_text(&text);
-                if !text.is_empty() {
-                    self.blocks.push(Block::Paragraph(text));
+            OpenBlock::Paragraph(spans) => {
+                if !inline::plain_text(&spans).trim().is_empty() {
+                    self.blocks.push(Block::Paragraph(spans));
                 }
             }
             OpenBlock::BlockQuote(text) => {
@@ -514,7 +547,17 @@ fn slugify(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Block, HeadingLevel, TableAlignment, TocItem, parse_markdown};
+    use super::{Block, HeadingLevel, InlineSpan, TableAlignment, TocItem, parse_markdown};
+
+    fn text_span(text: &str) -> InlineSpan {
+        InlineSpan {
+            text: text.to_owned(),
+            strong: false,
+            emphasis: false,
+            code: false,
+            link: None,
+        }
+    }
 
     #[test]
     fn parses_headings_and_paragraphs() {
@@ -527,7 +570,7 @@ mod tests {
                     level: HeadingLevel::H1,
                     text: "PaperView".to_owned()
                 },
-                Block::Paragraph("Native Markdown viewer.".to_owned())
+                Block::Paragraph(vec![text_span("Native Markdown viewer.")])
             ]
         );
     }
@@ -569,13 +612,58 @@ mod tests {
         assert_eq!(
             parsed.blocks,
             vec![
-                Block::Paragraph("Before $x + y$.".to_owned()),
+                Block::Paragraph(vec![text_span("Before $x + y$.")]),
                 Block::Math {
                     display: true,
                     source: "E = mc^2".to_owned()
                 },
-                Block::Paragraph("After.".to_owned())
+                Block::Paragraph(vec![text_span("After.")])
             ]
+        );
+    }
+
+    #[test]
+    fn preserves_paragraph_inline_spans() {
+        let parsed =
+            parse_markdown("A **bold** and *quiet* [link](https://example.com) with `code`.");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![Block::Paragraph(vec![
+                text_span("A "),
+                InlineSpan {
+                    text: "bold".to_owned(),
+                    strong: true,
+                    emphasis: false,
+                    code: false,
+                    link: None
+                },
+                text_span(" and "),
+                InlineSpan {
+                    text: "quiet".to_owned(),
+                    strong: false,
+                    emphasis: true,
+                    code: false,
+                    link: None
+                },
+                text_span(" "),
+                InlineSpan {
+                    text: "link".to_owned(),
+                    strong: false,
+                    emphasis: false,
+                    code: false,
+                    link: Some("https://example.com".to_owned())
+                },
+                text_span(" with "),
+                InlineSpan {
+                    text: "code".to_owned(),
+                    strong: false,
+                    emphasis: false,
+                    code: true,
+                    link: None
+                },
+                text_span(".")
+            ])]
         );
     }
 
@@ -638,9 +726,9 @@ mod tests {
 
         assert_eq!(
             parsed.blocks,
-            vec![Block::Paragraph(
-                "See ![Architecture](docs/arch.png) for details.".to_owned()
-            )]
+            vec![Block::Paragraph(vec![text_span(
+                "See ![Architecture](docs/arch.png) for details."
+            )])]
         );
     }
 

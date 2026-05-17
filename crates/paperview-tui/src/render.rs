@@ -1,6 +1,6 @@
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel, TableAlignment, TocItem},
+    parser::{Block, HeadingLevel, TableAlignment, TocItem, elements::inline},
 };
 use ratatui::{
     style::{Color, Modifier, Style},
@@ -56,8 +56,8 @@ pub fn render_document_with_anchors(document: &Document) -> RenderedDocument {
 fn render_block(block: &Block, output: &mut String) {
     match block {
         Block::Heading { level, text } => render_heading(*level, text, output),
-        Block::Paragraph(text) => {
-            output.push_str(text);
+        Block::Paragraph(spans) => {
+            output.push_str(&inline::markdown_text(spans));
             output.push('\n');
         }
         Block::BlockQuote(text) => {
@@ -358,6 +358,18 @@ mod tests {
         assert!(
             render_document(&document)
                 .contains("![Architecture](docs/arch.png \"System diagram\")\n")
+        );
+    }
+
+    #[test]
+    fn renders_paragraph_inline_markdown() {
+        let document = Document::from_source(
+            "A **bold** and *quiet* [link](https://example.com) with `code`.",
+        );
+
+        assert!(
+            render_document(&document)
+                .contains("A **bold** and *quiet* [link](https://example.com) with `code`.\n")
         );
     }
 
