@@ -23,6 +23,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Multi-File Drop](completed/gui-multi-file-drop.md) - multi-file drops open supported files into tabs.
 - [GUI Split View Foundation](completed/gui-split-view-foundation.md) - side-by-side GUI reader panes for two open tabs.
 - [GUI Split View Controls](completed/gui-split-view-controls.md) - visible Split View toggle and secondary tab selector.
+- [GUI Split View Resizing](completed/gui-split-view-resizing.md) - keyboard resizing for proportional split panes.
 - [Live Reload Foundation](completed/live-reload-foundation.md) - core file watcher and GUI active-document reload.
 - [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.

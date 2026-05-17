@@ -1,7 +1,7 @@
 use std::{ffi::OsString, path::PathBuf, sync::mpsc};
 
 use iced::{
-    Element, Event, Fill, Subscription,
+    Element, Event, Fill, Length, Subscription,
     event::{self, Status as EventStatus},
     futures::{SinkExt, StreamExt, stream::BoxStream},
     keyboard,
@@ -12,6 +12,11 @@ use paperview_core::{Document, History, HistoryStore, OpenDocuments, WatchEvent,
 
 use crate::{history, navigation, reader, theme};
 
+const DEFAULT_SPLIT_PRIMARY_WIDTH: u16 = 50;
+const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
+const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
+const SPLIT_RESIZE_STEP: u16 = 10;
+
 #[derive(Debug, Clone)]
 pub struct PaperView {
     documents: OpenDocuments,
@@ -21,6 +26,7 @@ pub struct PaperView {
     is_drag_hovered: bool,
     is_zen: bool,
     split_document_index: Option<usize>,
+    split_primary_width: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -41,9 +47,16 @@ pub enum Message {
     OpenDroppedFiles(Vec<PathBuf>),
     ToggleZen,
     ToggleSplit,
+    ResizeSplit(SplitResize),
     SelectSplitTab(usize),
     SelectTab(usize),
     CloseTab(usize),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SplitResize {
+    GrowPrimary,
+    ShrinkPrimary,
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -74,6 +87,7 @@ impl PaperView {
                     is_drag_hovered: false,
                     is_zen: false,
                     split_document_index: None,
+                    split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                 }
             }
             [path] => {
@@ -93,6 +107,7 @@ impl PaperView {
                             is_drag_hovered: false,
                             is_zen: false,
                             split_document_index: None,
+                            split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                         }
                     }
                     Err(error) => Self {
@@ -103,6 +118,7 @@ impl PaperView {
                         is_drag_hovered: false,
                         is_zen: false,
                         split_document_index: None,
+                        split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                     },
                 }
             }
@@ -117,6 +133,7 @@ impl PaperView {
                     is_drag_hovered: false,
                     is_zen: false,
                     split_document_index: None,
+                    split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                 }
             }
         }
@@ -148,6 +165,7 @@ pub fn update(state: &mut PaperView, message: Message) {
             state.is_zen = !state.is_zen;
         }
         Message::ToggleSplit => state.toggle_split(),
+        Message::ResizeSplit(direction) => state.resize_split(direction),
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
         Message::CloseTab(index) => state.close_tab(index),
@@ -251,6 +269,23 @@ impl PaperView {
             .flatten();
     }
 
+    fn resize_split(&mut self, direction: SplitResize) {
+        if self.split_document_index.is_none() {
+            return;
+        }
+
+        self.split_primary_width = match direction {
+            SplitResize::GrowPrimary => self
+                .split_primary_width
+                .saturating_add(SPLIT_RESIZE_STEP)
+                .min(MAX_SPLIT_PRIMARY_WIDTH),
+            SplitResize::ShrinkPrimary => self
+                .split_primary_width
+                .saturating_sub(SPLIT_RESIZE_STEP)
+                .max(MIN_SPLIT_PRIMARY_WIDTH),
+        };
+    }
+
     fn ensure_split_target(&mut self) {
         if self.split_document_index.is_some_and(|index| {
             Some(index) == self.documents.active_index() || index >= self.documents.len()
@@ -274,6 +309,14 @@ impl PaperView {
         self.documents
             .iter()
             .find_map(|(index, document)| (index == split_index).then_some(document))
+    }
+
+    fn split_widths(&self) -> (u16, u16) {
+        let primary = self
+            .split_primary_width
+            .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
+
+        (primary, 100 - primary)
     }
 }
 
@@ -319,6 +362,32 @@ fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Opt
                 .is_some_and(|character| character.eq_ignore_ascii_case(&'\\')) =>
         {
             Some(Message::ToggleSplit)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.command()
+            && key
+                .to_latin(physical_key)
+                .is_some_and(|character| character == ']') =>
+        {
+            Some(Message::ResizeSplit(SplitResize::GrowPrimary))
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.command()
+            && key
+                .to_latin(physical_key)
+                .is_some_and(|character| character == '[') =>
+        {
+            Some(Message::ResizeSplit(SplitResize::ShrinkPrimary))
         }
         _ => None,
     }
@@ -384,9 +453,14 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         Some(document) if state.is_zen => reader::view(document),
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
-                row![reader::view(document), reader::view(secondary)]
-                    .spacing(1)
-                    .into()
+                let (primary_width, secondary_width) = state.split_widths();
+
+                row![
+                    container(reader::view(document)).width(Length::FillPortion(primary_width)),
+                    container(reader::view(secondary)).width(Length::FillPortion(secondary_width))
+                ]
+                .spacing(1)
+                .into()
             } else {
                 reader::view(document)
             };
@@ -426,9 +500,10 @@ fn header(state: &PaperView) -> Element<'_, Message> {
 
     let is_split_enabled = state.split_document_index.is_some();
     let split_label = if is_split_enabled {
-        "Split On"
+        let (primary, secondary) = state.split_widths();
+        format!("Split {primary}/{secondary}")
     } else {
-        "Split"
+        "Split".to_owned()
     };
     let split_button = button(text(split_label).size(13))
         .padding([7, 12])
@@ -577,7 +652,7 @@ mod tests {
     };
     use paperview_core::{Document, HistoryStore};
 
-    use super::{Message, PaperView, runtime_event, title, update};
+    use super::{Message, PaperView, SplitResize, runtime_event, title, update};
 
     #[test]
     fn empty_window_title_is_app_name() {
@@ -813,6 +888,58 @@ mod tests {
     }
 
     #[test]
+    fn split_resize_changes_primary_width_when_split_is_enabled() {
+        let first = temp_doc("split-resize-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-resize-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-resize.toml"),
+        );
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        update(&mut state, Message::ToggleSplit);
+
+        update(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
+
+        assert_eq!(state.split_widths(), (60, 40));
+
+        update(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
+        update(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
+
+        assert_eq!(state.split_widths(), (40, 60));
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn split_resize_is_bounded_and_requires_enabled_split() {
+        let first = temp_doc("split-bounds-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-bounds-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-bounds.toml"),
+        );
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+
+        update(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
+        assert_eq!(state.split_widths(), (50, 50));
+
+        update(&mut state, Message::ToggleSplit);
+        for _ in 0..8 {
+            update(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
+        }
+        assert_eq!(state.split_widths(), (70, 30));
+
+        for _ in 0..8 {
+            update(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
+        }
+        assert_eq!(state.split_widths(), (30, 70));
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
     fn selecting_split_tab_retargets_secondary_document() {
         let first = temp_doc("split-select-first.md", "# First\n\nOne.");
         let second = temp_doc("split-select-second.md", "# Second\n\nTwo.");
@@ -974,6 +1101,45 @@ mod tests {
         );
 
         assert!(matches!(message, Some(Message::ToggleSplit)));
+    }
+
+    #[test]
+    fn command_brackets_map_to_split_resize() {
+        let grow = runtime_event(
+            Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character("]".into()),
+                modified_key: Key::Character("]".into()),
+                physical_key: Physical::Code(Code::BracketRight),
+                location: Location::Standard,
+                modifiers: Modifiers::COMMAND,
+                text: Some("]".into()),
+                repeat: false,
+            }),
+            iced::event::Status::Ignored,
+            iced::window::Id::unique(),
+        );
+        let shrink = runtime_event(
+            Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character("[".into()),
+                modified_key: Key::Character("[".into()),
+                physical_key: Physical::Code(Code::BracketLeft),
+                location: Location::Standard,
+                modifiers: Modifiers::COMMAND,
+                text: Some("[".into()),
+                repeat: false,
+            }),
+            iced::event::Status::Ignored,
+            iced::window::Id::unique(),
+        );
+
+        assert!(matches!(
+            grow,
+            Some(Message::ResizeSplit(SplitResize::GrowPrimary))
+        ));
+        assert!(matches!(
+            shrink,
+            Some(Message::ResizeSplit(SplitResize::ShrinkPrimary))
+        ));
     }
 
     fn temp_store(name: &str) -> HistoryStore {
