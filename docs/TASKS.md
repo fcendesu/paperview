@@ -23,7 +23,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Split View (Side-by-Side)** | ⬜ | ✅ | ⬜ |
 | **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
-| **Scroll Synchronization** | ⬜ | ⬜ | ⬜ |
+| **Scroll Synchronization** | ✅ | ✅ | ⬜ |
 | **LaTeX Support** | ⬜ | ⬜ | ⬜ |
 | **Mermaid Support** | ⬜ | ⬜ | ⬜ |
 | **Zen Mode** | ⬜ | ✅ | ⬜ |
@@ -39,6 +39,7 @@ This document tracks the progress of features across the three workspace crates.
 - Zen Mode currently covers the GUI focused reader layout; TUI and persisted preferences are deferred.
 - Tabbed Interface currently covers shared open-document state plus GUI tab activation and close controls; reorder/TUI tabs are deferred.
 - Split View currently covers a GUI foundation for comparing the active tab with one other open tab, including a visible toggle, secondary tab selection, and keyboard resizing; drag resize, scroll sync, and TUI split are deferred.
+- Scroll Synchronization currently covers GUI active-reader TOC highlighting based on scroll progress and existing core TOC block indices; pixel-perfect heading geometry, click-to-scroll, split-pane scroll sync, and TUI sync are deferred.
 
 ---
 

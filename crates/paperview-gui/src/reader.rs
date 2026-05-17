@@ -10,24 +10,40 @@ use paperview_core::{
 use crate::theme;
 
 pub fn view<Message: 'static>(document: &Document) -> Element<'_, Message> {
+    view_with_scroll(document, None::<fn(f32) -> Message>)
+}
+
+pub fn view_with_scroll<'a, Message: 'static>(
+    document: &'a Document,
+    on_scroll: Option<impl Fn(f32) -> Message + 'a>,
+) -> Element<'a, Message> {
     let mut content = column![].spacing(18).width(Fill);
 
     for block in &document.parsed().blocks {
         content = content.push(block_view(block));
     }
 
-    container(scrollable(
+    let mut scrollable = scrollable(
         container(content)
             .padding([48, 56])
             .max_width(860)
             .style(|_| theme::paper_container()),
-    ))
-    .width(Fill)
-    .height(Fill)
-    .center_x(Fill)
-    .padding([28, 0])
-    .style(|_| theme::reader_backdrop())
-    .into()
+    );
+
+    if let Some(on_scroll) = on_scroll {
+        scrollable = scrollable.on_scroll(move |viewport| {
+            let offset = viewport.relative_offset().y;
+            on_scroll(if offset.is_finite() { offset } else { 0.0 })
+        });
+    }
+
+    container(scrollable)
+        .width(Fill)
+        .height(Fill)
+        .center_x(Fill)
+        .padding([28, 0])
+        .style(|_| theme::reader_backdrop())
+        .into()
 }
 
 fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {

@@ -27,6 +27,7 @@ pub struct PaperView {
     is_zen: bool,
     split_document_index: Option<usize>,
     split_primary_width: u16,
+    active_toc_block_index: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +49,7 @@ pub enum Message {
     ToggleZen,
     ToggleSplit,
     ResizeSplit(SplitResize),
+    ReaderScrolled(f32),
     SelectSplitTab(usize),
     SelectTab(usize),
     CloseTab(usize),
@@ -88,6 +90,7 @@ impl PaperView {
                     is_zen: false,
                     split_document_index: None,
                     split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                    active_toc_block_index: None,
                 }
             }
             [path] => {
@@ -96,6 +99,8 @@ impl PaperView {
 
                 match Document::open(&path) {
                     Ok(document) => {
+                        let active_toc_block_index = first_toc_block_index(document.parsed());
+
                         history.record_document(&document);
                         save_history(&history_store, &history);
 
@@ -108,6 +113,7 @@ impl PaperView {
                             is_zen: false,
                             split_document_index: None,
                             split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                            active_toc_block_index,
                         }
                     }
                     Err(error) => Self {
@@ -119,6 +125,7 @@ impl PaperView {
                         is_zen: false,
                         split_document_index: None,
                         split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                        active_toc_block_index: None,
                     },
                 }
             }
@@ -134,6 +141,7 @@ impl PaperView {
                     is_zen: false,
                     split_document_index: None,
                     split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                    active_toc_block_index: None,
                 }
             }
         }
@@ -166,6 +174,7 @@ pub fn update(state: &mut PaperView, message: Message) {
         }
         Message::ToggleSplit => state.toggle_split(),
         Message::ResizeSplit(direction) => state.resize_split(direction),
+        Message::ReaderScrolled(progress) => state.sync_active_toc_to_scroll(progress),
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
         Message::CloseTab(index) => state.close_tab(index),
@@ -181,6 +190,7 @@ impl PaperView {
                 self.documents.open_or_activate(document);
                 self.status = Status::Loaded(path);
                 self.ensure_split_target();
+                self.sync_active_toc_to_top();
             }
             Err(error) => {
                 self.status = Status::Error(error.to_string());
@@ -199,6 +209,7 @@ impl PaperView {
                     self.documents.open_or_activate(document);
                     self.status = Status::Loaded(path);
                     self.ensure_split_target();
+                    self.sync_active_toc_to_top();
                 }
                 Err(error) => {
                     last_error = Some(error.to_string());
@@ -222,6 +233,7 @@ impl PaperView {
                 save_history(&self.history_store, &self.history);
                 self.documents.replace_active(document);
                 self.status = Status::Loaded(path);
+                self.sync_active_toc_to_top();
             }
             Err(error) => {
                 self.status = Status::Error(error.to_string());
@@ -244,12 +256,14 @@ impl PaperView {
         self.documents.select(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         self.ensure_split_target();
+        self.sync_active_toc_to_top();
     }
 
     fn close_tab(&mut self, index: usize) {
         self.documents.close(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         self.ensure_split_target();
+        self.sync_active_toc_to_top();
     }
 
     fn select_split_tab(&mut self, index: usize) {
@@ -318,6 +332,51 @@ impl PaperView {
 
         (primary, 100 - primary)
     }
+
+    fn sync_active_toc_to_top(&mut self) {
+        self.active_toc_block_index = self
+            .documents
+            .active()
+            .and_then(|document| first_toc_block_index(document.parsed()));
+    }
+
+    fn sync_active_toc_to_scroll(&mut self, progress: f32) {
+        let Some(document) = self.documents.active() else {
+            self.active_toc_block_index = None;
+            return;
+        };
+
+        self.active_toc_block_index = active_toc_block_for_scroll(document.parsed(), progress);
+    }
+}
+
+fn active_toc_block_for_scroll(
+    document: &paperview_core::parser::ParsedDocument,
+    progress: f32,
+) -> Option<usize> {
+    let toc = document.toc();
+
+    if toc.is_empty() {
+        return None;
+    }
+
+    let progress = if progress.is_finite() {
+        progress.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let last_block_index = document.blocks.len().saturating_sub(1);
+    let target_block_index = ((last_block_index as f32) * progress).round() as usize;
+
+    toc.iter()
+        .take_while(|item| item.block_index <= target_block_index)
+        .last()
+        .or_else(|| toc.first())
+        .map(|item| item.block_index)
+}
+
+fn first_toc_block_index(document: &paperview_core::parser::ParsedDocument) -> Option<usize> {
+    document.toc().first().map(|item| item.block_index)
 }
 
 pub fn subscription(state: &PaperView) -> Subscription<Message> {
@@ -450,25 +509,31 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let body = match state.documents.active() {
-        Some(document) if state.is_zen => reader::view(document),
+        Some(document) if state.is_zen => {
+            reader::view_with_scroll(document, Some(Message::ReaderScrolled))
+        }
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
                 let (primary_width, secondary_width) = state.split_widths();
 
                 row![
-                    container(reader::view(document)).width(Length::FillPortion(primary_width)),
+                    container(reader::view_with_scroll(
+                        document,
+                        Some(Message::ReaderScrolled)
+                    ))
+                    .width(Length::FillPortion(primary_width)),
                     container(reader::view(secondary)).width(Length::FillPortion(secondary_width))
                 ]
                 .spacing(1)
                 .into()
             } else {
-                reader::view(document)
+                reader::view_with_scroll(document, Some(Message::ReaderScrolled))
             };
 
             row![
                 history::view(&state.history),
                 reader,
-                navigation::view(document.parsed())
+                navigation::view(document.parsed(), state.active_toc_block_index)
             ]
             .into()
         }
@@ -650,9 +715,11 @@ mod tests {
             key::{Code, Physical},
         },
     };
-    use paperview_core::{Document, HistoryStore};
+    use paperview_core::{Document, HistoryStore, parser::parse_markdown};
 
-    use super::{Message, PaperView, SplitResize, runtime_event, title, update};
+    use super::{
+        Message, PaperView, SplitResize, active_toc_block_for_scroll, runtime_event, title, update,
+    };
 
     #[test]
     fn empty_window_title_is_app_name() {
@@ -702,6 +769,50 @@ mod tests {
         );
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn opening_document_selects_first_toc_item() {
+        let path = temp_doc("toc-open.md", "# First\n\nText.\n\n## Second\n\nMore.");
+        let state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("toc-open.toml"));
+
+        assert_eq!(state.active_toc_block_index, Some(0));
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn reader_scroll_updates_active_toc_item() {
+        let path = temp_doc(
+            "toc-scroll.md",
+            "# First\n\nText.\n\n## Second\n\nMore.\n\n## Third\n\nEnd.",
+        );
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("toc-scroll.toml"));
+
+        update(&mut state, Message::ReaderScrolled(0.6));
+
+        assert_eq!(state.active_toc_block_index, Some(2));
+
+        update(&mut state, Message::ReaderScrolled(0.9));
+
+        assert_eq!(state.active_toc_block_index, Some(4));
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn active_toc_mapping_is_bounded_and_ignores_empty_toc() {
+        let parsed = parse_markdown("# First\n\nText.\n\n## Second\n\nMore.");
+
+        assert_eq!(active_toc_block_for_scroll(&parsed, -1.0), Some(0));
+        assert_eq!(active_toc_block_for_scroll(&parsed, f32::NAN), Some(0));
+        assert_eq!(active_toc_block_for_scroll(&parsed, 1.5), Some(2));
+        assert_eq!(
+            active_toc_block_for_scroll(&parse_markdown("No headings."), 0.5),
+            None
+        );
     }
 
     #[test]
