@@ -30,8 +30,10 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
     - **Active Tab:** Matches the Reader's cream background (`#FDF8EF`) or has a blue bottom border.
     - **Inactive Tab:** Dimmed text, matching the sidebar background.
     - **Close Button:** The current GUI has close controls on each tab.
-- **Split View Toggle:** The current GUI uses `Cmd + \` on macOS and `Ctrl + \`
-  elsewhere to toggle Split View.
+- **Split View Toggle:** The current GUI exposes a header toggle and also uses
+  `Cmd + \` on macOS and `Ctrl + \` elsewhere to toggle Split View.
+- **Secondary Pane Selector:** While Split View is on, non-active tabs expose a
+  compact selector for choosing the right-side pane.
 
 ### 2.2 Left Sidebar: "History"
 - **Structure:**
@@ -45,6 +47,7 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 - **Split View:** The current GUI foundation divides the reader area vertically
   into two equal panes: active tab on the left, secondary open tab on the right.
     - **Independent Scrolling:** Deferred.
+    - **Secondary Selection:** Chosen from non-active tabs while Split View is on.
     - **Comparison Mode:** Highlighting a section on one side can sync the other side (optional toggle; deferred).
 - **Margins:** Generous white space (padding: ~40px - 60px).
 - **Typography:**

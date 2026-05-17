@@ -41,6 +41,7 @@ pub enum Message {
     OpenDroppedFiles(Vec<PathBuf>),
     ToggleZen,
     ToggleSplit,
+    SelectSplitTab(usize),
     SelectTab(usize),
     CloseTab(usize),
 }
@@ -147,6 +148,7 @@ pub fn update(state: &mut PaperView, message: Message) {
             state.is_zen = !state.is_zen;
         }
         Message::ToggleSplit => state.toggle_split(),
+        Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
         Message::CloseTab(index) => state.close_tab(index),
     }
@@ -230,6 +232,15 @@ impl PaperView {
         self.documents.close(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         self.ensure_split_target();
+    }
+
+    fn select_split_tab(&mut self, index: usize) {
+        if self.split_document_index.is_some()
+            && Some(index) != self.documents.active_index()
+            && index < self.documents.len()
+        {
+            self.split_document_index = Some(index);
+        }
     }
 
     fn toggle_split(&mut self) {
@@ -413,6 +424,21 @@ fn header(state: &PaperView) -> Element<'_, Message> {
         Status::Error(error) => error.clone(),
     };
 
+    let is_split_enabled = state.split_document_index.is_some();
+    let split_label = if is_split_enabled {
+        "Split On"
+    } else {
+        "Split"
+    };
+    let split_button = button(text(split_label).size(13))
+        .padding([7, 12])
+        .style(move |_, status| theme::header_action_button(is_split_enabled, status));
+    let split_button = if state.documents.len() > 1 {
+        split_button.on_press(Message::ToggleSplit)
+    } else {
+        split_button
+    };
+
     container(
         row![
             column![
@@ -420,6 +446,8 @@ fn header(state: &PaperView) -> Element<'_, Message> {
                 text(subtitle).size(12).color(theme::SHELL_TEXT_MUTED)
             ]
             .spacing(4)
+            .width(Fill),
+            split_button
         ]
         .height(64),
     )
@@ -445,34 +473,48 @@ fn tab_bar(state: &PaperView) -> Element<'_, Message> {
                 .path()
                 .map_or_else(|| "<memory>".to_owned(), |path| path.display().to_string());
             let is_active = state.documents.active_index() == Some(index);
+            let is_secondary = state.split_document_index == Some(index);
 
-            let tab = button(
-                row![
-                    column![
-                        text(document.title()).size(14).color(if is_active {
-                            theme::READER_TEXT
-                        } else {
-                            theme::SHELL_TEXT
-                        }),
-                        text(path).size(11).color(if is_active {
-                            theme::READER_TEXT_MUTED
-                        } else {
-                            theme::SHELL_TEXT_MUTED
-                        })
-                    ]
-                    .spacing(2)
-                    .width(Fill),
-                    button(text("x").size(13))
-                        .padding([1, 6])
-                        .style(move |_, status| theme::tab_close_button(is_active, status))
-                        .on_press(Message::CloseTab(index))
+            let mut tab_content = row![
+                column![
+                    text(document.title()).size(14).color(if is_active {
+                        theme::READER_TEXT
+                    } else {
+                        theme::SHELL_TEXT
+                    }),
+                    text(path).size(11).color(if is_active {
+                        theme::READER_TEXT_MUTED
+                    } else {
+                        theme::SHELL_TEXT_MUTED
+                    })
                 ]
-                .spacing(8),
-            )
-            .padding([8, 14])
-            .width(360)
-            .style(move |_, status| theme::tab_button(is_active, status))
-            .on_press(Message::SelectTab(index));
+                .spacing(2)
+                .width(Fill)
+            ]
+            .spacing(8);
+
+            if state.split_document_index.is_some() && !is_active {
+                let split_label = if is_secondary { "Side" } else { "Use" };
+                tab_content = tab_content.push(
+                    button(text(split_label).size(11))
+                        .padding([2, 7])
+                        .style(move |_, status| theme::split_tab_button(is_secondary, status))
+                        .on_press(Message::SelectSplitTab(index)),
+                );
+            }
+
+            tab_content = tab_content.push(
+                button(text("x").size(13))
+                    .padding([1, 6])
+                    .style(move |_, status| theme::tab_close_button(is_active, status))
+                    .on_press(Message::CloseTab(index)),
+            );
+
+            let tab = button(tab_content)
+                .padding([8, 14])
+                .width(360)
+                .style(move |_, status| theme::tab_button(is_active, status))
+                .on_press(Message::SelectTab(index));
 
             tabs = tabs.push(tab);
         }
@@ -794,6 +836,52 @@ mod tests {
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");
         fs::remove_file(third).expect("remove third test document");
+    }
+
+    #[test]
+    fn choosing_secondary_tab_updates_split_document() {
+        let first = temp_doc("split-choice-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-choice-second.md", "# Second\n\nTwo.");
+        let third = temp_doc("split-choice-third.md", "# Third\n\nThree.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-choice.toml"),
+        );
+        update(
+            &mut state,
+            Message::OpenDroppedFiles(vec![second.clone(), third.clone()]),
+        );
+        update(&mut state, Message::ToggleSplit);
+
+        update(&mut state, Message::SelectSplitTab(1));
+
+        assert_eq!(state.documents.active_index(), Some(2));
+        assert_eq!(state.split_document_index, Some(1));
+        assert_eq!(state.split_document().map(Document::title), Some("Second"));
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+        fs::remove_file(third).expect("remove third test document");
+    }
+
+    #[test]
+    fn choosing_active_tab_as_secondary_is_ignored() {
+        let first = temp_doc("split-active-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-active-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-active.toml"),
+        );
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        update(&mut state, Message::ToggleSplit);
+
+        update(&mut state, Message::SelectSplitTab(1));
+
+        assert_eq!(state.documents.active_index(), Some(1));
+        assert_eq!(state.split_document_index, Some(0));
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
     }
 
     #[test]

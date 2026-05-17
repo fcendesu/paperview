@@ -43,7 +43,8 @@ GUI highlights:
 - Table-of-contents sidebar generated from headings.
 - Multiple document tabs with close controls.
 - Native drag-and-drop, including multiple dropped files into tabs.
-- Split View for comparing the active tab with another open tab.
+- Split View for comparing the active tab with another open tab, including a
+  header toggle and secondary tab selection.
 - Live reload when the active file changes on disk.
 - Zen Mode with `Cmd + Shift + F` on macOS or `Ctrl + Shift + F` elsewhere.
 - Split View toggle with `Cmd + \` on macOS or `Ctrl + \` elsewhere.
@@ -114,7 +115,7 @@ repository knowledge base and source of truth.
 Near-term MVP work includes:
 
 - Scroll synchronization.
-- Split View resizing, secondary selection, and scroll synchronization.
+- Split View resizing.
 - LaTeX and Mermaid support.
 - Search and documentation-toolkit commands.
 - Richer Markdown rendering for tables, images, links, and task lists.

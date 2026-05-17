@@ -103,6 +103,34 @@ pub fn history_item_button(status: button::Status) -> button::Style {
     }
 }
 
+pub fn header_action_button(is_active: bool, status: button::Status) -> button::Style {
+    let background = if is_active {
+        SHELL_ACCENT
+    } else {
+        match status {
+            button::Status::Hovered | button::Status::Pressed => SHELL_ACTIVE_SURFACE,
+            button::Status::Active => SHELL_BACKGROUND,
+            button::Status::Disabled => SHELL_SURFACE,
+        }
+    };
+    let text_color = if matches!(status, button::Status::Disabled) {
+        SHELL_TEXT_MUTED
+    } else {
+        SHELL_TEXT
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color,
+        border: Border {
+            color: if is_active { SHELL_ACCENT } else { background },
+            width: 1.0,
+            radius: border::radius(6),
+        },
+        ..button::Style::default()
+    }
+}
+
 pub fn tab_button(is_active: bool, status: button::Status) -> button::Style {
     let background = if is_active {
         READER_BACKGROUND
@@ -126,6 +154,38 @@ pub fn tab_button(is_active: bool, status: button::Status) -> button::Style {
             color: border_color,
             width: 1.0,
             radius: border::radius(6),
+        },
+        ..button::Style::default()
+    }
+}
+
+pub fn split_tab_button(is_selected: bool, status: button::Status) -> button::Style {
+    let background = if is_selected {
+        SHELL_ACCENT
+    } else {
+        match status {
+            button::Status::Hovered | button::Status::Pressed => SHELL_ACTIVE_SURFACE,
+            button::Status::Active | button::Status::Disabled => Color::TRANSPARENT,
+        }
+    };
+    let text_color =
+        if is_selected || matches!(status, button::Status::Hovered | button::Status::Pressed) {
+            SHELL_TEXT
+        } else {
+            SHELL_TEXT_MUTED
+        };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color,
+        border: Border {
+            color: if is_selected {
+                SHELL_ACCENT
+            } else {
+                background
+            },
+            width: 1.0,
+            radius: border::radius(4),
         },
         ..button::Style::default()
     }
