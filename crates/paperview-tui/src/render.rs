@@ -77,6 +77,16 @@ fn render_block(block: &Block, output: &mut String) {
             }
             output.push_str("```\n");
         }
+        Block::Diagram { language, source } => {
+            output.push_str("```");
+            output.push_str(language);
+            output.push('\n');
+            output.push_str(source);
+            if !source.ends_with('\n') {
+                output.push('\n');
+            }
+            output.push_str("```\n");
+        }
         Block::List { ordered, items } => {
             for (index, item) in items.iter().enumerate() {
                 if *ordered {
@@ -201,6 +211,13 @@ mod tests {
         let document = Document::from_source("Before $x$.\n\n$$\nE = mc^2\n$$");
 
         assert!(render_document(&document).contains("Before $x$.\n\n$$\nE = mc^2\n$$\n"));
+    }
+
+    #[test]
+    fn renders_mermaid_diagram_blocks() {
+        let document = Document::from_source("```mermaid\ngraph TD\n  A-->B\n```");
+
+        assert!(render_document(&document).contains("```mermaid\ngraph TD\n  A-->B\n```\n"));
     }
 
     #[test]

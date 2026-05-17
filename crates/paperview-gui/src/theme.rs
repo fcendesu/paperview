@@ -320,3 +320,16 @@ pub fn math_container() -> container::Style {
         ..container::Style::default()
     }
 }
+
+pub fn diagram_container() -> container::Style {
+    container::Style {
+        background: Some(Background::Color(Color::from_rgb(0.945, 0.976, 0.968))),
+        text_color: Some(READER_TEXT),
+        border: Border {
+            color: Color::from_rgb(0.196, 0.639, 0.565),
+            width: 1.0,
+            radius: border::radius(6),
+        },
+        ..container::Style::default()
+    }
+}

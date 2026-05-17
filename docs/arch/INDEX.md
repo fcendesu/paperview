@@ -90,6 +90,11 @@ preserving inline math text and exposing display math as `Block::Math`.
 Frontends render source-preserving math affordances until native formula
 typesetting is selected.
 
+The first Mermaid implementation keeps diagram semantics in `paperview-core` by
+detecting `mermaid` fenced code blocks and exposing them as `Block::Diagram`.
+Frontends render source-preserving diagram affordances until native diagram
+rendering is selected.
+
 ---
 
 ## 5. Performance Optimizations

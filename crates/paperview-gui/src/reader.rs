@@ -131,6 +131,10 @@ fn estimated_block_height(block: &Block) -> f32 {
             let code_lines = code.lines().count().max(1) as f32;
             12.0 + 8.0 + (CODE_LINE_HEIGHT * code_lines) + 32.0
         }
+        Block::Diagram { source, .. } => {
+            let diagram_lines = source.lines().count().max(1) as f32;
+            12.0 + 8.0 + (CODE_LINE_HEIGHT * diagram_lines) + 32.0
+        }
         Block::Math { source, .. } => {
             let math_lines = source.lines().count().max(1) as f32;
             12.0 + 8.0 + (CODE_LINE_HEIGHT * math_lines) + 32.0
@@ -174,6 +178,7 @@ fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
         Block::Paragraph(text) => paragraph(text),
         Block::BlockQuote(text) => blockquote(text),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
+        Block::Diagram { language, source } => diagram_block(language, source),
         Block::List { ordered, items } => list(*ordered, items),
         Block::Math { display, source } => math_block(*display, source),
         Block::Rule => rule::horizontal(1).into(),
@@ -219,6 +224,20 @@ fn code_block<'a, Message: 'static>(
     .padding(16)
     .width(Fill)
     .style(|_| theme::code_container())
+    .into()
+}
+
+fn diagram_block<'a, Message: 'static>(language: &'a str, source: &'a str) -> Element<'a, Message> {
+    container(
+        column![
+            text(language).size(12).color(theme::SHELL_ACCENT),
+            text(source).size(14).color(theme::READER_TEXT)
+        ]
+        .spacing(8),
+    )
+    .padding(16)
+    .width(Fill)
+    .style(|_| theme::diagram_container())
     .into()
 }
 

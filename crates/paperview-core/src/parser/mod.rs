@@ -6,7 +6,7 @@ use pulldown_cmark::{
     CodeBlockKind, Event, HeadingLevel as CmarkHeadingLevel, Options, Parser, Tag, TagEnd,
 };
 
-use self::elements::math;
+use self::elements::{diagram, math};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedDocument {
@@ -76,6 +76,10 @@ pub enum Block {
     CodeBlock {
         language: Option<String>,
         code: String,
+    },
+    Diagram {
+        language: String,
+        source: String,
     },
     List {
         ordered: bool,
@@ -295,7 +299,14 @@ impl DocumentBuilder {
                 self.blocks.push(Block::BlockQuote(normalize_text(&text)));
             }
             OpenBlock::CodeBlock { language, code } => {
-                self.blocks.push(Block::CodeBlock { language, code });
+                if diagram::is_mermaid(language.as_deref()) {
+                    self.blocks.push(Block::Diagram {
+                        language: diagram::MERMAID_LANGUAGE.to_owned(),
+                        source: diagram::source(&code),
+                    });
+                } else {
+                    self.blocks.push(Block::CodeBlock { language, code });
+                }
             }
         }
     }
@@ -404,6 +415,26 @@ mod tests {
                     source: "E = mc^2".to_owned()
                 },
                 Block::Paragraph("After.".to_owned())
+            ]
+        );
+    }
+
+    #[test]
+    fn parses_mermaid_fences_as_diagram_blocks() {
+        let parsed =
+            parse_markdown("```mermaid\ngraph TD\n  A-->B\n```\n\n```rust\nfn main() {}\n```");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![
+                Block::Diagram {
+                    language: "mermaid".to_owned(),
+                    source: "graph TD\n  A-->B".to_owned()
+                },
+                Block::CodeBlock {
+                    language: Some("rust".to_owned()),
+                    code: "fn main() {}\n".to_owned()
+                }
             ]
         );
     }

@@ -26,10 +26,11 @@ Supported input formats:
 - `.txt`
 
 Implemented Markdown rendering is still intentionally basic: headings,
-paragraphs, lists, blockquotes, code blocks, rules, and source-preserving LaTeX
-math are supported. Richer technical-document features such as full LaTeX
-typesetting, Mermaid, images, tables, task lists, search, advanced Split View
-controls, and export are still on the roadmap.
+paragraphs, lists, blockquotes, code blocks, rules, source-preserving LaTeX
+math, and source-preserving Mermaid diagrams are supported. Richer
+technical-document features such as full LaTeX typesetting, rendered Mermaid
+diagrams, images, tables, task lists, search, advanced Split View controls, and
+export are still on the roadmap.
 
 ## Run The GUI
 
@@ -45,6 +46,7 @@ GUI highlights:
 - Active table-of-contents highlighting while scrolling the GUI reader.
 - Click TOC entries to jump the active GUI reader.
 - Source-preserving display math panels for LaTeX blocks.
+- Source-preserving diagram panels for Mermaid fences.
 - Multiple document tabs with close controls.
 - Native drag-and-drop, including multiple dropped files into tabs.
 - Split View for comparing the active tab with another open tab, including a
@@ -81,8 +83,8 @@ TUI controls:
 - `q` / `Esc`: quit the current TUI view.
 
 The TUI highlights the active table-of-contents section while you scroll, can
-jump through headings from the TOC, and preserves LaTeX display math source with
-`$$` delimiters.
+jump through headings from the TOC, and preserves LaTeX display math plus
+Mermaid diagram source.
 
 ## Development Checks
 
@@ -128,7 +130,7 @@ Near-term MVP work includes:
 
 - Exact scroll geometry from rendered layout rectangles.
 - Split View drag resizing.
-- Full LaTeX typesetting and Mermaid support.
+- Full LaTeX typesetting and rendered Mermaid diagrams.
 - Search and documentation-toolkit commands.
 - Richer Markdown rendering for tables, images, links, and task lists.
 - Performance measurement against startup, scrolling, and memory targets.

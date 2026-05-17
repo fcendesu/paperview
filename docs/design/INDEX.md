@@ -82,6 +82,10 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 | **Sidebar Path** | Sans-Serif | 11px | 400 | `#8B949E` |
 | **Code Block** | Monospace | 14px | 400 | `#1F2328` |
 
+Current source-preserving technical blocks use the same restrained panel shape
+as code blocks. LaTeX math uses a warm accent border, and Mermaid diagrams use a
+green accent border until native formula and diagram rendering are selected.
+
 ---
 
 ## 4. Interaction Details

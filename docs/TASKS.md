@@ -25,7 +25,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
 | **Scroll Synchronization** | ✅ | ✅ | ✅ |
 | **LaTeX Support** | ✅ | 🏗️ | 🏗️ |
-| **Mermaid Support** | ⬜ | ⬜ | ⬜ |
+| **Mermaid Support** | ✅ | 🏗️ | 🏗️ |
 | **Zen Mode** | ⬜ | ✅ | ⬜ |
 | **Drag & Drop** | ✅ | ✅ | ⬜ |
 
@@ -41,6 +41,7 @@ This document tracks the progress of features across the three workspace crates.
 - Split View currently covers a GUI foundation for comparing the active tab with one other open tab, including a visible toggle, secondary tab selection, and keyboard resizing; drag resize, scroll sync, and TUI split are deferred.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
 - LaTeX Support currently covers parser preservation for inline math and a dedicated display math block. GUI and TUI show source-preserving display math; native formula typesetting and structured inline spans are deferred.
+- Mermaid Support currently covers parser recognition for `mermaid` fences and source-preserving diagram panels in GUI/TUI; native diagram rendering and export assets are deferred.
 
 ---
 
