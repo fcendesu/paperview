@@ -20,6 +20,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Zen Mode](completed/gui-zen-mode.md) - focused GUI reader layout.
 - [GUI Tabs Foundation](completed/gui-tabs-foundation.md) - shared open-document model and GUI tab activation.
 - [GUI Tab Close](completed/gui-tab-close.md) - close controls and active-tab fallback behavior.
+- [GUI Multi-File Drop](completed/gui-multi-file-drop.md) - multi-file drops open supported files into tabs.
 - [Live Reload Foundation](completed/live-reload-foundation.md) - core file watcher and GUI active-document reload.
 - [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.

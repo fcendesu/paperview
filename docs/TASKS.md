@@ -35,7 +35,7 @@ This document tracks the progress of features across the three workspace crates.
 
 - History Sidebar includes shared persistence, GUI click-to-open behavior, and the TUI recent-files dashboard.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
-- Drag & Drop currently covers native GUI file drops; multi-file behavior waits for tabs.
+- Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
 - Zen Mode currently covers the GUI focused reader layout; TUI and persisted preferences are deferred.
 - Tabbed Interface currently covers shared open-document state plus GUI tab activation and close controls; reorder/TUI tabs are deferred.
 

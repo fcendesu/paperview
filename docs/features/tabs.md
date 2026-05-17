@@ -8,6 +8,7 @@ Current behavior:
 
 - Launching the GUI with a file opens one active tab.
 - Opening a file from History or drag-and-drop adds a tab when the path is not already open.
+- Dropping multiple supported files opens each one as a tab.
 - Opening a path that is already open refreshes that tab and activates it.
 - Clicking a tab activates that document.
 - Clicking a tab close control removes that tab.
@@ -28,7 +29,7 @@ Tab reordering, multi-file launch arguments, and split-view integration are defe
 
 ## Open Decisions
 
-- Multi-file drag/drop should use tabs in a later slice.
+- Multi-file drag/drop uses tabs; folder drops remain deferred.
 - TUI tabs are deferred; the TUI remains a single-reader workflow for now.
 - Split view should build on top of the same core document collection instead of forking document state.
 

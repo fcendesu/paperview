@@ -37,7 +37,7 @@ pub enum Message {
     WatchFailed(String),
     FileHovered(PathBuf),
     FilesHoveredLeft,
-    FileDropped(PathBuf),
+    OpenDroppedFiles(Vec<PathBuf>),
     ToggleZen,
     SelectTab(usize),
     CloseTab(usize),
@@ -133,9 +133,9 @@ pub fn update(state: &mut PaperView, message: Message) {
                 state.status = state.active_path().map_or(Status::Empty, Status::Loaded);
             }
         }
-        Message::FileDropped(path) => {
+        Message::OpenDroppedFiles(paths) => {
             state.is_drag_hovered = false;
-            state.open_path(path);
+            state.open_dropped_files(paths);
         }
         Message::ToggleZen => {
             state.is_zen = !state.is_zen;
@@ -157,6 +157,28 @@ impl PaperView {
             Err(error) => {
                 self.status = Status::Error(error.to_string());
             }
+        }
+    }
+
+    fn open_dropped_files(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        let mut last_error = None;
+
+        for path in paths {
+            match Document::open(&path) {
+                Ok(document) => {
+                    self.history.record_document(&document);
+                    save_history(&self.history_store, &self.history);
+                    self.documents.open_or_activate(document);
+                    self.status = Status::Loaded(path);
+                }
+                Err(error) => {
+                    last_error = Some(error.to_string());
+                }
+            }
+        }
+
+        if let Some(error) = last_error {
+            self.status = Status::Error(error);
         }
     }
 
@@ -213,7 +235,9 @@ fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Opt
     match event {
         Event::Window(window::Event::FileHovered(path)) => Some(Message::FileHovered(path)),
         Event::Window(window::Event::FilesHoveredLeft) => Some(Message::FilesHoveredLeft),
-        Event::Window(window::Event::FileDropped(path)) => Some(Message::FileDropped(path)),
+        Event::Window(window::Event::FileDropped(path)) => {
+            Some(Message::OpenDroppedFiles(vec![path]))
+        }
         Event::Keyboard(keyboard::Event::KeyPressed {
             key,
             physical_key,
@@ -501,7 +525,7 @@ mod tests {
         let path = temp_doc("dropped.md", "# Dropped\n\nOpened from drop.");
         let mut state = PaperView::from_args_with_store([], temp_store("drop.toml"));
 
-        update(&mut state, Message::FileDropped(path.clone()));
+        update(&mut state, Message::OpenDroppedFiles(vec![path.clone()]));
 
         assert_eq!(
             state.documents.active().map(Document::title),
@@ -522,7 +546,7 @@ mod tests {
         let mut state =
             PaperView::from_args_with_store([OsString::from(&first)], temp_store("tabs.toml"));
 
-        update(&mut state, Message::FileDropped(second.clone()));
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
 
         assert_eq!(state.documents.len(), 2);
         assert_eq!(state.documents.active_index(), Some(1));
@@ -536,12 +560,56 @@ mod tests {
     }
 
     #[test]
+    fn dropped_file_batch_opens_each_supported_file_as_tab() {
+        let first = temp_doc("batch-first.md", "# First\n\nOne.");
+        let second = temp_doc("batch-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store([], temp_store("batch.toml"));
+
+        update(
+            &mut state,
+            Message::OpenDroppedFiles(vec![first.clone(), second.clone()]),
+        );
+
+        assert_eq!(state.documents.len(), 2);
+        assert_eq!(state.documents.active_index(), Some(1));
+        assert_eq!(
+            state.documents.active().map(Document::title),
+            Some("Second")
+        );
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn dropped_file_batch_keeps_supported_tabs_when_one_file_fails() {
+        let supported = temp_doc("batch-supported.md", "# Supported\n\nGood.");
+        let unsupported = temp_doc("batch-unsupported.html", "<h1>Nope</h1>");
+        let mut state = PaperView::from_args_with_store([], temp_store("batch-error.toml"));
+
+        update(
+            &mut state,
+            Message::OpenDroppedFiles(vec![supported.clone(), unsupported.clone()]),
+        );
+
+        assert_eq!(state.documents.len(), 1);
+        assert_eq!(
+            state.documents.active().map(Document::title),
+            Some("Supported")
+        );
+        assert!(matches!(state.status, super::Status::Error(_)));
+
+        fs::remove_file(supported).expect("remove supported test document");
+        fs::remove_file(unsupported).expect("remove unsupported test document");
+    }
+
+    #[test]
     fn selecting_tab_changes_active_document() {
         let first = temp_doc("select-first.md", "# First\n\nOne.");
         let second = temp_doc("select-second.md", "# Second\n\nTwo.");
         let mut state =
             PaperView::from_args_with_store([OsString::from(&first)], temp_store("select.toml"));
-        update(&mut state, Message::FileDropped(second.clone()));
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
 
         update(&mut state, Message::SelectTab(0));
 
@@ -562,8 +630,8 @@ mod tests {
         let third = temp_doc("close-third.md", "# Third\n\nThree.");
         let mut state =
             PaperView::from_args_with_store([OsString::from(&first)], temp_store("close.toml"));
-        update(&mut state, Message::FileDropped(second.clone()));
-        update(&mut state, Message::FileDropped(third.clone()));
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        update(&mut state, Message::OpenDroppedFiles(vec![third.clone()]));
         update(&mut state, Message::SelectTab(1));
 
         update(&mut state, Message::CloseTab(1));
