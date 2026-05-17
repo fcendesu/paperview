@@ -103,6 +103,35 @@ pub fn history_item_button(status: button::Status) -> button::Style {
     }
 }
 
+pub fn toc_item_button(is_active: bool, status: button::Status) -> button::Style {
+    let background = if is_active {
+        SHELL_ACTIVE_SURFACE
+    } else {
+        match status {
+            button::Status::Hovered | button::Status::Pressed => SHELL_ACTIVE_SURFACE,
+            button::Status::Active | button::Status::Disabled => Color::TRANSPARENT,
+        }
+    };
+    let text_color = if is_active {
+        SHELL_ACCENT
+    } else if matches!(status, button::Status::Hovered | button::Status::Pressed) {
+        SHELL_TEXT
+    } else {
+        SHELL_TEXT_MUTED
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color,
+        border: Border {
+            color: background,
+            width: 1.0,
+            radius: border::radius(4),
+        },
+        ..button::Style::default()
+    }
+}
+
 pub fn header_action_button(is_active: bool, status: button::Status) -> button::Style {
     let background = if is_active {
         SHELL_ACCENT

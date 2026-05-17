@@ -9,6 +9,8 @@ use paperview_core::{
 
 use crate::theme;
 
+pub const ACTIVE_READER_SCROLLABLE_ID: &str = "active-reader-scrollable";
+
 pub fn view<Message: 'static>(document: &Document) -> Element<'_, Message> {
     view_with_scroll(document, None::<fn(f32) -> Message>)
 }
@@ -31,10 +33,12 @@ pub fn view_with_scroll<'a, Message: 'static>(
     );
 
     if let Some(on_scroll) = on_scroll {
-        scrollable = scrollable.on_scroll(move |viewport| {
-            let offset = viewport.relative_offset().y;
-            on_scroll(if offset.is_finite() { offset } else { 0.0 })
-        });
+        scrollable = scrollable
+            .id(ACTIVE_READER_SCROLLABLE_ID)
+            .on_scroll(move |viewport| {
+                let offset = viewport.relative_offset().y;
+                on_scroll(if offset.is_finite() { offset } else { 0.0 })
+            });
     }
 
     container(scrollable)

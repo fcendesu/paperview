@@ -42,6 +42,7 @@ GUI highlights:
 - Click history entries to reopen documents.
 - Table-of-contents sidebar generated from headings.
 - Active table-of-contents highlighting while scrolling the GUI reader.
+- Click TOC entries to jump the active GUI reader.
 - Multiple document tabs with close controls.
 - Native drag-and-drop, including multiple dropped files into tabs.
 - Split View for comparing the active tab with another open tab, including a
@@ -117,7 +118,7 @@ repository knowledge base and source of truth.
 
 Near-term MVP work includes:
 
-- Pixel-perfect scroll synchronization and click-to-scroll navigation.
+- Pixel-perfect scroll synchronization.
 - Split View drag resizing.
 - LaTeX and Mermaid support.
 - Search and documentation-toolkit commands.

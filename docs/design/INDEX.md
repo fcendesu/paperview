@@ -87,7 +87,7 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 ## 4. Interaction Details
 - **Active State:** The current open file in the left sidebar should have a subtle background highlight (`#1B1F27`) and a thin blue vertical line on the left edge.
 - **Hover State:** Sidebar items should transition to a slightly lighter grey.
-- **Scroll Sync:** As the user scrolls, the corresponding entry in the "On this page" TOC turns accent blue. The current GUI maps active reader scroll progress to parsed heading block positions; pixel-perfect heading geometry is deferred.
+- **Scroll Sync:** As the user scrolls, the corresponding entry in the "On this page" TOC turns accent blue. Clicking a TOC entry jumps the active reader to that section. The current GUI maps active reader scroll progress and TOC jumps to parsed heading block positions; pixel-perfect heading geometry is deferred.
 - **Drag & Drop Overlay:** When a file is dragged over the window, the GUI shows a subtle accent border around the shell and a header status prompt indicating the hovered path.
 
 ## 5. Zen Mode & Edit Mode

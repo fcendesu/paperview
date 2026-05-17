@@ -1,11 +1,15 @@
 use std::{ffi::OsString, path::PathBuf, sync::mpsc};
 
 use iced::{
-    Element, Event, Fill, Length, Subscription,
+    Element, Event, Fill, Length, Subscription, Task,
     event::{self, Status as EventStatus},
     futures::{SinkExt, StreamExt, stream::BoxStream},
     keyboard,
-    widget::{button, column, container, row, text},
+    widget::{
+        button, column, container,
+        operation::{self, RelativeOffset},
+        row, text,
+    },
     window,
 };
 use paperview_core::{Document, History, HistoryStore, OpenDocuments, WatchEvent, watch_file};
@@ -50,6 +54,7 @@ pub enum Message {
     ToggleSplit,
     ResizeSplit(SplitResize),
     ReaderScrolled(f32),
+    TocSelected(usize),
     SelectSplitTab(usize),
     SelectTab(usize),
     CloseTab(usize),
@@ -148,10 +153,14 @@ impl PaperView {
     }
 }
 
-pub fn update(state: &mut PaperView, message: Message) {
+pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
     match message {
-        Message::OpenHistory(path) => state.open_path(path),
-        Message::FileChanged(path) => state.reload_path(path),
+        Message::OpenHistory(path) => {
+            state.open_path(path);
+        }
+        Message::FileChanged(path) => {
+            state.reload_path(path);
+        }
         Message::WatchFailed(error) => {
             state.status = Status::Error(error);
         }
@@ -175,10 +184,16 @@ pub fn update(state: &mut PaperView, message: Message) {
         Message::ToggleSplit => state.toggle_split(),
         Message::ResizeSplit(direction) => state.resize_split(direction),
         Message::ReaderScrolled(progress) => state.sync_active_toc_to_scroll(progress),
+        Message::TocSelected(block_index) => {
+            state.active_toc_block_index = Some(block_index);
+            return state.scroll_to_toc_block(block_index);
+        }
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
         Message::CloseTab(index) => state.close_tab(index),
     }
+
+    Task::none()
 }
 
 impl PaperView {
@@ -348,6 +363,20 @@ impl PaperView {
 
         self.active_toc_block_index = active_toc_block_for_scroll(document.parsed(), progress);
     }
+
+    fn scroll_to_toc_block(&self, block_index: usize) -> Task<Message> {
+        let progress = self.documents.active().map_or(0.0, |document| {
+            scroll_progress_for_block(document.parsed(), block_index)
+        });
+
+        operation::snap_to(
+            reader::ACTIVE_READER_SCROLLABLE_ID,
+            RelativeOffset {
+                x: 0.0,
+                y: progress,
+            },
+        )
+    }
 }
 
 fn active_toc_block_for_scroll(
@@ -377,6 +406,19 @@ fn active_toc_block_for_scroll(
 
 fn first_toc_block_index(document: &paperview_core::parser::ParsedDocument) -> Option<usize> {
     document.toc().first().map(|item| item.block_index)
+}
+
+fn scroll_progress_for_block(
+    document: &paperview_core::parser::ParsedDocument,
+    block_index: usize,
+) -> f32 {
+    let last_block_index = document.blocks.len().saturating_sub(1);
+
+    if last_block_index == 0 {
+        return 0.0;
+    }
+
+    (block_index.min(last_block_index) as f32) / (last_block_index as f32)
 }
 
 pub fn subscription(state: &PaperView) -> Subscription<Message> {
@@ -533,7 +575,11 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
             row![
                 history::view(&state.history),
                 reader,
-                navigation::view(document.parsed(), state.active_toc_block_index)
+                navigation::view(
+                    document.parsed(),
+                    state.active_toc_block_index,
+                    Message::TocSelected
+                )
             ]
             .into()
         }
@@ -718,7 +764,8 @@ mod tests {
     use paperview_core::{Document, HistoryStore, parser::parse_markdown};
 
     use super::{
-        Message, PaperView, SplitResize, active_toc_block_for_scroll, runtime_event, title, update,
+        Message, PaperView, SplitResize, active_toc_block_for_scroll, runtime_event,
+        scroll_progress_for_block, title, update,
     };
 
     #[test]
@@ -743,7 +790,7 @@ mod tests {
         let mut state = PaperView::from_args_with_store([], temp_store("open-history.toml"));
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/PRD.md");
 
-        update(&mut state, Message::OpenHistory(path.clone()));
+        apply(&mut state, Message::OpenHistory(path.clone()));
 
         assert_eq!(
             state.documents.active().map(Document::title),
@@ -761,7 +808,7 @@ mod tests {
             PaperView::from_args_with_store([OsString::from(&path)], temp_store("reload.toml"));
 
         fs::write(&path, "# After\n\nUpdated body.").expect("rewrite test document");
-        update(&mut state, Message::FileChanged(path.clone()));
+        apply(&mut state, Message::FileChanged(path.clone()));
 
         assert_eq!(state.documents.active().map(Document::title), Some("After"));
         assert!(
@@ -791,11 +838,11 @@ mod tests {
         let mut state =
             PaperView::from_args_with_store([OsString::from(&path)], temp_store("toc-scroll.toml"));
 
-        update(&mut state, Message::ReaderScrolled(0.6));
+        apply(&mut state, Message::ReaderScrolled(0.6));
 
         assert_eq!(state.active_toc_block_index, Some(2));
 
-        update(&mut state, Message::ReaderScrolled(0.9));
+        apply(&mut state, Message::ReaderScrolled(0.9));
 
         assert_eq!(state.active_toc_block_index, Some(4));
 
@@ -816,11 +863,34 @@ mod tests {
     }
 
     #[test]
+    fn toc_selection_updates_active_toc_item() {
+        let path = temp_doc("toc-select.md", "# First\n\nText.\n\n## Second\n\nMore.");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("toc-select.toml"));
+
+        apply(&mut state, Message::TocSelected(2));
+
+        assert_eq!(state.active_toc_block_index, Some(2));
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn toc_block_scroll_progress_is_bounded() {
+        let parsed = parse_markdown("# First\n\nText.\n\n## Second\n\nMore.");
+
+        assert_eq!(scroll_progress_for_block(&parsed, 0), 0.0);
+        assert_eq!(scroll_progress_for_block(&parsed, 2), 2.0 / 3.0);
+        assert_eq!(scroll_progress_for_block(&parsed, usize::MAX), 1.0);
+        assert_eq!(scroll_progress_for_block(&parse_markdown("# Only"), 0), 0.0);
+    }
+
+    #[test]
     fn dropped_file_opens_document() {
         let path = temp_doc("dropped.md", "# Dropped\n\nOpened from drop.");
         let mut state = PaperView::from_args_with_store([], temp_store("drop.toml"));
 
-        update(&mut state, Message::OpenDroppedFiles(vec![path.clone()]));
+        apply(&mut state, Message::OpenDroppedFiles(vec![path.clone()]));
 
         assert_eq!(
             state.documents.active().map(Document::title),
@@ -841,7 +911,7 @@ mod tests {
         let mut state =
             PaperView::from_args_with_store([OsString::from(&first)], temp_store("tabs.toml"));
 
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
 
         assert_eq!(state.documents.len(), 2);
         assert_eq!(state.documents.active_index(), Some(1));
@@ -860,7 +930,7 @@ mod tests {
         let second = temp_doc("batch-second.md", "# Second\n\nTwo.");
         let mut state = PaperView::from_args_with_store([], temp_store("batch.toml"));
 
-        update(
+        apply(
             &mut state,
             Message::OpenDroppedFiles(vec![first.clone(), second.clone()]),
         );
@@ -882,7 +952,7 @@ mod tests {
         let unsupported = temp_doc("batch-unsupported.html", "<h1>Nope</h1>");
         let mut state = PaperView::from_args_with_store([], temp_store("batch-error.toml"));
 
-        update(
+        apply(
             &mut state,
             Message::OpenDroppedFiles(vec![supported.clone(), unsupported.clone()]),
         );
@@ -904,9 +974,9 @@ mod tests {
         let second = temp_doc("select-second.md", "# Second\n\nTwo.");
         let mut state =
             PaperView::from_args_with_store([OsString::from(&first)], temp_store("select.toml"));
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
 
-        update(&mut state, Message::SelectTab(0));
+        apply(&mut state, Message::SelectTab(0));
 
         assert_eq!(state.documents.active_index(), Some(0));
         assert_eq!(state.documents.active().map(Document::title), Some("First"));
@@ -925,11 +995,11 @@ mod tests {
         let third = temp_doc("close-third.md", "# Third\n\nThree.");
         let mut state =
             PaperView::from_args_with_store([OsString::from(&first)], temp_store("close.toml"));
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
-        update(&mut state, Message::OpenDroppedFiles(vec![third.clone()]));
-        update(&mut state, Message::SelectTab(1));
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::OpenDroppedFiles(vec![third.clone()]));
+        apply(&mut state, Message::SelectTab(1));
 
-        update(&mut state, Message::CloseTab(1));
+        apply(&mut state, Message::CloseTab(1));
 
         assert_eq!(state.documents.len(), 2);
         assert_eq!(state.documents.active_index(), Some(1));
@@ -949,7 +1019,7 @@ mod tests {
         let mut state =
             PaperView::from_args_with_store([OsString::from(&path)], temp_store("close-last.toml"));
 
-        update(&mut state, Message::CloseTab(0));
+        apply(&mut state, Message::CloseTab(0));
 
         assert!(state.documents.is_empty());
         assert_eq!(state.documents.active_index(), None);
@@ -966,7 +1036,7 @@ mod tests {
             temp_store("split-single.toml"),
         );
 
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::ToggleSplit);
 
         assert_eq!(state.split_document_index, None);
         assert!(state.split_document().is_none());
@@ -982,15 +1052,15 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-toggle.toml"),
         );
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
 
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::ToggleSplit);
 
         assert_eq!(state.documents.active_index(), Some(1));
         assert_eq!(state.split_document_index, Some(0));
         assert_eq!(state.split_document().map(Document::title), Some("First"));
 
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::ToggleSplit);
 
         assert_eq!(state.split_document_index, None);
 
@@ -1006,15 +1076,15 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-resize.toml"),
         );
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::ToggleSplit);
 
-        update(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
+        apply(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
 
         assert_eq!(state.split_widths(), (60, 40));
 
-        update(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
-        update(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
+        apply(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
+        apply(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
 
         assert_eq!(state.split_widths(), (40, 60));
 
@@ -1030,19 +1100,19 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-bounds.toml"),
         );
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
 
-        update(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
+        apply(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
         assert_eq!(state.split_widths(), (50, 50));
 
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::ToggleSplit);
         for _ in 0..8 {
-            update(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
+            apply(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
         }
         assert_eq!(state.split_widths(), (70, 30));
 
         for _ in 0..8 {
-            update(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
+            apply(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
         }
         assert_eq!(state.split_widths(), (30, 70));
 
@@ -1059,13 +1129,13 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-select.toml"),
         );
-        update(
+        apply(
             &mut state,
             Message::OpenDroppedFiles(vec![second.clone(), third.clone()]),
         );
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::ToggleSplit);
 
-        update(&mut state, Message::SelectTab(0));
+        apply(&mut state, Message::SelectTab(0));
 
         assert_eq!(state.documents.active_index(), Some(0));
         assert_eq!(state.split_document_index, Some(1));
@@ -1085,13 +1155,13 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-choice.toml"),
         );
-        update(
+        apply(
             &mut state,
             Message::OpenDroppedFiles(vec![second.clone(), third.clone()]),
         );
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::ToggleSplit);
 
-        update(&mut state, Message::SelectSplitTab(1));
+        apply(&mut state, Message::SelectSplitTab(1));
 
         assert_eq!(state.documents.active_index(), Some(2));
         assert_eq!(state.split_document_index, Some(1));
@@ -1110,10 +1180,10 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-active.toml"),
         );
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::ToggleSplit);
 
-        update(&mut state, Message::SelectSplitTab(1));
+        apply(&mut state, Message::SelectSplitTab(1));
 
         assert_eq!(state.documents.active_index(), Some(1));
         assert_eq!(state.split_document_index, Some(0));
@@ -1130,10 +1200,10 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-close.toml"),
         );
-        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
-        update(&mut state, Message::ToggleSplit);
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::ToggleSplit);
 
-        update(&mut state, Message::CloseTab(0));
+        apply(&mut state, Message::CloseTab(0));
 
         assert_eq!(state.documents.len(), 1);
         assert_eq!(state.documents.active_index(), Some(0));
@@ -1150,11 +1220,11 @@ mod tests {
         let mut state =
             PaperView::from_args_with_store([OsString::from(&path)], temp_store("hover.toml"));
 
-        update(&mut state, Message::FileHovered(hover_path.clone()));
+        apply(&mut state, Message::FileHovered(hover_path.clone()));
         assert!(state.is_drag_hovered);
         assert!(matches!(state.status, super::Status::Hovering(_)));
 
-        update(&mut state, Message::FilesHoveredLeft);
+        apply(&mut state, Message::FilesHoveredLeft);
 
         assert!(!state.is_drag_hovered);
         assert!(
@@ -1169,10 +1239,10 @@ mod tests {
     fn toggle_zen_flips_layout_state() {
         let mut state = PaperView::from_args_with_store([], temp_store("zen.toml"));
 
-        update(&mut state, Message::ToggleZen);
+        apply(&mut state, Message::ToggleZen);
         assert!(state.is_zen);
 
-        update(&mut state, Message::ToggleZen);
+        apply(&mut state, Message::ToggleZen);
         assert!(!state.is_zen);
     }
 
@@ -1260,6 +1330,10 @@ mod tests {
             .as_nanos();
 
         HistoryStore::new(std::env::temp_dir().join(format!("paperview-gui-{nanos}-{name}")))
+    }
+
+    fn apply(state: &mut PaperView, message: Message) {
+        let _ = update(state, message);
     }
 
     fn temp_doc(name: &str, source: &str) -> std::path::PathBuf {
