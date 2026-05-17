@@ -307,3 +307,16 @@ pub fn code_container() -> container::Style {
         ..container::Style::default()
     }
 }
+
+pub fn math_container() -> container::Style {
+    container::Style {
+        background: Some(Background::Color(Color::from_rgb(0.98, 0.965, 0.925))),
+        text_color: Some(READER_TEXT),
+        border: Border {
+            color: Color::from_rgb(0.706, 0.576, 0.306),
+            width: 1.0,
+            radius: border::radius(6),
+        },
+        ..container::Style::default()
+    }
+}

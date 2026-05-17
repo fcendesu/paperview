@@ -6,6 +6,8 @@ use pulldown_cmark::{
     CodeBlockKind, Event, HeadingLevel as CmarkHeadingLevel, Options, Parser, Tag, TagEnd,
 };
 
+use self::elements::math;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedDocument {
     pub blocks: Vec<Block>,
@@ -78,6 +80,10 @@ pub enum Block {
     List {
         ordered: bool,
         items: Vec<String>,
+    },
+    Math {
+        display: bool,
+        source: String,
     },
     Rule,
 }
@@ -171,6 +177,8 @@ impl DocumentBuilder {
                 self.push_text(&code);
                 self.push_text("`");
             }
+            Event::InlineMath(source) => self.push_text(&math::inline_text(&source)),
+            Event::DisplayMath(source) => self.push_display_math(&source),
             Event::SoftBreak | Event::HardBreak => self.push_text("\n"),
             Event::Rule => self.blocks.push(Block::Rule),
             _ => {}
@@ -259,6 +267,14 @@ impl DocumentBuilder {
         }
     }
 
+    fn push_display_math(&mut self, source: &str) {
+        self.close_block();
+        self.blocks.push(Block::Math {
+            display: true,
+            source: math::display_source(source),
+        });
+    }
+
     fn close_block(&mut self) {
         let Some(open_block) = self.open_block.take() else {
             return;
@@ -269,7 +285,12 @@ impl DocumentBuilder {
                 level,
                 text: normalize_text(&text),
             }),
-            OpenBlock::Paragraph(text) => self.blocks.push(Block::Paragraph(normalize_text(&text))),
+            OpenBlock::Paragraph(text) => {
+                let text = normalize_text(&text);
+                if !text.is_empty() {
+                    self.blocks.push(Block::Paragraph(text));
+                }
+            }
             OpenBlock::BlockQuote(text) => {
                 self.blocks.push(Block::BlockQuote(normalize_text(&text)));
             }
@@ -366,6 +387,23 @@ mod tests {
                     code: "fn main() {}\n".to_owned()
                 },
                 Block::Rule
+            ]
+        );
+    }
+
+    #[test]
+    fn preserves_latex_math_source() {
+        let parsed = parse_markdown("Before $x + y$.\n\n$$\nE = mc^2\n$$\n\nAfter.");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![
+                Block::Paragraph("Before $x + y$.".to_owned()),
+                Block::Math {
+                    display: true,
+                    source: "E = mc^2".to_owned()
+                },
+                Block::Paragraph("After.".to_owned())
             ]
         );
     }

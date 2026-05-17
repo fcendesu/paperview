@@ -85,6 +85,11 @@ The first live-reload implementation keeps watcher ownership in `paperview-core`
 
 The first tabs implementation keeps open-document ownership in `paperview-core::OpenDocuments`. Frontends can use the shared model to add, activate, and replace documents without duplicating path de-duplication rules.
 
+The first LaTeX implementation keeps math semantics in `paperview-core` by
+preserving inline math text and exposing display math as `Block::Math`.
+Frontends render source-preserving math affordances until native formula
+typesetting is selected.
+
 ---
 
 ## 5. Performance Optimizations

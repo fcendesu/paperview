@@ -86,6 +86,14 @@ fn render_block(block: &Block, output: &mut String) {
                 }
             }
         }
+        Block::Math { source, .. } => {
+            output.push_str("$$\n");
+            output.push_str(source);
+            if !source.ends_with('\n') {
+                output.push('\n');
+            }
+            output.push_str("$$\n");
+        }
         Block::Rule => output.push_str("---\n"),
     }
 }
@@ -186,6 +194,13 @@ mod tests {
                 "On this page\n------------\n- PaperView\n  - Reader\n    - Navigation\n"
             )
         );
+    }
+
+    #[test]
+    fn renders_latex_math_blocks() {
+        let document = Document::from_source("Before $x$.\n\n$$\nE = mc^2\n$$");
+
+        assert!(render_document(&document).contains("Before $x$.\n\n$$\nE = mc^2\n$$\n"));
     }
 
     #[test]

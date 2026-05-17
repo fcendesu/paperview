@@ -24,7 +24,7 @@ This document tracks the progress of features across the three workspace crates.
 | **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
 | **Scroll Synchronization** | ✅ | ✅ | ✅ |
-| **LaTeX Support** | ⬜ | ⬜ | ⬜ |
+| **LaTeX Support** | ✅ | 🏗️ | 🏗️ |
 | **Mermaid Support** | ⬜ | ⬜ | ⬜ |
 | **Zen Mode** | ⬜ | ✅ | ⬜ |
 | **Drag & Drop** | ✅ | ✅ | ⬜ |
@@ -40,6 +40,7 @@ This document tracks the progress of features across the three workspace crates.
 - Tabbed Interface currently covers shared open-document state plus GUI tab activation and close controls; reorder/TUI tabs are deferred.
 - Split View currently covers a GUI foundation for comparing the active tab with one other open tab, including a visible toggle, secondary tab selection, and keyboard resizing; drag resize, scroll sync, and TUI split are deferred.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
+- LaTeX Support currently covers parser preservation for inline math and a dedicated display math block. GUI and TUI show source-preserving display math; native formula typesetting and structured inline spans are deferred.
 
 ---
 

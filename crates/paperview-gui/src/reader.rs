@@ -131,6 +131,10 @@ fn estimated_block_height(block: &Block) -> f32 {
             let code_lines = code.lines().count().max(1) as f32;
             12.0 + 8.0 + (CODE_LINE_HEIGHT * code_lines) + 32.0
         }
+        Block::Math { source, .. } => {
+            let math_lines = source.lines().count().max(1) as f32;
+            12.0 + 8.0 + (CODE_LINE_HEIGHT * math_lines) + 32.0
+        }
         Block::List { items, .. } => {
             let item_lines = items
                 .iter()
@@ -171,6 +175,7 @@ fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
         Block::BlockQuote(text) => blockquote(text),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::List { ordered, items } => list(*ordered, items),
+        Block::Math { display, source } => math_block(*display, source),
         Block::Rule => rule::horizontal(1).into(),
     }
 }
@@ -214,6 +219,26 @@ fn code_block<'a, Message: 'static>(
     .padding(16)
     .width(Fill)
     .style(|_| theme::code_container())
+    .into()
+}
+
+fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Message> {
+    let label = if display {
+        "display math"
+    } else {
+        "inline math"
+    };
+
+    container(
+        column![
+            text(label).size(12).color(theme::SHELL_ACCENT),
+            text(source).size(16).color(theme::READER_TEXT)
+        ]
+        .spacing(8),
+    )
+    .padding(16)
+    .width(Fill)
+    .style(|_| theme::math_container())
     .into()
 }
 
