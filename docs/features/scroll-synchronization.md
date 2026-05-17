@@ -14,6 +14,12 @@ Current GUI behavior:
   or when the reader is at the top.
 - In Split View, the table of contents follows the active/primary pane only.
 
+Current TUI behavior:
+
+- The terminal reader tracks rendered line anchors for document blocks.
+- The right-hand table of contents marks the active section as the user scrolls.
+- The active TOC marker is preserved across live reload after scroll clamping.
+
 ## Implementation Notes
 
 - `paperview-gui` stores the active TOC item as a heading block index.
@@ -30,6 +36,9 @@ Current GUI behavior:
 - Click-to-scroll navigation uses a stable active-reader scrollable ID plus an
   Iced widget operation task to snap to the selected heading's relative block
   anchor.
+- `paperview-tui` records rendered line starts for parsed blocks and maps the
+  current terminal scroll offset to the latest heading whose block line is at
+  or above the viewport.
 
 ## Open Decisions
 
@@ -37,7 +46,7 @@ Current GUI behavior:
   exposes actual per-block layout rectangles.
 - Split-pane scroll synchronization is deferred.
 - Independent scroll position persistence is deferred.
-- TUI scroll synchronization is deferred.
+- TUI click/key TOC jumping is deferred.
 
 ## Verification
 

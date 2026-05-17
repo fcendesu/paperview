@@ -6,7 +6,8 @@ use std::{
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
-    Document, FileEntry, FileWatcher, History, HistoryStore, WatchEvent, watch_file,
+    Document, FileEntry, FileWatcher, History, HistoryStore, WatchEvent, parser::TocItem,
+    watch_file,
 };
 use ratatui::{
     DefaultTerminal, Frame,
@@ -35,7 +36,8 @@ pub fn run_dashboard() -> io::Result<()> {
 struct ReaderApp {
     document: Document,
     document_lines: Vec<String>,
-    toc_lines: Vec<String>,
+    block_line_starts: Vec<render::BlockLineStart>,
+    toc: Vec<TocItem>,
     scroll: u16,
     status: Option<String>,
     _watcher: Option<FileWatcher>,
@@ -44,14 +46,15 @@ struct ReaderApp {
 
 impl ReaderApp {
     fn new(document: Document) -> Self {
-        let document_lines = render::render_document_lines(&document);
-        let toc_lines = render::render_toc_lines(&document.parsed().toc());
+        let rendered = render::render_document_with_anchors(&document);
+        let toc = document.parsed().toc();
         let (watcher, watch_receiver, status) = watch_document(&document);
 
         Self {
             document,
-            document_lines,
-            toc_lines,
+            document_lines: rendered.lines,
+            block_line_starts: rendered.block_line_starts,
+            toc,
             scroll: 0,
             status,
             _watcher: watcher,
@@ -115,10 +118,12 @@ impl ReaderApp {
         );
 
         frame.render_widget(
-            Paragraph::new(Text::from(toc_text(&self.toc_lines)))
-                .block(Block::default().title("On this page").borders(Borders::ALL))
-                .style(Style::default().fg(Color::DarkGray))
-                .wrap(Wrap { trim: true }),
+            Paragraph::new(render::render_toc_text(
+                &self.toc,
+                self.active_toc_block_index(),
+            ))
+            .block(Block::default().title("On this page").borders(Borders::ALL))
+            .wrap(Wrap { trim: true }),
             toc,
         );
     }
@@ -133,6 +138,23 @@ impl ReaderApp {
 
     fn scroll_to_bottom(&mut self) {
         self.scroll = self.max_scroll();
+    }
+
+    fn active_toc_block_index(&self) -> Option<usize> {
+        let target_line = usize::from(self.scroll);
+
+        self.toc
+            .iter()
+            .rfind(|item| self.block_line_start(item.block_index) <= target_line)
+            .or_else(|| self.toc.first())
+            .map(|item| item.block_index)
+    }
+
+    fn block_line_start(&self, block_index: usize) -> usize {
+        self.block_line_starts
+            .iter()
+            .find(|anchor| anchor.block_index == block_index)
+            .map_or(usize::MAX, |anchor| anchor.line)
     }
 
     fn max_scroll(&self) -> u16 {
@@ -160,8 +182,10 @@ impl ReaderApp {
 
         match Document::open(&path) {
             Ok(document) => {
-                self.document_lines = render::render_document_lines(&document);
-                self.toc_lines = render::render_toc_lines(&document.parsed().toc());
+                let rendered = render::render_document_with_anchors(&document);
+                self.document_lines = rendered.lines;
+                self.block_line_starts = rendered.block_line_starts;
+                self.toc = document.parsed().toc();
                 self.scroll = self.scroll.min(self.max_scroll());
                 self.document = document;
                 self.status = Some(format!("Reloaded {}", path.display()));
@@ -384,14 +408,6 @@ fn document_line(line: &str) -> Line<'static> {
     }
 }
 
-fn toc_text(lines: &[String]) -> Vec<Line<'static>> {
-    lines
-        .iter()
-        .skip(2)
-        .map(|line| Line::from(line.to_owned()))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -414,6 +430,35 @@ mod tests {
         let bottom = app.scroll;
         app.scroll_down();
         assert_eq!(app.scroll, bottom);
+    }
+
+    #[test]
+    fn active_toc_tracks_scroll_position() {
+        let mut app = ReaderApp::new(Document::from_source(
+            "# First\n\nOne.\n\n## Second\n\nTwo.\n\n## Third\n\nThree.",
+        ));
+
+        assert_eq!(app.active_toc_block_index(), Some(0));
+
+        app.scroll = app.block_line_start(2) as u16;
+        assert_eq!(app.active_toc_block_index(), Some(2));
+
+        app.scroll = app.block_line_start(4) as u16;
+        assert_eq!(app.active_toc_block_index(), Some(4));
+    }
+
+    #[test]
+    fn active_toc_falls_back_to_first_heading() {
+        let app = ReaderApp::new(Document::from_source("# First\n\nBody."));
+
+        assert_eq!(app.active_toc_block_index(), Some(0));
+    }
+
+    #[test]
+    fn active_toc_is_empty_without_headings() {
+        let app = ReaderApp::new(Document::from_source("Body only."));
+
+        assert_eq!(app.active_toc_block_index(), None);
     }
 
     #[test]

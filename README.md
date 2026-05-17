@@ -17,7 +17,7 @@ PaperView is in early MVP development. The workspace currently contains:
 - `paperview-gui`: an Iced desktop reader with history, table of contents,
   tabs, drag-and-drop, live reload, and Zen Mode.
 - `paperview-tui`: a Ratatui terminal reader with recent-file dashboard,
-  table of contents, scrolling, and live reload.
+  table of contents, active-section highlighting, scrolling, and live reload.
 
 Supported input formats:
 
@@ -75,6 +75,8 @@ TUI controls:
 - `G`: jump to bottom in the reader.
 - `Enter`: open the selected recent file from the dashboard.
 - `q` / `Esc`: quit the current TUI view.
+
+The TUI highlights the active table-of-contents section while you scroll.
 
 ## Development Checks
 

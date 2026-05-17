@@ -2,6 +2,22 @@ use paperview_core::{
     Document,
     parser::{Block, HeadingLevel, TocItem},
 };
+use ratatui::{
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderedDocument {
+    pub lines: Vec<String>,
+    pub block_line_starts: Vec<BlockLineStart>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockLineStart {
+    pub block_index: usize,
+    pub line: usize,
+}
 
 #[cfg(test)]
 fn render_document(document: &Document) -> String {
@@ -13,15 +29,28 @@ fn render_document(document: &Document) -> String {
     output
 }
 
+#[cfg(test)]
 pub fn render_document_lines(document: &Document) -> Vec<String> {
-    let mut output = String::new();
+    render_document_with_anchors(document).lines
+}
 
-    for block in &document.parsed().blocks {
+pub fn render_document_with_anchors(document: &Document) -> RenderedDocument {
+    let mut output = String::new();
+    let mut block_line_starts = Vec::new();
+
+    for (block_index, block) in document.parsed().blocks.iter().enumerate() {
+        block_line_starts.push(BlockLineStart {
+            block_index,
+            line: output.lines().count(),
+        });
         render_block(block, &mut output);
         output.push('\n');
     }
 
-    output.lines().map(ToOwned::to_owned).collect()
+    RenderedDocument {
+        lines: output.lines().map(ToOwned::to_owned).collect(),
+        block_line_starts,
+    }
 }
 
 fn render_block(block: &Block, output: &mut String) {
@@ -68,6 +97,7 @@ fn render_heading(level: HeadingLevel, text: &str, output: &mut String) {
     output.push('\n');
 }
 
+#[cfg(test)]
 pub fn render_toc_lines(toc: &[TocItem]) -> Vec<String> {
     let mut lines = vec!["On this page".to_owned(), "------------".to_owned()];
 
@@ -84,11 +114,42 @@ pub fn render_toc_lines(toc: &[TocItem]) -> Vec<String> {
     lines
 }
 
+pub fn render_toc_text(toc: &[TocItem], active_block_index: Option<usize>) -> Text<'static> {
+    if toc.is_empty() {
+        return Text::from(vec![Line::from(Span::styled(
+            "No headings",
+            Style::default().fg(Color::DarkGray),
+        ))]);
+    }
+
+    let mut lines = Vec::new();
+
+    for item in toc {
+        let is_active = active_block_index == Some(item.block_index);
+        let indent = "  ".repeat(usize::from(item.level.as_depth().saturating_sub(1)));
+        let marker = if is_active { ">" } else { "-" };
+        let style = if is_active {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        };
+
+        lines.push(Line::from(Span::styled(
+            format!("{indent}{marker} {}", item.title),
+            style,
+        )));
+    }
+
+    Text::from(lines)
+}
+
 #[cfg(test)]
 mod tests {
     use paperview_core::Document;
 
-    use super::render_document;
+    use super::{render_document, render_document_with_anchors, render_toc_text};
 
     #[test]
     fn renders_basic_markdown_blocks() {
@@ -109,5 +170,25 @@ mod tests {
                 "On this page\n------------\n- PaperView\n  - Reader\n    - Navigation\n"
             )
         );
+    }
+
+    #[test]
+    fn records_block_line_starts() {
+        let document = Document::from_source("# PaperView\n\nBody.\n\n## Reader");
+        let rendered = render_document_with_anchors(&document);
+
+        assert_eq!(rendered.block_line_starts[0].block_index, 0);
+        assert_eq!(rendered.block_line_starts[0].line, 0);
+        assert_eq!(rendered.block_line_starts[2].block_index, 2);
+        assert!(rendered.block_line_starts[2].line > rendered.block_line_starts[0].line);
+    }
+
+    #[test]
+    fn highlights_active_toc_item() {
+        let document = Document::from_source("# PaperView\n\n## Reader");
+        let text = render_toc_text(&document.parsed().toc(), Some(1));
+        let rendered = format!("{text:?}");
+
+        assert!(rendered.contains("> Reader"));
     }
 }
