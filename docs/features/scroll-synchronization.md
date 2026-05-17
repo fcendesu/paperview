@@ -18,6 +18,9 @@ Current TUI behavior:
 
 - The terminal reader tracks rendered line anchors for document blocks.
 - The right-hand table of contents marks the active section as the user scrolls.
+- `Tab` toggles focus between reader scrolling and TOC selection.
+- While the TOC is focused, `j` / `k` or arrow keys move the TOC selection and
+  `Enter` jumps the reader to the selected heading.
 - The active TOC marker is preserved across live reload after scroll clamping.
 
 ## Implementation Notes
@@ -39,6 +42,8 @@ Current TUI behavior:
 - `paperview-tui` records rendered line starts for parsed blocks and maps the
   current terminal scroll offset to the latest heading whose block line is at
   or above the viewport.
+- The TUI keeps TOC selection local to `ReaderApp`, clamps it after reload, and
+  uses the same block-line anchors for active highlighting and jumps.
 
 ## Open Decisions
 
@@ -46,7 +51,7 @@ Current TUI behavior:
   exposes actual per-block layout rectangles.
 - Split-pane scroll synchronization is deferred.
 - Independent scroll position persistence is deferred.
-- TUI click/key TOC jumping is deferred.
+- TUI mouse-based TOC navigation is deferred.
 
 ## Verification
 

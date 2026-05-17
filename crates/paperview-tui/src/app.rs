@@ -38,10 +38,18 @@ struct ReaderApp {
     document_lines: Vec<String>,
     block_line_starts: Vec<render::BlockLineStart>,
     toc: Vec<TocItem>,
+    toc_selected_index: Option<usize>,
+    focus: ReaderFocus,
     scroll: u16,
     status: Option<String>,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReaderFocus {
+    Reader,
+    Toc,
 }
 
 impl ReaderApp {
@@ -54,7 +62,9 @@ impl ReaderApp {
             document,
             document_lines: rendered.lines,
             block_line_starts: rendered.block_line_starts,
+            toc_selected_index: initial_toc_selection(&toc),
             toc,
+            focus: ReaderFocus::Reader,
             scroll: 0,
             status,
             _watcher: watcher,
@@ -73,10 +83,14 @@ impl ReaderApp {
             {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                    KeyCode::Char('j') | KeyCode::Down => self.scroll_down(),
-                    KeyCode::Char('k') | KeyCode::Up => self.scroll_up(),
-                    KeyCode::Char('g') => self.scroll = 0,
-                    KeyCode::Char('G') => self.scroll_to_bottom(),
+                    KeyCode::Tab => self.toggle_focus(),
+                    KeyCode::Char('j') | KeyCode::Down => self.move_down(),
+                    KeyCode::Char('k') | KeyCode::Up => self.move_up(),
+                    KeyCode::Enter => self.jump_to_selected_toc(),
+                    KeyCode::Char('g') if self.focus == ReaderFocus::Reader => self.scroll = 0,
+                    KeyCode::Char('G') if self.focus == ReaderFocus::Reader => {
+                        self.scroll_to_bottom();
+                    }
                     _ => {}
                 }
             }
@@ -121,11 +135,35 @@ impl ReaderApp {
             Paragraph::new(render::render_toc_text(
                 &self.toc,
                 self.active_toc_block_index(),
+                self.toc_selected_index,
+                self.focus == ReaderFocus::Toc,
             ))
-            .block(Block::default().title("On this page").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title(if self.focus == ReaderFocus::Toc {
+                        "On this page [active]"
+                    } else {
+                        "On this page"
+                    })
+                    .borders(Borders::ALL),
+            )
             .wrap(Wrap { trim: true }),
             toc,
         );
+    }
+
+    fn move_down(&mut self) {
+        match self.focus {
+            ReaderFocus::Reader => self.scroll_down(),
+            ReaderFocus::Toc => self.select_next_toc(),
+        }
+    }
+
+    fn move_up(&mut self) {
+        match self.focus {
+            ReaderFocus::Reader => self.scroll_up(),
+            ReaderFocus::Toc => self.select_previous_toc(),
+        }
     }
 
     fn scroll_down(&mut self) {
@@ -138,6 +176,67 @@ impl ReaderApp {
 
     fn scroll_to_bottom(&mut self) {
         self.scroll = self.max_scroll();
+    }
+
+    fn toggle_focus(&mut self) {
+        if self.toc.is_empty() {
+            self.focus = ReaderFocus::Reader;
+            self.toc_selected_index = None;
+            return;
+        }
+
+        self.focus = match self.focus {
+            ReaderFocus::Reader => ReaderFocus::Toc,
+            ReaderFocus::Toc => ReaderFocus::Reader,
+        };
+
+        if self.focus == ReaderFocus::Toc && self.toc_selected_index.is_none() {
+            self.toc_selected_index = self
+                .active_toc_block_index()
+                .and_then(|block_index| self.toc_index_for_block(block_index))
+                .or(Some(0));
+        }
+    }
+
+    fn select_next_toc(&mut self) {
+        if self.toc.is_empty() {
+            self.toc_selected_index = None;
+            return;
+        }
+
+        let next = self
+            .toc_selected_index
+            .map_or(0, |index| (index + 1).min(self.toc.len() - 1));
+        self.toc_selected_index = Some(next);
+    }
+
+    fn select_previous_toc(&mut self) {
+        if self.toc.is_empty() {
+            self.toc_selected_index = None;
+            return;
+        }
+
+        let previous = self
+            .toc_selected_index
+            .map_or(0, |index| index.saturating_sub(1));
+        self.toc_selected_index = Some(previous);
+    }
+
+    fn jump_to_selected_toc(&mut self) {
+        if self.focus != ReaderFocus::Toc {
+            return;
+        }
+
+        let Some(index) = self.toc_selected_index else {
+            return;
+        };
+        let Some(item) = self.toc.get(index) else {
+            return;
+        };
+
+        self.scroll = self
+            .block_line_start(item.block_index)
+            .min(usize::from(self.max_scroll())) as u16;
     }
 
     fn active_toc_block_index(&self) -> Option<usize> {
@@ -155,6 +254,12 @@ impl ReaderApp {
             .iter()
             .find(|anchor| anchor.block_index == block_index)
             .map_or(usize::MAX, |anchor| anchor.line)
+    }
+
+    fn toc_index_for_block(&self, block_index: usize) -> Option<usize> {
+        self.toc
+            .iter()
+            .position(|item| item.block_index == block_index)
     }
 
     fn max_scroll(&self) -> u16 {
@@ -186,6 +291,11 @@ impl ReaderApp {
                 self.document_lines = rendered.lines;
                 self.block_line_starts = rendered.block_line_starts;
                 self.toc = document.parsed().toc();
+                self.toc_selected_index =
+                    clamp_toc_selection(self.toc_selected_index, self.toc.len());
+                if self.toc.is_empty() {
+                    self.focus = ReaderFocus::Reader;
+                }
                 self.scroll = self.scroll.min(self.max_scroll());
                 self.document = document;
                 self.status = Some(format!("Reloaded {}", path.display()));
@@ -194,6 +304,18 @@ impl ReaderApp {
                 self.status = Some(error.to_string());
             }
         }
+    }
+}
+
+fn initial_toc_selection(toc: &[TocItem]) -> Option<usize> {
+    (!toc.is_empty()).then_some(0)
+}
+
+fn clamp_toc_selection(selection: Option<usize>, len: usize) -> Option<usize> {
+    if len == 0 {
+        None
+    } else {
+        Some(selection.unwrap_or(0).min(len - 1))
     }
 }
 
@@ -417,7 +539,7 @@ mod tests {
 
     use paperview_core::{Document, FileEntry, HistoryStore};
 
-    use super::{DashboardApp, ReaderApp};
+    use super::{DashboardApp, ReaderApp, ReaderFocus, clamp_toc_selection};
 
     #[test]
     fn scrolling_is_saturating() {
@@ -459,6 +581,53 @@ mod tests {
         let app = ReaderApp::new(Document::from_source("Body only."));
 
         assert_eq!(app.active_toc_block_index(), None);
+    }
+
+    #[test]
+    fn toc_focus_toggle_requires_headings() {
+        let mut app = ReaderApp::new(Document::from_source("# First\n\nBody."));
+
+        assert_eq!(app.focus, ReaderFocus::Reader);
+        app.toggle_focus();
+        assert_eq!(app.focus, ReaderFocus::Toc);
+        app.toggle_focus();
+        assert_eq!(app.focus, ReaderFocus::Reader);
+
+        let mut empty = ReaderApp::new(Document::from_source("Body only."));
+        empty.toggle_focus();
+        assert_eq!(empty.focus, ReaderFocus::Reader);
+        assert_eq!(empty.toc_selected_index, None);
+    }
+
+    #[test]
+    fn toc_selection_is_bounded() {
+        let mut app = ReaderApp::new(Document::from_source("# First\n\n## Second"));
+        app.toggle_focus();
+
+        app.select_previous_toc();
+        assert_eq!(app.toc_selected_index, Some(0));
+
+        app.select_next_toc();
+        app.select_next_toc();
+        assert_eq!(app.toc_selected_index, Some(1));
+    }
+
+    #[test]
+    fn toc_jump_scrolls_to_selected_heading() {
+        let mut app = ReaderApp::new(Document::from_source("# First\n\nBody.\n\n## Second"));
+        app.toggle_focus();
+        app.select_next_toc();
+        app.jump_to_selected_toc();
+
+        assert_eq!(app.scroll, app.block_line_start(2) as u16);
+        assert_eq!(app.active_toc_block_index(), Some(2));
+    }
+
+    #[test]
+    fn toc_selection_clamps_after_reload() {
+        assert_eq!(clamp_toc_selection(Some(3), 2), Some(1));
+        assert_eq!(clamp_toc_selection(Some(0), 0), None);
+        assert_eq!(clamp_toc_selection(None, 2), Some(0));
     }
 
     #[test]

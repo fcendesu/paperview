@@ -12,7 +12,9 @@ The first TOC slice supports:
 - Source block index for future scroll synchronization.
 - Empty-state text when a document has no headings.
 
-The TOC views are display-only for now. Clicking headings, keyboard navigation, and active-section highlighting belong to later interactive navigation and scroll synchronization slices.
+The GUI TOC supports click-to-scroll navigation. The TUI TOC supports keyboard
+focus with `Tab`, selection with `j` / `k` or arrow keys, and jump-to-heading
+with `Enter`.
 
 ## Implementation Notes
 
@@ -25,8 +27,8 @@ The TOC views are display-only for now. Clicking headings, keyboard navigation, 
 ## Open Decisions
 
 - Slugs are internal metadata for now; future exported HTML may need a shared anchor policy.
-- Interactive TUI TOC navigation is deferred beyond the initial Ratatui shell.
-- Scroll position tracking and active TOC highlighting remain separate from static TOC rendering.
+- Mouse-based TOC navigation is deferred.
+- Exact wrapped terminal line geometry remains separate from static TOC rendering.
 
 ## Verification Expectations
 

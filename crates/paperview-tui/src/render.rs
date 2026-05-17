@@ -114,7 +114,12 @@ pub fn render_toc_lines(toc: &[TocItem]) -> Vec<String> {
     lines
 }
 
-pub fn render_toc_text(toc: &[TocItem], active_block_index: Option<usize>) -> Text<'static> {
+pub fn render_toc_text(
+    toc: &[TocItem],
+    active_block_index: Option<usize>,
+    selected_index: Option<usize>,
+    is_focused: bool,
+) -> Text<'static> {
     if toc.is_empty() {
         return Text::from(vec![Line::from(Span::styled(
             "No headings",
@@ -124,11 +129,22 @@ pub fn render_toc_text(toc: &[TocItem], active_block_index: Option<usize>) -> Te
 
     let mut lines = Vec::new();
 
-    for item in toc {
+    for (index, item) in toc.iter().enumerate() {
         let is_active = active_block_index == Some(item.block_index);
+        let is_selected = selected_index == Some(index);
         let indent = "  ".repeat(usize::from(item.level.as_depth().saturating_sub(1)));
-        let marker = if is_active { ">" } else { "-" };
-        let style = if is_active {
+        let marker = match (is_focused && is_selected, is_active) {
+            (true, true) => "*",
+            (true, false) => "+",
+            (false, true) => ">",
+            (false, false) => "-",
+        };
+        let style = if is_focused && is_selected {
+            Style::default()
+                .fg(Color::White)
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD)
+        } else if is_active {
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
@@ -186,9 +202,18 @@ mod tests {
     #[test]
     fn highlights_active_toc_item() {
         let document = Document::from_source("# PaperView\n\n## Reader");
-        let text = render_toc_text(&document.parsed().toc(), Some(1));
+        let text = render_toc_text(&document.parsed().toc(), Some(1), None, false);
         let rendered = format!("{text:?}");
 
         assert!(rendered.contains("> Reader"));
+    }
+
+    #[test]
+    fn marks_selected_toc_item_when_focused() {
+        let document = Document::from_source("# PaperView\n\n## Reader");
+        let text = render_toc_text(&document.parsed().toc(), Some(0), Some(1), true);
+        let rendered = format!("{text:?}");
+
+        assert!(rendered.contains("+ Reader"));
     }
 }

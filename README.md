@@ -73,10 +73,13 @@ TUI controls:
 - `k` / `Up`: scroll or move selection up.
 - `g`: jump to top in the reader.
 - `G`: jump to bottom in the reader.
-- `Enter`: open the selected recent file from the dashboard.
+- `Tab`: switch focus between the reader and table of contents.
+- `Enter`: jump to the selected TOC heading when the TOC is focused.
+- In the dashboard, `Enter`: open the selected recent file.
 - `q` / `Esc`: quit the current TUI view.
 
-The TUI highlights the active table-of-contents section while you scroll.
+The TUI highlights the active table-of-contents section while you scroll and can
+jump through headings from the TOC.
 
 ## Development Checks
 
