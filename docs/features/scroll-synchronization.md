@@ -17,9 +17,10 @@ Current GUI behavior:
 ## Implementation Notes
 
 - `paperview-gui` stores the active TOC item as a heading block index.
-- The current mapping uses scroll progress against parsed document block
-  positions. This is deterministic and cheap, but it is not pixel-perfect
-  heading geometry yet.
+- The current mapping uses reader-aware heading anchors estimated from block
+  type, typography, wrapping, and spacing. This is closer to visible reader
+  geometry than raw block counts, but exact Iced layout capture is still
+  deferred.
 - `paperview-core` already exposes heading block indices through `TocItem`, so
   no new core data model was needed for the first GUI slice.
 - `reader::view_with_scroll` adapts Iced scrollable viewport changes into a
@@ -28,12 +29,12 @@ Current GUI behavior:
   TOC row with the accent color.
 - Click-to-scroll navigation uses a stable active-reader scrollable ID plus an
   Iced widget operation task to snap to the selected heading's relative block
-  position.
+  anchor.
 
 ## Open Decisions
 
-- Pixel-accurate heading activation is deferred until reader rendering exposes
-  per-block layout metadata.
+- Exact pixel-accurate heading activation is deferred until reader rendering
+  exposes actual per-block layout rectangles.
 - Split-pane scroll synchronization is deferred.
 - Independent scroll position persistence is deferred.
 - TUI scroll synchronization is deferred.

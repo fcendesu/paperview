@@ -361,12 +361,13 @@ impl PaperView {
             return;
         };
 
-        self.active_toc_block_index = active_toc_block_for_scroll(document.parsed(), progress);
+        self.active_toc_block_index =
+            reader::active_heading_for_scroll(document.parsed(), progress);
     }
 
     fn scroll_to_toc_block(&self, block_index: usize) -> Task<Message> {
         let progress = self.documents.active().map_or(0.0, |document| {
-            scroll_progress_for_block(document.parsed(), block_index)
+            reader::heading_scroll_progress(document.parsed(), block_index)
         });
 
         operation::snap_to(
@@ -379,46 +380,8 @@ impl PaperView {
     }
 }
 
-fn active_toc_block_for_scroll(
-    document: &paperview_core::parser::ParsedDocument,
-    progress: f32,
-) -> Option<usize> {
-    let toc = document.toc();
-
-    if toc.is_empty() {
-        return None;
-    }
-
-    let progress = if progress.is_finite() {
-        progress.clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let last_block_index = document.blocks.len().saturating_sub(1);
-    let target_block_index = ((last_block_index as f32) * progress).round() as usize;
-
-    toc.iter()
-        .take_while(|item| item.block_index <= target_block_index)
-        .last()
-        .or_else(|| toc.first())
-        .map(|item| item.block_index)
-}
-
 fn first_toc_block_index(document: &paperview_core::parser::ParsedDocument) -> Option<usize> {
     document.toc().first().map(|item| item.block_index)
-}
-
-fn scroll_progress_for_block(
-    document: &paperview_core::parser::ParsedDocument,
-    block_index: usize,
-) -> f32 {
-    let last_block_index = document.blocks.len().saturating_sub(1);
-
-    if last_block_index == 0 {
-        return 0.0;
-    }
-
-    (block_index.min(last_block_index) as f32) / (last_block_index as f32)
 }
 
 pub fn subscription(state: &PaperView) -> Subscription<Message> {
@@ -763,10 +726,7 @@ mod tests {
     };
     use paperview_core::{Document, HistoryStore, parser::parse_markdown};
 
-    use super::{
-        Message, PaperView, SplitResize, active_toc_block_for_scroll, runtime_event,
-        scroll_progress_for_block, title, update,
-    };
+    use super::{Message, PaperView, SplitResize, reader, runtime_event, title, update};
 
     #[test]
     fn empty_window_title_is_app_name() {
@@ -853,11 +813,14 @@ mod tests {
     fn active_toc_mapping_is_bounded_and_ignores_empty_toc() {
         let parsed = parse_markdown("# First\n\nText.\n\n## Second\n\nMore.");
 
-        assert_eq!(active_toc_block_for_scroll(&parsed, -1.0), Some(0));
-        assert_eq!(active_toc_block_for_scroll(&parsed, f32::NAN), Some(0));
-        assert_eq!(active_toc_block_for_scroll(&parsed, 1.5), Some(2));
+        assert_eq!(reader::active_heading_for_scroll(&parsed, -1.0), Some(0));
         assert_eq!(
-            active_toc_block_for_scroll(&parse_markdown("No headings."), 0.5),
+            reader::active_heading_for_scroll(&parsed, f32::NAN),
+            Some(0)
+        );
+        assert_eq!(reader::active_heading_for_scroll(&parsed, 1.5), Some(2));
+        assert_eq!(
+            reader::active_heading_for_scroll(&parse_markdown("No headings."), 0.5),
             None
         );
     }
@@ -879,10 +842,12 @@ mod tests {
     fn toc_block_scroll_progress_is_bounded() {
         let parsed = parse_markdown("# First\n\nText.\n\n## Second\n\nMore.");
 
-        assert_eq!(scroll_progress_for_block(&parsed, 0), 0.0);
-        assert_eq!(scroll_progress_for_block(&parsed, 2), 2.0 / 3.0);
-        assert_eq!(scroll_progress_for_block(&parsed, usize::MAX), 1.0);
-        assert_eq!(scroll_progress_for_block(&parse_markdown("# Only"), 0), 0.0);
+        assert_eq!(reader::heading_scroll_progress(&parsed, 0), 0.0);
+        assert_eq!(reader::heading_scroll_progress(&parsed, usize::MAX), 1.0);
+        assert_eq!(
+            reader::heading_scroll_progress(&parse_markdown("# Only"), 0),
+            0.0
+        );
     }
 
     #[test]

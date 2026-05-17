@@ -118,7 +118,7 @@ repository knowledge base and source of truth.
 
 Near-term MVP work includes:
 
-- Pixel-perfect scroll synchronization.
+- Exact scroll geometry from rendered layout rectangles.
 - Split View drag resizing.
 - LaTeX and Mermaid support.
 - Search and documentation-toolkit commands.
