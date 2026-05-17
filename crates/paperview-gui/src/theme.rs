@@ -131,6 +131,31 @@ pub fn tab_button(is_active: bool, status: button::Status) -> button::Style {
     }
 }
 
+pub fn tab_close_button(is_active: bool, status: button::Status) -> button::Style {
+    let background = match status {
+        button::Status::Hovered | button::Status::Pressed => SHELL_ACCENT,
+        button::Status::Active | button::Status::Disabled => Color::TRANSPARENT,
+    };
+    let text_color = if matches!(status, button::Status::Hovered | button::Status::Pressed) {
+        SHELL_TEXT
+    } else if is_active {
+        READER_TEXT_MUTED
+    } else {
+        SHELL_TEXT_MUTED
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color,
+        border: Border {
+            color: background,
+            width: 1.0,
+            radius: border::radius(4),
+        },
+        ..button::Style::default()
+    }
+}
+
 pub fn inactive_tab_container() -> container::Style {
     container::Style {
         background: Some(Background::Color(SHELL_ACTIVE_SURFACE)),

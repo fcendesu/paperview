@@ -48,6 +48,22 @@ impl OpenDocuments {
         }
     }
 
+    pub fn close(&mut self, index: usize) -> Option<Document> {
+        if index >= self.documents.len() {
+            return None;
+        }
+
+        let removed = self.documents.remove(index);
+        self.active = match (self.documents.is_empty(), self.active) {
+            (true, _) => None,
+            (false, Some(active)) if active == index => Some(index.min(self.documents.len() - 1)),
+            (false, Some(active)) if active > index => Some(active - 1),
+            (false, active) => active,
+        };
+
+        Some(removed)
+    }
+
     pub fn open_or_activate(&mut self, document: Document) -> usize {
         if let Some(path) = document.path()
             && let Some(index) = self.index_for_path(path)
@@ -117,5 +133,50 @@ mod tests {
         assert_eq!(index, 1);
         assert_eq!(documents.len(), 2);
         assert_eq!(documents.active().map(Document::title), Some("Fresh"));
+    }
+
+    #[test]
+    fn closing_active_tab_selects_next_available_tab() {
+        let first = Document::from_source("# First").with_path("first.md");
+        let second = Document::from_source("# Second").with_path("second.md");
+        let third = Document::from_source("# Third").with_path("third.md");
+        let mut documents = OpenDocuments::from_document(first);
+        documents.open_or_activate(second);
+        documents.open_or_activate(third);
+        documents.select(1);
+
+        let removed = documents.close(1);
+
+        assert_eq!(removed.as_ref().map(Document::title), Some("Second"));
+        assert_eq!(documents.len(), 2);
+        assert_eq!(documents.active_index(), Some(1));
+        assert_eq!(documents.active().map(Document::title), Some("Third"));
+    }
+
+    #[test]
+    fn closing_tab_before_active_shifts_active_index() {
+        let first = Document::from_source("# First").with_path("first.md");
+        let second = Document::from_source("# Second").with_path("second.md");
+        let third = Document::from_source("# Third").with_path("third.md");
+        let mut documents = OpenDocuments::from_document(first);
+        documents.open_or_activate(second);
+        documents.open_or_activate(third);
+
+        documents.close(0);
+
+        assert_eq!(documents.active_index(), Some(1));
+        assert_eq!(documents.active().map(Document::title), Some("Third"));
+    }
+
+    #[test]
+    fn closing_last_tab_clears_active_document() {
+        let first = Document::from_source("# First").with_path("first.md");
+        let mut documents = OpenDocuments::from_document(first);
+
+        let removed = documents.close(0);
+
+        assert_eq!(removed.as_ref().map(Document::title), Some("First"));
+        assert!(documents.is_empty());
+        assert_eq!(documents.active(), None);
     }
 }

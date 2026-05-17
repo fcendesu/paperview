@@ -40,6 +40,7 @@ pub enum Message {
     FileDropped(PathBuf),
     ToggleZen,
     SelectTab(usize),
+    CloseTab(usize),
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -140,6 +141,7 @@ pub fn update(state: &mut PaperView, message: Message) {
             state.is_zen = !state.is_zen;
         }
         Message::SelectTab(index) => state.select_tab(index),
+        Message::CloseTab(index) => state.close_tab(index),
     }
 }
 
@@ -189,6 +191,11 @@ impl PaperView {
 
     fn select_tab(&mut self, index: usize) {
         self.documents.select(index);
+        self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+    }
+
+    fn close_tab(&mut self, index: usize) {
+        self.documents.close(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
     }
 }
@@ -349,19 +356,27 @@ fn tab_bar(state: &PaperView) -> Element<'_, Message> {
             let is_active = state.documents.active_index() == Some(index);
 
             let tab = button(
-                column![
-                    text(document.title()).size(14).color(if is_active {
-                        theme::READER_TEXT
-                    } else {
-                        theme::SHELL_TEXT
-                    }),
-                    text(path).size(11).color(if is_active {
-                        theme::READER_TEXT_MUTED
-                    } else {
-                        theme::SHELL_TEXT_MUTED
-                    })
+                row![
+                    column![
+                        text(document.title()).size(14).color(if is_active {
+                            theme::READER_TEXT
+                        } else {
+                            theme::SHELL_TEXT
+                        }),
+                        text(path).size(11).color(if is_active {
+                            theme::READER_TEXT_MUTED
+                        } else {
+                            theme::SHELL_TEXT_MUTED
+                        })
+                    ]
+                    .spacing(2)
+                    .width(Fill),
+                    button(text("x").size(13))
+                        .padding([1, 6])
+                        .style(move |_, status| theme::tab_close_button(is_active, status))
+                        .on_press(Message::CloseTab(index))
                 ]
-                .spacing(2),
+                .spacing(8),
             )
             .padding([8, 14])
             .width(360)
@@ -538,6 +553,46 @@ mod tests {
 
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn closing_active_tab_selects_neighboring_tab() {
+        let first = temp_doc("close-first.md", "# First\n\nOne.");
+        let second = temp_doc("close-second.md", "# Second\n\nTwo.");
+        let third = temp_doc("close-third.md", "# Third\n\nThree.");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&first)], temp_store("close.toml"));
+        update(&mut state, Message::FileDropped(second.clone()));
+        update(&mut state, Message::FileDropped(third.clone()));
+        update(&mut state, Message::SelectTab(1));
+
+        update(&mut state, Message::CloseTab(1));
+
+        assert_eq!(state.documents.len(), 2);
+        assert_eq!(state.documents.active_index(), Some(1));
+        assert_eq!(state.documents.active().map(Document::title), Some("Third"));
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &third)
+        );
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+        fs::remove_file(third).expect("remove third test document");
+    }
+
+    #[test]
+    fn closing_last_tab_returns_to_empty_state() {
+        let path = temp_doc("close-last.md", "# Last\n\nDone.");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("close-last.toml"));
+
+        update(&mut state, Message::CloseTab(0));
+
+        assert!(state.documents.is_empty());
+        assert_eq!(state.documents.active_index(), None);
+        assert!(matches!(state.status, super::Status::Empty));
+
+        fs::remove_file(path).expect("remove test document");
     }
 
     #[test]

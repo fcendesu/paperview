@@ -10,15 +10,17 @@ Current behavior:
 - Opening a file from History or drag-and-drop adds a tab when the path is not already open.
 - Opening a path that is already open refreshes that tab and activates it.
 - Clicking a tab activates that document.
+- Clicking a tab close control removes that tab.
+- Closing the active tab activates the next available neighbor; closing the final tab returns to the empty state.
 - The window title, reader, table of contents, status, and live reload target follow the active tab.
 - Zen Mode hides the tab bar but preserves the open tab set and active tab.
 
-Closing tabs, tab reordering, multi-file launch arguments, and split-view integration are deferred.
+Tab reordering, multi-file launch arguments, and split-view integration are deferred.
 
 ## Implementation Notes
 
 - Shared tab state lives in `paperview-core/src/open_documents.rs`.
-- `OpenDocuments` stores documents plus an active index and handles open-or-activate behavior by path.
+- `OpenDocuments` stores documents plus an active index and handles open-or-activate and close behavior.
 - GUI state owns `OpenDocuments` instead of a single optional `Document`.
 - GUI tab rendering lives in `crates/paperview-gui/src/app.rs`.
 - Tab styling lives in `crates/paperview-gui/src/theme.rs`.
@@ -26,8 +28,7 @@ Closing tabs, tab reordering, multi-file launch arguments, and split-view integr
 
 ## Open Decisions
 
-- Close buttons should land as a separate interaction slice.
-- Multi-file drag/drop should use tabs once the close behavior exists.
+- Multi-file drag/drop should use tabs in a later slice.
 - TUI tabs are deferred; the TUI remains a single-reader workflow for now.
 - Split view should build on top of the same core document collection instead of forking document state.
 
