@@ -10,6 +10,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Drag And Drop](drag-and-drop.md) - GUI native file-drop opening.
 - [Hybrid Theme](hybrid-theme.md) - dark shell, cream reader surface, and GUI visual token contract.
 - [History Sidebar](history-sidebar.md) - shared recent-file model and first GUI history rail.
+- [Image Rendering](image-rendering.md) - structured standalone image parsing and first GUI/TUI rendering.
 - [LaTeX Support](latex-support.md) - source-preserving inline and display math foundation.
 - [Live Reload](live-reload.md) - notify-backed active-document reload foundation.
 - [Mermaid Support](mermaid-support.md) - source-preserving Mermaid diagram foundation.

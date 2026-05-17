@@ -18,6 +18,7 @@ This document tracks the progress of features across the three workspace crates.
 | **File Opening (CLI/Open)** | ✅ | ✅ | ✅ |
 | **Basic Markdown Rendering** | ✅ | ✅ | ✅ |
 | **Table Rendering** | ✅ | ✅ | ✅ |
+| **Image Rendering** | ✅ | 🏗️ | ✅ |
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
 | **Live Reload (Watcher)** | ✅ | ✅ | ✅ |
 | **Tabbed Interface** | ✅ | ✅ | ⬜ |
@@ -44,6 +45,7 @@ This document tracks the progress of features across the three workspace crates.
 - LaTeX Support currently covers parser preservation for inline math and a dedicated display math block. GUI and TUI show source-preserving display math; native formula typesetting and structured inline spans are deferred.
 - Mermaid Support currently covers parser recognition for `mermaid` fences and source-preserving diagram panels in GUI/TUI; native diagram rendering and export assets are deferred.
 - Table Rendering currently covers structured table parsing, GUI table panels, and aligned TUI table output; rich inline cell formatting, wide-table scrolling, and responsive column sizing are deferred.
+- Image Rendering currently covers standalone image metadata blocks, inline image text preservation, GUI metadata panels, and TUI Markdown image output; bitmap preview, relative-path resolution, remote fetching, and click-to-zoom are deferred.
 
 ---
 

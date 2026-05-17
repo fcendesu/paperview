@@ -334,6 +334,19 @@ pub fn diagram_container() -> container::Style {
     }
 }
 
+pub fn image_container() -> container::Style {
+    container::Style {
+        background: Some(Background::Color(Color::from_rgb(0.953, 0.961, 0.984))),
+        text_color: Some(READER_TEXT),
+        border: Border {
+            color: Color::from_rgb(0.455, 0.533, 0.761),
+            width: 1.0,
+            radius: border::radius(6),
+        },
+        ..container::Style::default()
+    }
+}
+
 pub fn table_container() -> container::Style {
     container::Style {
         background: Some(Background::Color(CODE_BACKGROUND)),

@@ -100,6 +100,10 @@ consuming `pulldown-cmark` table events into `Block::Table`. Frontends render
 from the shared alignments, header cells, and body rows instead of reparsing
 Markdown text.
 
+The first image implementation keeps standalone image metadata in
+`paperview-core` by promoting image-only paragraphs into `Block::Image`. Inline
+images remain text until richer inline spans exist.
+
 ---
 
 ## 5. Performance Optimizations

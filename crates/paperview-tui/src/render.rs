@@ -87,6 +87,18 @@ fn render_block(block: &Block, output: &mut String) {
             }
             output.push_str("```\n");
         }
+        Block::Image { alt, url, title } => {
+            output.push_str("![");
+            output.push_str(alt);
+            output.push_str("](");
+            output.push_str(url);
+            if !title.is_empty() {
+                output.push_str(" \"");
+                output.push_str(title);
+                output.push('"');
+            }
+            output.push_str(")\n");
+        }
         Block::List { ordered, items } => {
             for (index, item) in items.iter().enumerate() {
                 if *ordered {
@@ -337,6 +349,16 @@ mod tests {
         assert!(rendered.contains("Done |"));
         assert!(rendered.contains("| TUI"));
         assert!(rendered.contains("In progress |"));
+    }
+
+    #[test]
+    fn renders_markdown_images() {
+        let document = Document::from_source("![Architecture](docs/arch.png \"System diagram\")");
+
+        assert!(
+            render_document(&document)
+                .contains("![Architecture](docs/arch.png \"System diagram\")\n")
+        );
     }
 
     #[test]

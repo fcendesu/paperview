@@ -135,6 +135,12 @@ fn estimated_block_height(block: &Block) -> f32 {
             let diagram_lines = source.lines().count().max(1) as f32;
             12.0 + 8.0 + (CODE_LINE_HEIGHT * diagram_lines) + 32.0
         }
+        Block::Image { alt, url, title } => {
+            let text_lines = estimated_line_count(alt, BODY_LINE_CHARS)
+                + estimated_line_count(url, BODY_LINE_CHARS)
+                + if title.is_empty() { 0.0 } else { 1.0 };
+            24.0 + (BODY_LINE_HEIGHT * text_lines)
+        }
         Block::Math { source, .. } => {
             let math_lines = source.lines().count().max(1) as f32;
             12.0 + 8.0 + (CODE_LINE_HEIGHT * math_lines) + 32.0
@@ -183,6 +189,7 @@ fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
         Block::BlockQuote(text) => blockquote(text),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::Diagram { language, source } => diagram_block(language, source),
+        Block::Image { alt, url, title } => image_block(alt, url, title),
         Block::List { ordered, items } => list(*ordered, items),
         Block::Math { display, source } => math_block(*display, source),
         Block::Table {
@@ -248,6 +255,35 @@ fn diagram_block<'a, Message: 'static>(language: &'a str, source: &'a str) -> El
     .width(Fill)
     .style(|_| theme::diagram_container())
     .into()
+}
+
+fn image_block<'a, Message: 'static>(
+    alt: &'a str,
+    url: &'a str,
+    title: &'a str,
+) -> Element<'a, Message> {
+    let mut details = column![
+        text("image").size(12).color(theme::SHELL_ACCENT),
+        text(if alt.is_empty() {
+            "Untitled image"
+        } else {
+            alt
+        })
+        .size(16)
+        .color(theme::READER_TEXT),
+        text(url).size(13).color(theme::READER_TEXT_MUTED)
+    ]
+    .spacing(6);
+
+    if !title.is_empty() {
+        details = details.push(text(title).size(13).color(theme::READER_TEXT_MUTED));
+    }
+
+    container(details)
+        .padding(16)
+        .width(Fill)
+        .style(|_| theme::image_container())
+        .into()
 }
 
 fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Message> {

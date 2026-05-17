@@ -7,7 +7,7 @@ use pulldown_cmark::{
     Parser, Tag, TagEnd,
 };
 
-use self::elements::{diagram, math, table};
+use self::elements::{diagram, image, math, table};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedDocument {
@@ -81,6 +81,11 @@ pub enum Block {
     Diagram {
         language: String,
         source: String,
+    },
+    Image {
+        alt: String,
+        url: String,
+        title: String,
     },
     Table {
         alignments: Vec<TableAlignment>,
@@ -198,12 +203,20 @@ struct OpenTable {
     in_header: bool,
 }
 
+#[derive(Debug)]
+struct OpenImage {
+    alt: String,
+    url: String,
+    title: String,
+}
+
 #[derive(Debug, Default)]
 struct DocumentBuilder {
     blocks: Vec<Block>,
     open_block: Option<OpenBlock>,
     open_list: Option<OpenList>,
     open_table: Option<OpenTable>,
+    open_image: Option<OpenImage>,
 }
 
 impl DocumentBuilder {
@@ -273,6 +286,15 @@ impl DocumentBuilder {
                     table.current_cell = Some(String::new());
                 }
             }
+            Tag::Image {
+                dest_url, title, ..
+            } => {
+                self.open_image = Some(OpenImage {
+                    alt: String::new(),
+                    url: dest_url.into_string(),
+                    title: title.into_string(),
+                });
+            }
             Tag::List(first_item) => {
                 self.open_list = Some(OpenList {
                     ordered: first_item.is_some(),
@@ -334,6 +356,7 @@ impl DocumentBuilder {
                     });
                 }
             }
+            TagEnd::Image => self.close_image(),
             TagEnd::Item => {
                 if let Some(list) = &mut self.open_list
                     && let Some(item) = list.current_item.take()
@@ -354,6 +377,11 @@ impl DocumentBuilder {
     }
 
     fn push_text(&mut self, text: &str) {
+        if let Some(image) = &mut self.open_image {
+            image.alt.push_str(text);
+            return;
+        }
+
         if let Some(table) = &mut self.open_table
             && let Some(cell) = &mut table.current_cell
         {
@@ -374,6 +402,32 @@ impl DocumentBuilder {
             | Some(OpenBlock::BlockQuote(target)) => target.push_str(text),
             Some(OpenBlock::CodeBlock { code, .. }) => code.push_str(text),
             None => {}
+        }
+    }
+
+    fn close_image(&mut self) {
+        let Some(open_image) = self.open_image.take() else {
+            return;
+        };
+        let alt = image::alt_text(&open_image.alt);
+        let markdown = image::markdown_text(&alt, &open_image.url, &open_image.title);
+
+        if self.open_table.is_some() || self.open_list.is_some() {
+            self.push_text(&markdown);
+            return;
+        }
+
+        let is_standalone =
+            matches!(&self.open_block, Some(OpenBlock::Paragraph(text)) if text.is_empty());
+        if is_standalone {
+            self.close_block();
+            self.blocks.push(Block::Image {
+                alt,
+                url: open_image.url,
+                title: open_image.title,
+            });
+        } else {
+            self.push_text(&markdown);
         }
     }
 
@@ -561,6 +615,32 @@ mod tests {
                     vec!["TUI".to_owned(), "In progress".to_owned()]
                 ]
             }]
+        );
+    }
+
+    #[test]
+    fn parses_standalone_images_as_blocks() {
+        let parsed = parse_markdown("![Architecture diagram](docs/arch.png \"Architecture\")");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![Block::Image {
+                alt: "Architecture diagram".to_owned(),
+                url: "docs/arch.png".to_owned(),
+                title: "Architecture".to_owned()
+            }]
+        );
+    }
+
+    #[test]
+    fn preserves_inline_images_inside_paragraphs() {
+        let parsed = parse_markdown("See ![Architecture](docs/arch.png) for details.");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![Block::Paragraph(
+                "See ![Architecture](docs/arch.png) for details.".to_owned()
+            )]
         );
     }
 

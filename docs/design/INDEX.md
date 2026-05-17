@@ -87,6 +87,8 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 Current source-preserving technical blocks use the same restrained panel shape
 as code blocks. LaTeX math uses a warm accent border, and Mermaid diagrams use a
 green accent border until native formula and diagram rendering are selected.
+Standalone image metadata uses a cool blue panel until bitmap previews are
+available.
 
 ---
 
