@@ -333,3 +333,33 @@ pub fn diagram_container() -> container::Style {
         ..container::Style::default()
     }
 }
+
+pub fn table_container() -> container::Style {
+    container::Style {
+        background: Some(Background::Color(CODE_BACKGROUND)),
+        text_color: Some(READER_TEXT),
+        border: Border {
+            color: READER_BORDER,
+            width: 1.0,
+            radius: border::radius(6),
+        },
+        ..container::Style::default()
+    }
+}
+
+pub fn table_cell_container(is_header: bool) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(if is_header {
+            Color::from_rgb(0.922, 0.941, 0.961)
+        } else {
+            CODE_BACKGROUND
+        })),
+        text_color: Some(READER_TEXT),
+        border: Border {
+            color: READER_BORDER,
+            width: 0.5,
+            radius: border::radius(0),
+        },
+        ..container::Style::default()
+    }
+}

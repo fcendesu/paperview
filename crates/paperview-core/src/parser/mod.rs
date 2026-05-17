@@ -3,10 +3,11 @@ pub mod elements;
 use std::collections::HashMap;
 
 use pulldown_cmark::{
-    CodeBlockKind, Event, HeadingLevel as CmarkHeadingLevel, Options, Parser, Tag, TagEnd,
+    Alignment as CmarkAlignment, CodeBlockKind, Event, HeadingLevel as CmarkHeadingLevel, Options,
+    Parser, Tag, TagEnd,
 };
 
-use self::elements::{diagram, math};
+use self::elements::{diagram, math, table};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedDocument {
@@ -81,6 +82,11 @@ pub enum Block {
         language: String,
         source: String,
     },
+    Table {
+        alignments: Vec<TableAlignment>,
+        header: Vec<String>,
+        rows: Vec<Vec<String>>,
+    },
     List {
         ordered: bool,
         items: Vec<String>,
@@ -100,6 +106,25 @@ pub enum HeadingLevel {
     H4,
     H5,
     H6,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableAlignment {
+    None,
+    Left,
+    Center,
+    Right,
+}
+
+impl From<CmarkAlignment> for TableAlignment {
+    fn from(alignment: CmarkAlignment) -> Self {
+        match alignment {
+            CmarkAlignment::None => Self::None,
+            CmarkAlignment::Left => Self::Left,
+            CmarkAlignment::Center => Self::Center,
+            CmarkAlignment::Right => Self::Right,
+        }
+    }
 }
 
 impl HeadingLevel {
@@ -163,11 +188,22 @@ struct OpenList {
     current_item: Option<String>,
 }
 
+#[derive(Debug)]
+struct OpenTable {
+    alignments: Vec<TableAlignment>,
+    header: Vec<String>,
+    rows: Vec<Vec<String>>,
+    current_row: Option<Vec<String>>,
+    current_cell: Option<String>,
+    in_header: bool,
+}
+
 #[derive(Debug, Default)]
 struct DocumentBuilder {
     blocks: Vec<Block>,
     open_block: Option<OpenBlock>,
     open_list: Option<OpenList>,
+    open_table: Option<OpenTable>,
 }
 
 impl DocumentBuilder {
@@ -210,6 +246,33 @@ impl DocumentBuilder {
                     code: String::new(),
                 });
             }
+            Tag::Table(alignments) => {
+                self.close_block();
+                self.open_table = Some(OpenTable {
+                    alignments: table::alignments(alignments),
+                    header: Vec::new(),
+                    rows: Vec::new(),
+                    current_row: None,
+                    current_cell: None,
+                    in_header: false,
+                });
+            }
+            Tag::TableHead => {
+                if let Some(table) = &mut self.open_table {
+                    table.in_header = true;
+                    table.current_row = Some(Vec::new());
+                }
+            }
+            Tag::TableRow => {
+                if let Some(table) = &mut self.open_table {
+                    table.current_row = Some(Vec::new());
+                }
+            }
+            Tag::TableCell => {
+                if let Some(table) = &mut self.open_table {
+                    table.current_cell = Some(String::new());
+                }
+            }
             Tag::List(first_item) => {
                 self.open_list = Some(OpenList {
                     ordered: first_item.is_some(),
@@ -235,6 +298,42 @@ impl DocumentBuilder {
             TagEnd::Paragraph => {}
             TagEnd::BlockQuote(_) => self.close_block(),
             TagEnd::CodeBlock => self.close_block(),
+            TagEnd::TableCell => {
+                if let Some(table) = &mut self.open_table
+                    && let Some(cell) = table.current_cell.take()
+                    && let Some(row) = &mut table.current_row
+                {
+                    row.push(table::cell_text(&cell));
+                }
+            }
+            TagEnd::TableRow => {
+                if let Some(table) = &mut self.open_table
+                    && let Some(row) = table.current_row.take()
+                {
+                    if table.in_header {
+                        table.header = row;
+                    } else {
+                        table.rows.push(row);
+                    }
+                }
+            }
+            TagEnd::TableHead => {
+                if let Some(table) = &mut self.open_table {
+                    if let Some(row) = table.current_row.take() {
+                        table.header = row;
+                    }
+                    table.in_header = false;
+                }
+            }
+            TagEnd::Table => {
+                if let Some(table) = self.open_table.take() {
+                    self.blocks.push(Block::Table {
+                        alignments: table.alignments,
+                        header: table.header,
+                        rows: table.rows,
+                    });
+                }
+            }
             TagEnd::Item => {
                 if let Some(list) = &mut self.open_list
                     && let Some(item) = list.current_item.take()
@@ -255,6 +354,13 @@ impl DocumentBuilder {
     }
 
     fn push_text(&mut self, text: &str) {
+        if let Some(table) = &mut self.open_table
+            && let Some(cell) = &mut table.current_cell
+        {
+            cell.push_str(text);
+            return;
+        }
+
         if let Some(list) = &mut self.open_list
             && let Some(item) = &mut list.current_item
         {
@@ -354,7 +460,7 @@ fn slugify(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Block, HeadingLevel, TocItem, parse_markdown};
+    use super::{Block, HeadingLevel, TableAlignment, TocItem, parse_markdown};
 
     #[test]
     fn parses_headings_and_paragraphs() {
@@ -436,6 +542,25 @@ mod tests {
                     code: "fn main() {}\n".to_owned()
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn parses_markdown_tables() {
+        let parsed = parse_markdown(
+            "| Feature | Status |\n| :--- | ---: |\n| GUI | Done |\n| TUI | In progress |",
+        );
+
+        assert_eq!(
+            parsed.blocks,
+            vec![Block::Table {
+                alignments: vec![TableAlignment::Left, TableAlignment::Right],
+                header: vec!["Feature".to_owned(), "Status".to_owned()],
+                rows: vec![
+                    vec!["GUI".to_owned(), "Done".to_owned()],
+                    vec!["TUI".to_owned(), "In progress".to_owned()]
+                ]
+            }]
         );
     }
 

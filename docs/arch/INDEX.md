@@ -95,6 +95,11 @@ detecting `mermaid` fenced code blocks and exposing them as `Block::Diagram`.
 Frontends render source-preserving diagram affordances until native diagram
 rendering is selected.
 
+The first table implementation keeps table structure in `paperview-core` by
+consuming `pulldown-cmark` table events into `Block::Table`. Frontends render
+from the shared alignments, header cells, and body rows instead of reparsing
+Markdown text.
+
 ---
 
 ## 5. Performance Optimizations

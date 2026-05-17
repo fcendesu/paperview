@@ -17,6 +17,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Project Setup** | ✅ | ✅ | ✅ |
 | **File Opening (CLI/Open)** | ✅ | ✅ | ✅ |
 | **Basic Markdown Rendering** | ✅ | ✅ | ✅ |
+| **Table Rendering** | ✅ | ✅ | ✅ |
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
 | **Live Reload (Watcher)** | ✅ | ✅ | ✅ |
 | **Tabbed Interface** | ✅ | ✅ | ⬜ |
@@ -42,6 +43,7 @@ This document tracks the progress of features across the three workspace crates.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
 - LaTeX Support currently covers parser preservation for inline math and a dedicated display math block. GUI and TUI show source-preserving display math; native formula typesetting and structured inline spans are deferred.
 - Mermaid Support currently covers parser recognition for `mermaid` fences and source-preserving diagram panels in GUI/TUI; native diagram rendering and export assets are deferred.
+- Table Rendering currently covers structured table parsing, GUI table panels, and aligned TUI table output; rich inline cell formatting, wide-table scrolling, and responsive column sizing are deferred.
 
 ---
 

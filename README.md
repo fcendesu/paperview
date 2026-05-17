@@ -26,10 +26,10 @@ Supported input formats:
 - `.txt`
 
 Implemented Markdown rendering is still intentionally basic: headings,
-paragraphs, lists, blockquotes, code blocks, rules, source-preserving LaTeX
-math, and source-preserving Mermaid diagrams are supported. Richer
+paragraphs, lists, blockquotes, code blocks, tables, rules, source-preserving
+LaTeX math, and source-preserving Mermaid diagrams are supported. Richer
 technical-document features such as full LaTeX typesetting, rendered Mermaid
-diagrams, images, tables, task lists, search, advanced Split View controls, and
+diagrams, images, task lists, search, advanced Split View controls, and
 export are still on the roadmap.
 
 ## Run The GUI
@@ -45,6 +45,7 @@ GUI highlights:
 - Table-of-contents sidebar generated from headings.
 - Active table-of-contents highlighting while scrolling the GUI reader.
 - Click TOC entries to jump the active GUI reader.
+- Bordered Markdown tables with shaded headers.
 - Source-preserving display math panels for LaTeX blocks.
 - Source-preserving diagram panels for Mermaid fences.
 - Multiple document tabs with close controls.
@@ -84,7 +85,7 @@ TUI controls:
 
 The TUI highlights the active table-of-contents section while you scroll, can
 jump through headings from the TOC, and preserves LaTeX display math plus
-Mermaid diagram source.
+Mermaid diagram source. Markdown tables render as aligned plain text.
 
 ## Development Checks
 
@@ -132,7 +133,7 @@ Near-term MVP work includes:
 - Split View drag resizing.
 - Full LaTeX typesetting and rendered Mermaid diagrams.
 - Search and documentation-toolkit commands.
-- Richer Markdown rendering for tables, images, links, and task lists.
+- Richer Markdown rendering for images, links, and task lists.
 - Performance measurement against startup, scrolling, and memory targets.
 
 See [`docs/TASKS.md`](docs/TASKS.md) for the current implementation tracker.

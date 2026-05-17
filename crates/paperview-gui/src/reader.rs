@@ -1,10 +1,10 @@
 use iced::{
     Element, Fill,
-    widget::{Column, column, container, rule, scrollable, text},
+    widget::{Column, Row, column, container, rule, scrollable, text},
 };
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel},
+    parser::{Block, HeadingLevel, TableAlignment},
 };
 
 use crate::theme;
@@ -147,6 +147,10 @@ fn estimated_block_height(block: &Block) -> f32 {
 
             (BODY_LINE_HEIGHT * item_lines) + (8.0 * items.len().saturating_sub(1) as f32)
         }
+        Block::Table { header, rows, .. } => {
+            let row_count = rows.len() + usize::from(!header.is_empty());
+            24.0 + (BODY_LINE_HEIGHT * row_count.max(1) as f32)
+        }
         Block::Rule => 20.0,
     }
 }
@@ -181,6 +185,11 @@ fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
         Block::Diagram { language, source } => diagram_block(language, source),
         Block::List { ordered, items } => list(*ordered, items),
         Block::Math { display, source } => math_block(*display, source),
+        Block::Table {
+            alignments,
+            header,
+            rows,
+        } => table_block(alignments, header, rows),
         Block::Rule => rule::horizontal(1).into(),
     }
 }
@@ -279,6 +288,74 @@ fn list<Message: 'static>(ordered: bool, items: &[String]) -> Element<'_, Messag
     }
 
     list.into()
+}
+
+fn table_block<'a, Message: 'static>(
+    alignments: &'a [TableAlignment],
+    header: &'a [String],
+    rows: &'a [Vec<String>],
+) -> Element<'a, Message> {
+    let mut table = Column::new().spacing(0).width(Fill);
+
+    if !header.is_empty() {
+        table = table.push(table_row(header, alignments, true));
+    }
+
+    for row in rows {
+        table = table.push(table_row(row, alignments, false));
+    }
+
+    container(table)
+        .width(Fill)
+        .style(|_| theme::table_container())
+        .into()
+}
+
+fn table_row<'a, Message: 'static>(
+    cells: &'a [String],
+    alignments: &'a [TableAlignment],
+    is_header: bool,
+) -> Element<'a, Message> {
+    let mut row = Row::new().spacing(0).width(Fill);
+
+    for (index, cell) in cells.iter().enumerate() {
+        row = row.push(table_cell(
+            cell,
+            alignments
+                .get(index)
+                .copied()
+                .unwrap_or(TableAlignment::None),
+            is_header,
+        ));
+    }
+
+    row.into()
+}
+
+fn table_cell<Message: 'static>(
+    value: &str,
+    alignment: TableAlignment,
+    is_header: bool,
+) -> Element<'_, Message> {
+    let mut label = text(value)
+        .size(if is_header { 14 } else { 13 })
+        .color(if is_header {
+            theme::READER_TEXT
+        } else {
+            theme::READER_TEXT_MUTED
+        });
+
+    label = match alignment {
+        TableAlignment::Right => label.align_x(iced::alignment::Horizontal::Right),
+        TableAlignment::Center => label.align_x(iced::alignment::Horizontal::Center),
+        TableAlignment::None | TableAlignment::Left => label,
+    };
+
+    container(label)
+        .padding([8, 10])
+        .width(Fill)
+        .style(move |_| theme::table_cell_container(is_header))
+        .into()
 }
 
 #[cfg(test)]

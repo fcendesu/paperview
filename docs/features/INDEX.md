@@ -17,6 +17,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Scroll Synchronization](scroll-synchronization.md) - GUI reader scroll position highlights the active TOC section.
 - [Split View](split-view.md) - GUI side-by-side comparison of two open tabs.
 - [Table of Contents](table-of-contents.md) - heading-derived navigation metadata and GUI sidebar.
+- [Table Rendering](table-rendering.md) - structured Markdown table parsing and first GUI/TUI rendering.
 - [Tabs](tabs.md) - shared open-document model and GUI tab activation foundation.
 - [Zen Mode](zen-mode.md) - GUI focused reading layout.
 

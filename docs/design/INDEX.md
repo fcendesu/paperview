@@ -61,6 +61,8 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
     - Rounded corners (4px - 6px).
     - Light grey borders.
     - Alternating row highlights or distinct header shading.
+    - The current GUI renders table panels with light borders, equal-width
+      cells, alignment-aware text, and shaded header cells.
 
 ### 2.4 Right Sidebar: "Navigation"
 - **"On this page" (TOC):**

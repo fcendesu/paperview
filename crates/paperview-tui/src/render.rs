@@ -1,6 +1,6 @@
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel, TocItem},
+    parser::{Block, HeadingLevel, TableAlignment, TocItem},
 };
 use ratatui::{
     style::{Color, Modifier, Style},
@@ -104,6 +104,11 @@ fn render_block(block: &Block, output: &mut String) {
             }
             output.push_str("$$\n");
         }
+        Block::Table {
+            alignments,
+            header,
+            rows,
+        } => render_table(alignments, header, rows, output),
         Block::Rule => output.push_str("---\n"),
     }
 }
@@ -113,6 +118,102 @@ fn render_heading(level: HeadingLevel, text: &str, output: &mut String) {
     output.push(' ');
     output.push_str(text);
     output.push('\n');
+}
+
+fn render_table(
+    alignments: &[TableAlignment],
+    header: &[String],
+    rows: &[Vec<String>],
+    output: &mut String,
+) {
+    let widths = table_widths(header, rows);
+
+    if !header.is_empty() {
+        render_table_row(header, &widths, alignments, output);
+        render_table_separator(&widths, alignments, output);
+    }
+
+    for row in rows {
+        render_table_row(row, &widths, alignments, output);
+    }
+}
+
+fn table_widths(header: &[String], rows: &[Vec<String>]) -> Vec<usize> {
+    let column_count = rows
+        .iter()
+        .map(Vec::len)
+        .chain(std::iter::once(header.len()))
+        .max()
+        .unwrap_or(0);
+    let mut widths = vec![3; column_count];
+
+    for (index, cell) in header.iter().enumerate() {
+        widths[index] = widths[index].max(cell.chars().count());
+    }
+
+    for row in rows {
+        for (index, cell) in row.iter().enumerate() {
+            widths[index] = widths[index].max(cell.chars().count());
+        }
+    }
+
+    widths
+}
+
+fn render_table_row(
+    cells: &[String],
+    widths: &[usize],
+    alignments: &[TableAlignment],
+    output: &mut String,
+) {
+    output.push('|');
+    for (index, width) in widths.iter().enumerate() {
+        let cell = cells.get(index).map(String::as_str).unwrap_or("");
+        output.push(' ');
+        output.push_str(&aligned_cell(
+            cell,
+            *width,
+            alignments
+                .get(index)
+                .copied()
+                .unwrap_or(TableAlignment::None),
+        ));
+        output.push_str(" |");
+    }
+    output.push('\n');
+}
+
+fn render_table_separator(widths: &[usize], alignments: &[TableAlignment], output: &mut String) {
+    output.push('|');
+    for (index, width) in widths.iter().enumerate() {
+        let alignment = alignments
+            .get(index)
+            .copied()
+            .unwrap_or(TableAlignment::None);
+        let rule = match alignment {
+            TableAlignment::Left => format!(":{:-<width$}", "-", width = width - 1),
+            TableAlignment::Center => format!(":{:-<width$}:", "-", width = width - 2),
+            TableAlignment::Right => format!("{:-<width$}:", "-", width = width - 1),
+            TableAlignment::None => "-".repeat(*width),
+        };
+        output.push(' ');
+        output.push_str(&rule);
+        output.push_str(" |");
+    }
+    output.push('\n');
+}
+
+fn aligned_cell(cell: &str, width: usize, alignment: TableAlignment) -> String {
+    match alignment {
+        TableAlignment::Right => format!("{cell:>width$}"),
+        TableAlignment::Center => {
+            let padding = width.saturating_sub(cell.chars().count());
+            let left = padding / 2;
+            let right = padding - left;
+            format!("{}{}{}", " ".repeat(left), cell, " ".repeat(right))
+        }
+        TableAlignment::None | TableAlignment::Left => format!("{cell:<width$}"),
+    }
 }
 
 #[cfg(test)]
@@ -218,6 +319,24 @@ mod tests {
         let document = Document::from_source("```mermaid\ngraph TD\n  A-->B\n```");
 
         assert!(render_document(&document).contains("```mermaid\ngraph TD\n  A-->B\n```\n"));
+    }
+
+    #[test]
+    fn renders_markdown_tables() {
+        let document = Document::from_source(
+            "| Feature | Status |\n| :--- | ---: |\n| GUI | Done |\n| TUI | In progress |",
+        );
+
+        let rendered = render_document(&document);
+
+        assert!(rendered.contains("| Feature |"));
+        assert!(rendered.contains("Status |"));
+        assert!(rendered.contains("| :------ |"));
+        assert!(rendered.contains("----------: |"));
+        assert!(rendered.contains("| GUI"));
+        assert!(rendered.contains("Done |"));
+        assert!(rendered.contains("| TUI"));
+        assert!(rendered.contains("In progress |"));
     }
 
     #[test]
