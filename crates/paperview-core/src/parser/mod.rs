@@ -73,7 +73,7 @@ pub enum Block {
         text: String,
     },
     Paragraph(Vec<InlineSpan>),
-    BlockQuote(String),
+    BlockQuote(Vec<InlineSpan>),
     CodeBlock {
         language: Option<String>,
         code: String,
@@ -94,7 +94,7 @@ pub enum Block {
     },
     List {
         ordered: bool,
-        items: Vec<String>,
+        items: Vec<Vec<InlineSpan>>,
     },
     Math {
         display: bool,
@@ -188,7 +188,7 @@ enum OpenBlock {
         text: String,
     },
     Paragraph(Vec<InlineSpan>),
-    BlockQuote(String),
+    BlockQuote(Vec<InlineSpan>),
     CodeBlock {
         language: Option<String>,
         code: String,
@@ -198,8 +198,8 @@ enum OpenBlock {
 #[derive(Debug, Default)]
 struct OpenList {
     ordered: bool,
-    items: Vec<String>,
-    current_item: Option<String>,
+    items: Vec<Vec<InlineSpan>>,
+    current_item: Option<Vec<InlineSpan>>,
 }
 
 #[derive(Debug)]
@@ -262,7 +262,7 @@ impl DocumentBuilder {
                 self.inline_state.links.push(dest_url.into_string());
             }
             Tag::BlockQuote(_) => {
-                self.open_block = Some(OpenBlock::BlockQuote(String::new()));
+                self.open_block = Some(OpenBlock::BlockQuote(Vec::new()));
             }
             Tag::CodeBlock(kind) => {
                 self.open_block = Some(OpenBlock::CodeBlock {
@@ -315,7 +315,7 @@ impl DocumentBuilder {
             }
             Tag::Item => {
                 if let Some(list) = &mut self.open_list {
-                    list.current_item = Some(String::new());
+                    list.current_item = Some(Vec::new());
                 }
             }
             _ => {}
@@ -382,7 +382,7 @@ impl DocumentBuilder {
                 if let Some(list) = &mut self.open_list
                     && let Some(item) = list.current_item.take()
                 {
-                    list.items.push(normalize_text(&item));
+                    list.items.push(item);
                 }
             }
             TagEnd::List(_) => {
@@ -413,13 +413,14 @@ impl DocumentBuilder {
         if let Some(list) = &mut self.open_list
             && let Some(item) = &mut list.current_item
         {
-            item.push_str(text);
+            inline::push_span(item, inline::span(text, &self.inline_state));
             return;
         }
 
         match &mut self.open_block {
-            Some(OpenBlock::Heading { text: target, .. }) | Some(OpenBlock::BlockQuote(target)) => {
-                target.push_str(text)
+            Some(OpenBlock::Heading { text: target, .. }) => target.push_str(text),
+            Some(OpenBlock::BlockQuote(spans)) => {
+                inline::push_span(spans, inline::span(text, &self.inline_state));
             }
             Some(OpenBlock::Paragraph(spans)) => {
                 inline::push_span(spans, inline::span(text, &self.inline_state));
@@ -430,12 +431,22 @@ impl DocumentBuilder {
     }
 
     fn push_code(&mut self, code: &str) {
-        if let Some(OpenBlock::Paragraph(spans)) = &mut self.open_block {
-            inline::push_span(spans, inline::code_span(code, &self.inline_state));
-        } else {
-            self.push_text("`");
-            self.push_text(code);
-            self.push_text("`");
+        if let Some(list) = &mut self.open_list
+            && let Some(item) = &mut list.current_item
+        {
+            inline::push_span(item, inline::code_span(code, &self.inline_state));
+            return;
+        }
+
+        match &mut self.open_block {
+            Some(OpenBlock::Paragraph(spans)) | Some(OpenBlock::BlockQuote(spans)) => {
+                inline::push_span(spans, inline::code_span(code, &self.inline_state));
+            }
+            _ => {
+                self.push_text("`");
+                self.push_text(code);
+                self.push_text("`");
+            }
         }
     }
 
@@ -488,8 +499,8 @@ impl DocumentBuilder {
                     self.blocks.push(Block::Paragraph(spans));
                 }
             }
-            OpenBlock::BlockQuote(text) => {
-                self.blocks.push(Block::BlockQuote(normalize_text(&text)));
+            OpenBlock::BlockQuote(spans) => {
+                self.blocks.push(Block::BlockQuote(spans));
             }
             OpenBlock::CodeBlock { language, code } => {
                 if diagram::is_mermaid(language.as_deref()) {
@@ -591,10 +602,10 @@ mod tests {
         assert_eq!(
             parsed.blocks,
             vec![
-                Block::BlockQuote("Quiet reader".to_owned()),
+                Block::BlockQuote(vec![text_span("Quiet reader")]),
                 Block::List {
                     ordered: false,
-                    items: vec!["Fast".to_owned(), "Native".to_owned()]
+                    items: vec![vec![text_span("Fast")], vec![text_span("Native")]]
                 },
                 Block::CodeBlock {
                     language: Some("rust".to_owned()),
@@ -664,6 +675,60 @@ mod tests {
                 },
                 text_span(".")
             ])]
+        );
+    }
+
+    #[test]
+    fn preserves_list_and_blockquote_inline_spans() {
+        let parsed = parse_markdown(
+            "> A **quiet** [quote](https://example.com)\n\n- *Fast* `reader`\n- Plain",
+        );
+
+        assert_eq!(
+            parsed.blocks,
+            vec![
+                Block::BlockQuote(vec![
+                    text_span("A "),
+                    InlineSpan {
+                        text: "quiet".to_owned(),
+                        strong: true,
+                        emphasis: false,
+                        code: false,
+                        link: None
+                    },
+                    text_span(" "),
+                    InlineSpan {
+                        text: "quote".to_owned(),
+                        strong: false,
+                        emphasis: false,
+                        code: false,
+                        link: Some("https://example.com".to_owned())
+                    }
+                ]),
+                Block::List {
+                    ordered: false,
+                    items: vec![
+                        vec![
+                            InlineSpan {
+                                text: "Fast".to_owned(),
+                                strong: false,
+                                emphasis: true,
+                                code: false,
+                                link: None
+                            },
+                            text_span(" "),
+                            InlineSpan {
+                                text: "reader".to_owned(),
+                                strong: false,
+                                emphasis: false,
+                                code: true,
+                                link: None
+                            }
+                        ],
+                        vec![text_span("Plain")]
+                    ]
+                }
+            ]
         );
     }
 

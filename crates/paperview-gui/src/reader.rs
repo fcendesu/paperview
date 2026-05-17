@@ -126,8 +126,9 @@ fn estimated_block_height(block: &Block) -> f32 {
         Block::Paragraph(spans) => {
             BODY_LINE_HEIGHT * estimated_line_count(&inline::plain_text(spans), BODY_LINE_CHARS)
         }
-        Block::BlockQuote(text) => {
-            BODY_LINE_HEIGHT * estimated_line_count(text, BODY_LINE_CHARS) + 16.0
+        Block::BlockQuote(spans) => {
+            BODY_LINE_HEIGHT * estimated_line_count(&inline::plain_text(spans), BODY_LINE_CHARS)
+                + 16.0
         }
         Block::CodeBlock { code, .. } => {
             let code_lines = code.lines().count().max(1) as f32;
@@ -150,7 +151,7 @@ fn estimated_block_height(block: &Block) -> f32 {
         Block::List { items, .. } => {
             let item_lines = items
                 .iter()
-                .map(|item| estimated_line_count(item, BODY_LINE_CHARS))
+                .map(|item| estimated_line_count(&inline::plain_text(item), BODY_LINE_CHARS))
                 .sum::<f32>();
 
             (BODY_LINE_HEIGHT * item_lines) + (8.0 * items.len().saturating_sub(1) as f32)
@@ -188,7 +189,7 @@ fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
     match block {
         Block::Heading { level, text } => heading(*level, text),
         Block::Paragraph(spans) => paragraph(spans),
-        Block::BlockQuote(text) => blockquote(text),
+        Block::BlockQuote(spans) => blockquote(spans),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::Diagram { language, source } => diagram_block(language, source),
         Block::Image { alt, url, title } => image_block(alt, url, title),
@@ -215,13 +216,27 @@ fn heading<Message: 'static>(level: HeadingLevel, value: &str) -> Element<'_, Me
 }
 
 fn paragraph<Message: 'static>(spans: &[InlineSpan]) -> Element<'_, Message> {
-    let spans = spans.iter().map(rich_span).collect::<Vec<_>>();
-
-    rich_text(spans).size(16).into()
+    inline_text(spans, 16, theme::READER_TEXT)
 }
 
-fn rich_span(source: &InlineSpan) -> iced::widget::text::Span<'_, (), Font> {
-    let mut output = span(source.text.as_str()).color(theme::READER_TEXT);
+fn inline_text<Message: 'static>(
+    spans: &[InlineSpan],
+    size: u32,
+    base_color: iced::Color,
+) -> Element<'_, Message> {
+    let spans = spans
+        .iter()
+        .map(|span| rich_span(span, base_color))
+        .collect::<Vec<_>>();
+
+    rich_text(spans).size(size).into()
+}
+
+fn rich_span(
+    source: &InlineSpan,
+    base_color: iced::Color,
+) -> iced::widget::text::Span<'_, (), Font> {
+    let mut output = span(source.text.as_str()).color(base_color);
 
     if source.strong || source.emphasis {
         output = output.font(Font {
@@ -253,8 +268,8 @@ fn rich_span(source: &InlineSpan) -> iced::widget::text::Span<'_, (), Font> {
     output
 }
 
-fn blockquote<Message: 'static>(value: &str) -> Element<'_, Message> {
-    container(text(value).size(16).color(theme::READER_TEXT_MUTED))
+fn blockquote<Message: 'static>(spans: &[InlineSpan]) -> Element<'_, Message> {
+    container(inline_text(spans, 16, theme::READER_TEXT_MUTED))
         .padding([8, 14])
         .width(Fill)
         .style(|_| theme::quote_container())
@@ -343,7 +358,7 @@ fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Mess
     .into()
 }
 
-fn list<Message: 'static>(ordered: bool, items: &[String]) -> Element<'_, Message> {
+fn list<Message: 'static>(ordered: bool, items: &[Vec<InlineSpan>]) -> Element<'_, Message> {
     let mut list = Column::new().spacing(8);
 
     for (index, item) in items.iter().enumerate() {
@@ -354,9 +369,10 @@ fn list<Message: 'static>(ordered: bool, items: &[String]) -> Element<'_, Messag
         };
 
         list = list.push(
-            text(format!("{marker} {item}"))
-                .size(16)
-                .color(theme::READER_TEXT),
+            Row::new()
+                .spacing(4)
+                .push(text(marker).size(16).color(theme::READER_TEXT))
+                .push(inline_text(item, 16, theme::READER_TEXT)),
         );
     }
 

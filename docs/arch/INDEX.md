@@ -104,9 +104,9 @@ The first image implementation keeps standalone image metadata in
 `paperview-core` by promoting image-only paragraphs into `Block::Image`. Inline
 images remain text until richer inline spans exist.
 
-The first inline-span implementation changes paragraph blocks to store
-`InlineSpan` values for bold, italic, inline code, and link metadata. Other
-blocks keep their string content until the inline model is expanded.
+The inline-span implementation stores `InlineSpan` values for paragraph,
+blockquote, and list item content. Tables and headings keep their string content
+until the inline model is expanded further.
 
 ---
 

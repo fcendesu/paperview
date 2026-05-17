@@ -60,9 +60,9 @@ fn render_block(block: &Block, output: &mut String) {
             output.push_str(&inline::markdown_text(spans));
             output.push('\n');
         }
-        Block::BlockQuote(text) => {
+        Block::BlockQuote(spans) => {
             output.push_str("> ");
-            output.push_str(text);
+            output.push_str(&inline::markdown_text(spans));
             output.push('\n');
         }
         Block::CodeBlock { language, code } => {
@@ -101,6 +101,7 @@ fn render_block(block: &Block, output: &mut String) {
         }
         Block::List { ordered, items } => {
             for (index, item) in items.iter().enumerate() {
+                let item = inline::markdown_text(item);
                 if *ordered {
                     output.push_str(&format!("{}. {item}\n", index + 1));
                 } else {
@@ -371,6 +372,18 @@ mod tests {
             render_document(&document)
                 .contains("A **bold** and *quiet* [link](https://example.com) with `code`.\n")
         );
+    }
+
+    #[test]
+    fn renders_list_and_blockquote_inline_markdown() {
+        let document = Document::from_source(
+            "> A **quiet** [quote](https://example.com)\n\n- *Fast* `reader`\n- Plain",
+        );
+        let rendered = render_document(&document);
+
+        assert!(rendered.contains("> A **quiet** [quote](https://example.com)\n"));
+        assert!(rendered.contains("- *Fast* `reader`\n"));
+        assert!(rendered.contains("- Plain\n"));
     }
 
     #[test]
