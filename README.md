@@ -28,7 +28,7 @@ Supported input formats:
 Implemented Markdown rendering is still intentionally basic: headings,
 paragraphs, lists, blockquotes, code blocks, and rules are supported. Richer
 technical-document features such as LaTeX, Mermaid, images, tables, task lists,
-search, split view, and export are still on the roadmap.
+search, advanced Split View controls, and export are still on the roadmap.
 
 ## Run The GUI
 
@@ -43,8 +43,10 @@ GUI highlights:
 - Table-of-contents sidebar generated from headings.
 - Multiple document tabs with close controls.
 - Native drag-and-drop, including multiple dropped files into tabs.
+- Split View for comparing the active tab with another open tab.
 - Live reload when the active file changes on disk.
 - Zen Mode with `Cmd + Shift + F` on macOS or `Ctrl + Shift + F` elsewhere.
+- Split View toggle with `Cmd + \` on macOS or `Ctrl + \` elsewhere.
 
 ## Run The TUI
 
@@ -111,8 +113,8 @@ repository knowledge base and source of truth.
 
 Near-term MVP work includes:
 
-- Split view foundation.
 - Scroll synchronization.
+- Split View resizing, secondary selection, and scroll synchronization.
 - LaTeX and Mermaid support.
 - Search and documentation-toolkit commands.
 - Richer Markdown rendering for tables, images, links, and task lists.

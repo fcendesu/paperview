@@ -12,6 +12,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [History Sidebar](history-sidebar.md) - shared recent-file model and first GUI history rail.
 - [Live Reload](live-reload.md) - notify-backed active-document reload foundation.
 - [Ratatui Shell](ratatui-shell.md) - first interactive terminal reader shell.
+- [Split View](split-view.md) - GUI side-by-side comparison of two open tabs.
 - [Table of Contents](table-of-contents.md) - heading-derived navigation metadata and GUI sidebar.
 - [Tabs](tabs.md) - shared open-document model and GUI tab activation foundation.
 - [Zen Mode](zen-mode.md) - GUI focused reading layout.

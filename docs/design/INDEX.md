@@ -29,8 +29,9 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
     - **Styling:** Dark background (`#111318`) with individual tabs.
     - **Active Tab:** Matches the Reader's cream background (`#FDF8EF`) or has a blue bottom border.
     - **Inactive Tab:** Dimmed text, matching the sidebar background.
-    - **Close Button:** Deferred; the current GUI tab foundation supports activation only.
-- **Split View Button:** Toggle in the header to split the current view.
+    - **Close Button:** The current GUI has close controls on each tab.
+- **Split View Toggle:** The current GUI uses `Cmd + \` on macOS and `Ctrl + \`
+  elsewhere to toggle Split View.
 
 ### 2.2 Left Sidebar: "History"
 - **Structure:**
@@ -41,9 +42,10 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 
 ### 2.3 Main Reader & Split Layout
 - **Single View:** Centered content with a max width of 720–860px.
-- **Split View:** The reader area divides vertically into two panes.
-    - **Independent Scrolling:** Each side maintains its own scroll position.
-    - **Comparison Mode:** Highlighting a section on one side can sync the other side (optional toggle).
+- **Split View:** The current GUI foundation divides the reader area vertically
+  into two equal panes: active tab on the left, secondary open tab on the right.
+    - **Independent Scrolling:** Deferred.
+    - **Comparison Mode:** Highlighting a section on one side can sync the other side (optional toggle; deferred).
 - **Margins:** Generous white space (padding: ~40px - 60px).
 - **Typography:**
     - **Headings:** Serif font (e.g., *Source Serif Pro* or *Georgia*). Bold, heavy weight.

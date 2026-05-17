@@ -20,7 +20,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
 | **Live Reload (Watcher)** | ✅ | ✅ | ✅ |
 | **Tabbed Interface** | ✅ | ✅ | ⬜ |
-| **Split View (Side-by-Side)** | ⬜ | ⬜ | ⬜ |
+| **Split View (Side-by-Side)** | ⬜ | ✅ | ⬜ |
 | **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
 | **Scroll Synchronization** | ⬜ | ⬜ | ⬜ |
@@ -38,6 +38,7 @@ This document tracks the progress of features across the three workspace crates.
 - Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
 - Zen Mode currently covers the GUI focused reader layout; TUI and persisted preferences are deferred.
 - Tabbed Interface currently covers shared open-document state plus GUI tab activation and close controls; reorder/TUI tabs are deferred.
+- Split View currently covers a GUI foundation for comparing the active tab with one other open tab; secondary selection UI, resize, scroll sync, and TUI split are deferred.
 
 ---
 

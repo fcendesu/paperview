@@ -20,6 +20,7 @@ pub struct PaperView {
     status: Status,
     is_drag_hovered: bool,
     is_zen: bool,
+    split_document_index: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +40,7 @@ pub enum Message {
     FilesHoveredLeft,
     OpenDroppedFiles(Vec<PathBuf>),
     ToggleZen,
+    ToggleSplit,
     SelectTab(usize),
     CloseTab(usize),
 }
@@ -70,6 +72,7 @@ impl PaperView {
                     status: Status::Empty,
                     is_drag_hovered: false,
                     is_zen: false,
+                    split_document_index: None,
                 }
             }
             [path] => {
@@ -88,6 +91,7 @@ impl PaperView {
                             status: Status::Loaded(path),
                             is_drag_hovered: false,
                             is_zen: false,
+                            split_document_index: None,
                         }
                     }
                     Err(error) => Self {
@@ -97,6 +101,7 @@ impl PaperView {
                         status: Status::Error(error.to_string()),
                         is_drag_hovered: false,
                         is_zen: false,
+                        split_document_index: None,
                     },
                 }
             }
@@ -110,6 +115,7 @@ impl PaperView {
                     status: Status::Error("usage: paperview-gui [file]".to_owned()),
                     is_drag_hovered: false,
                     is_zen: false,
+                    split_document_index: None,
                 }
             }
         }
@@ -140,6 +146,7 @@ pub fn update(state: &mut PaperView, message: Message) {
         Message::ToggleZen => {
             state.is_zen = !state.is_zen;
         }
+        Message::ToggleSplit => state.toggle_split(),
         Message::SelectTab(index) => state.select_tab(index),
         Message::CloseTab(index) => state.close_tab(index),
     }
@@ -153,6 +160,7 @@ impl PaperView {
                 save_history(&self.history_store, &self.history);
                 self.documents.open_or_activate(document);
                 self.status = Status::Loaded(path);
+                self.ensure_split_target();
             }
             Err(error) => {
                 self.status = Status::Error(error.to_string());
@@ -170,6 +178,7 @@ impl PaperView {
                     save_history(&self.history_store, &self.history);
                     self.documents.open_or_activate(document);
                     self.status = Status::Loaded(path);
+                    self.ensure_split_target();
                 }
                 Err(error) => {
                     last_error = Some(error.to_string());
@@ -214,11 +223,46 @@ impl PaperView {
     fn select_tab(&mut self, index: usize) {
         self.documents.select(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+        self.ensure_split_target();
     }
 
     fn close_tab(&mut self, index: usize) {
         self.documents.close(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+        self.ensure_split_target();
+    }
+
+    fn toggle_split(&mut self) {
+        self.split_document_index = self
+            .split_document_index
+            .is_none()
+            .then(|| self.first_secondary_index())
+            .flatten();
+    }
+
+    fn ensure_split_target(&mut self) {
+        if self.split_document_index.is_some_and(|index| {
+            Some(index) == self.documents.active_index() || index >= self.documents.len()
+        }) {
+            self.split_document_index = self.first_secondary_index();
+        }
+    }
+
+    fn first_secondary_index(&self) -> Option<usize> {
+        let active = self.documents.active_index()?;
+
+        self.documents
+            .iter()
+            .map(|(index, _)| index)
+            .find(|index| *index != active)
+    }
+
+    fn split_document(&self) -> Option<&Document> {
+        let split_index = self.split_document_index?;
+
+        self.documents
+            .iter()
+            .find_map(|(index, document)| (index == split_index).then_some(document))
     }
 }
 
@@ -251,6 +295,19 @@ fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Opt
                 .is_some_and(|character| character.eq_ignore_ascii_case(&'f')) =>
         {
             Some(Message::ToggleZen)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.command()
+            && key
+                .to_latin(physical_key)
+                .is_some_and(|character| character.eq_ignore_ascii_case(&'\\')) =>
+        {
+            Some(Message::ToggleSplit)
         }
         _ => None,
     }
@@ -314,12 +371,22 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let body = match state.documents.active() {
         Some(document) if state.is_zen => reader::view(document),
-        Some(document) => row![
-            history::view(&state.history),
-            reader::view(document),
-            navigation::view(document.parsed())
-        ]
-        .into(),
+        Some(document) => {
+            let reader = if let Some(secondary) = state.split_document() {
+                row![reader::view(document), reader::view(secondary)]
+                    .spacing(1)
+                    .into()
+            } else {
+                reader::view(document)
+            };
+
+            row![
+                history::view(&state.history),
+                reader,
+                navigation::view(document.parsed())
+            ]
+            .into()
+        }
         None => empty_state(&state.status),
     };
     let layout = if state.is_zen {
@@ -664,6 +731,93 @@ mod tests {
     }
 
     #[test]
+    fn split_toggle_needs_secondary_tab() {
+        let path = temp_doc("split-single.md", "# Single\n\nOnly.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("split-single.toml"),
+        );
+
+        update(&mut state, Message::ToggleSplit);
+
+        assert_eq!(state.split_document_index, None);
+        assert!(state.split_document().is_none());
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn split_toggle_targets_first_non_active_tab() {
+        let first = temp_doc("split-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-toggle.toml"),
+        );
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+
+        update(&mut state, Message::ToggleSplit);
+
+        assert_eq!(state.documents.active_index(), Some(1));
+        assert_eq!(state.split_document_index, Some(0));
+        assert_eq!(state.split_document().map(Document::title), Some("First"));
+
+        update(&mut state, Message::ToggleSplit);
+
+        assert_eq!(state.split_document_index, None);
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn selecting_split_tab_retargets_secondary_document() {
+        let first = temp_doc("split-select-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-select-second.md", "# Second\n\nTwo.");
+        let third = temp_doc("split-select-third.md", "# Third\n\nThree.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-select.toml"),
+        );
+        update(
+            &mut state,
+            Message::OpenDroppedFiles(vec![second.clone(), third.clone()]),
+        );
+        update(&mut state, Message::ToggleSplit);
+
+        update(&mut state, Message::SelectTab(0));
+
+        assert_eq!(state.documents.active_index(), Some(0));
+        assert_eq!(state.split_document_index, Some(1));
+        assert_eq!(state.split_document().map(Document::title), Some("Second"));
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+        fs::remove_file(third).expect("remove third test document");
+    }
+
+    #[test]
+    fn closing_split_tab_disables_split_when_no_secondary_remains() {
+        let first = temp_doc("split-close-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-close-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-close.toml"),
+        );
+        update(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        update(&mut state, Message::ToggleSplit);
+
+        update(&mut state, Message::CloseTab(0));
+
+        assert_eq!(state.documents.len(), 1);
+        assert_eq!(state.documents.active_index(), Some(0));
+        assert_eq!(state.split_document_index, None);
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
     fn hover_leave_restores_loaded_status() {
         let path = temp_doc("active.md", "# Active\n\nCurrent.");
         let hover_path = temp_doc("hovered.md", "# Hovered\n\nMaybe next.");
@@ -713,6 +867,25 @@ mod tests {
         );
 
         assert!(matches!(message, Some(Message::ToggleZen)));
+    }
+
+    #[test]
+    fn command_backslash_maps_to_split_toggle() {
+        let message = runtime_event(
+            Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character("\\".into()),
+                modified_key: Key::Character("\\".into()),
+                physical_key: Physical::Code(Code::Backslash),
+                location: Location::Standard,
+                modifiers: Modifiers::COMMAND,
+                text: Some("\\".into()),
+                repeat: false,
+            }),
+            iced::event::Status::Ignored,
+            iced::window::Id::unique(),
+        );
+
+        assert!(matches!(message, Some(Message::ToggleSplit)));
     }
 
     fn temp_store(name: &str) -> HistoryStore {
