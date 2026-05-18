@@ -18,18 +18,22 @@ const BODY_LINE_CHARS: usize = 72;
 const CODE_LINE_HEIGHT: f32 = 18.0;
 const BODY_LINE_HEIGHT: f32 = 24.0;
 
-pub fn view<Message: 'static>(document: &Document) -> Element<'_, Message> {
-    view_with_scroll(document, None::<fn(f32) -> Message>)
+pub fn view<Message: 'static>(
+    document: &Document,
+    on_link_click: fn(String) -> Message,
+) -> Element<'_, Message> {
+    view_with_scroll(document, None::<fn(f32) -> Message>, on_link_click)
 }
 
 pub fn view_with_scroll<'a, Message: 'static>(
     document: &'a Document,
     on_scroll: Option<impl Fn(f32) -> Message + 'a>,
+    on_link_click: fn(String) -> Message,
 ) -> Element<'a, Message> {
     let mut content = column![].spacing(BLOCK_SPACING).width(Fill);
 
     for block in &document.parsed().blocks {
-        content = content.push(block_view(block));
+        content = content.push(block_view(block, on_link_click));
     }
 
     let mut scrollable = scrollable(
@@ -188,26 +192,33 @@ fn normalized_progress(progress: f32) -> f32 {
     }
 }
 
-fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
+fn block_view<Message: 'static>(
+    block: &Block,
+    on_link_click: fn(String) -> Message,
+) -> Element<'_, Message> {
     match block {
-        Block::Heading { level, spans } => heading(*level, spans),
-        Block::Paragraph(spans) => paragraph(spans),
-        Block::BlockQuote(spans) => blockquote(spans),
+        Block::Heading { level, spans } => heading(*level, spans, on_link_click),
+        Block::Paragraph(spans) => paragraph(spans, on_link_click),
+        Block::BlockQuote(spans) => blockquote(spans, on_link_click),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::Diagram { language, source } => diagram_block(language, source),
         Block::Image { alt, url, title } => image_block(alt, url, title),
-        Block::List { ordered, items } => list(*ordered, items),
+        Block::List { ordered, items } => list(*ordered, items, on_link_click),
         Block::Math { display, source } => math_block(*display, source),
         Block::Table {
             alignments,
             header,
             rows,
-        } => table_block(alignments, header, rows),
+        } => table_block(alignments, header, rows, on_link_click),
         Block::Rule => rule::horizontal(1).into(),
     }
 }
 
-fn heading<Message: 'static>(level: HeadingLevel, spans: &[InlineSpan]) -> Element<'_, Message> {
+fn heading<Message: 'static>(
+    level: HeadingLevel,
+    spans: &[InlineSpan],
+    on_link_click: fn(String) -> Message,
+) -> Element<'_, Message> {
     let size = match level {
         HeadingLevel::H1 => 32,
         HeadingLevel::H2 => 24,
@@ -215,30 +226,37 @@ fn heading<Message: 'static>(level: HeadingLevel, spans: &[InlineSpan]) -> Eleme
         HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => 18,
     };
 
-    inline_text(spans, size, theme::READER_TEXT)
+    inline_text(spans, size, theme::READER_TEXT, on_link_click)
 }
 
-fn paragraph<Message: 'static>(spans: &[InlineSpan]) -> Element<'_, Message> {
-    inline_text(spans, 16, theme::READER_TEXT)
+fn paragraph<Message: 'static>(
+    spans: &[InlineSpan],
+    on_link_click: fn(String) -> Message,
+) -> Element<'_, Message> {
+    inline_text(spans, 16, theme::READER_TEXT, on_link_click)
 }
 
 fn inline_text<Message: 'static>(
     spans: &[InlineSpan],
     size: u32,
     base_color: iced::Color,
+    on_link_click: fn(String) -> Message,
 ) -> Element<'_, Message> {
     let spans = spans
         .iter()
         .map(|span| rich_span(span, base_color))
         .collect::<Vec<_>>();
 
-    rich_text(spans).size(size).into()
+    rich_text(spans)
+        .size(size)
+        .on_link_click(on_link_click)
+        .into()
 }
 
 fn rich_span(
     source: &InlineSpan,
     base_color: iced::Color,
-) -> iced::widget::text::Span<'_, (), Font> {
+) -> iced::widget::text::Span<'_, String, Font> {
     let mut output = span(source.text.as_str()).color(base_color);
 
     if source.strong || source.emphasis {
@@ -264,19 +282,30 @@ fn rich_span(
             .padding([1, 4]);
     }
 
-    if source.link.is_some() {
-        output = output.color(theme::SHELL_ACCENT).underline(true);
+    if let Some(link) = &source.link {
+        output = output
+            .color(theme::SHELL_ACCENT)
+            .underline(true)
+            .link(link.clone());
     }
 
     output
 }
 
-fn blockquote<Message: 'static>(spans: &[InlineSpan]) -> Element<'_, Message> {
-    container(inline_text(spans, 16, theme::READER_TEXT_MUTED))
-        .padding([8, 14])
-        .width(Fill)
-        .style(|_| theme::quote_container())
-        .into()
+fn blockquote<Message: 'static>(
+    spans: &[InlineSpan],
+    on_link_click: fn(String) -> Message,
+) -> Element<'_, Message> {
+    container(inline_text(
+        spans,
+        16,
+        theme::READER_TEXT_MUTED,
+        on_link_click,
+    ))
+    .padding([8, 14])
+    .width(Fill)
+    .style(|_| theme::quote_container())
+    .into()
 }
 
 fn code_block<'a, Message: 'static>(
@@ -361,7 +390,11 @@ fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Mess
     .into()
 }
 
-fn list<Message: 'static>(ordered: bool, items: &[Vec<InlineSpan>]) -> Element<'_, Message> {
+fn list<Message: 'static>(
+    ordered: bool,
+    items: &[Vec<InlineSpan>],
+    on_link_click: fn(String) -> Message,
+) -> Element<'_, Message> {
     let mut list = Column::new().spacing(8);
 
     for (index, item) in items.iter().enumerate() {
@@ -375,7 +408,7 @@ fn list<Message: 'static>(ordered: bool, items: &[Vec<InlineSpan>]) -> Element<'
             Row::new()
                 .spacing(4)
                 .push(text(marker).size(16).color(theme::READER_TEXT))
-                .push(inline_text(item, 16, theme::READER_TEXT)),
+                .push(inline_text(item, 16, theme::READER_TEXT, on_link_click)),
         );
     }
 
@@ -386,15 +419,16 @@ fn table_block<'a, Message: 'static>(
     alignments: &'a [TableAlignment],
     header: &'a TableRow,
     rows: &'a [TableRow],
+    on_link_click: fn(String) -> Message,
 ) -> Element<'a, Message> {
     let mut table = Column::new().spacing(0).width(Fill);
 
     if !header.is_empty() {
-        table = table.push(table_row(header, alignments, true));
+        table = table.push(table_row(header, alignments, true, on_link_click));
     }
 
     for row in rows {
-        table = table.push(table_row(row, alignments, false));
+        table = table.push(table_row(row, alignments, false, on_link_click));
     }
 
     container(table)
@@ -407,6 +441,7 @@ fn table_row<'a, Message: 'static>(
     cells: &'a [TableCell],
     alignments: &'a [TableAlignment],
     is_header: bool,
+    on_link_click: fn(String) -> Message,
 ) -> Element<'a, Message> {
     let mut row = Row::new().spacing(0).width(Fill);
 
@@ -418,6 +453,7 @@ fn table_row<'a, Message: 'static>(
                 .copied()
                 .unwrap_or(TableAlignment::None),
             is_header,
+            on_link_click,
         ));
     }
 
@@ -428,6 +464,7 @@ fn table_cell<Message: 'static>(
     value: &[InlineSpan],
     alignment: TableAlignment,
     is_header: bool,
+    on_link_click: fn(String) -> Message,
 ) -> Element<'_, Message> {
     let label = inline_text(
         value,
@@ -437,6 +474,7 @@ fn table_cell<Message: 'static>(
         } else {
             theme::READER_TEXT_MUTED
         },
+        on_link_click,
     );
 
     let mut cell = container(label)

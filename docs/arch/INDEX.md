@@ -53,6 +53,8 @@ PaperView distinguishes between UI events and headless toolkit commands.
 - `FileDropped(PathBuf)`: Triggered by system Drag & Drop event.
 - `FileChanged(PathBuf)`: Triggered by the `notify` watcher.
 - `ScrollOffsetChanged(f32)`: Syncs the Reader with the TOC.
+- `OpenLink(String)`: Opens a clicked GUI inline link through the platform
+  default opener after resolving relative paths from the active document.
 - **`MouseEvent(MouseAction)`**: Handles clicks and scroll-wheel input in both GUI and TUI.
 
 **Headless Toolkit Commands:**
@@ -106,7 +108,9 @@ images remain text until richer inline spans exist.
 
 The inline-span implementation stores `InlineSpan` values for heading,
 paragraph, blockquote, list item, and table-cell content. Plain heading text is
-derived for document titles, TOC labels, slugs, and scroll geometry.
+derived for document titles, TOC labels, slugs, and scroll geometry. GUI rich
+text attaches link metadata to inline link spans and resolves clicked relative
+targets against the active document before delegating to the OS opener.
 
 ---
 

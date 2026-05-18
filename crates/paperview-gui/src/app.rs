@@ -1,4 +1,4 @@
-use std::{ffi::OsString, path::PathBuf, sync::mpsc};
+use std::{ffi::OsString, path::PathBuf, process::Command, sync::mpsc};
 
 use iced::{
     Element, Event, Fill, Length, Subscription, Task,
@@ -54,6 +54,9 @@ pub enum Message {
     ToggleSplit,
     ResizeSplit(SplitResize),
     ReaderScrolled(f32),
+    OpenLink(String),
+    LinkOpened,
+    LinkOpenFailed(String),
     TocSelected(usize),
     SelectSplitTab(usize),
     SelectTab(usize),
@@ -184,6 +187,11 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::ToggleSplit => state.toggle_split(),
         Message::ResizeSplit(direction) => state.resize_split(direction),
         Message::ReaderScrolled(progress) => state.sync_active_toc_to_scroll(progress),
+        Message::OpenLink(target) => return state.open_link(target),
+        Message::LinkOpened => {}
+        Message::LinkOpenFailed(error) => {
+            state.status = Status::Error(error);
+        }
         Message::TocSelected(block_index) => {
             state.active_toc_block_index = Some(block_index);
             return state.scroll_to_toc_block(block_index);
@@ -378,6 +386,25 @@ impl PaperView {
             },
         )
     }
+
+    fn open_link(&self, target: String) -> Task<Message> {
+        let resolved =
+            resolve_link_target(&target, self.documents.active().and_then(Document::path));
+
+        if resolved.starts_with('#') {
+            return Task::done(Message::LinkOpenFailed(format!(
+                "in-document links are not supported yet: {resolved}"
+            )));
+        }
+
+        Task::perform(
+            async move { open_link_target(resolved) },
+            |result| match result {
+                Ok(()) => Message::LinkOpened,
+                Err(error) => Message::LinkOpenFailed(error),
+            },
+        )
+    }
 }
 
 fn first_toc_block_index(document: &paperview_core::parser::ParsedDocument) -> Option<usize> {
@@ -515,7 +542,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let body = match state.documents.active() {
         Some(document) if state.is_zen => {
-            reader::view_with_scroll(document, Some(Message::ReaderScrolled))
+            reader::view_with_scroll(document, Some(Message::ReaderScrolled), Message::OpenLink)
         }
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
@@ -524,15 +551,17 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
                 row![
                     container(reader::view_with_scroll(
                         document,
-                        Some(Message::ReaderScrolled)
+                        Some(Message::ReaderScrolled),
+                        Message::OpenLink
                     ))
                     .width(Length::FillPortion(primary_width)),
-                    container(reader::view(secondary)).width(Length::FillPortion(secondary_width))
+                    container(reader::view(secondary, Message::OpenLink))
+                        .width(Length::FillPortion(secondary_width))
                 ]
                 .spacing(1)
                 .into()
             } else {
-                reader::view_with_scroll(document, Some(Message::ReaderScrolled))
+                reader::view_with_scroll(document, Some(Message::ReaderScrolled), Message::OpenLink)
             };
 
             row![
@@ -559,6 +588,65 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         .height(Fill)
         .style(|_| theme::shell_container(state.is_drag_hovered))
         .into()
+}
+
+fn resolve_link_target(target: &str, active_path: Option<&PathBuf>) -> String {
+    if is_absolute_link_target(target) {
+        return target.to_owned();
+    }
+
+    let Some(parent) = active_path.and_then(|path| path.parent()) else {
+        return target.to_owned();
+    };
+
+    parent.join(target).to_string_lossy().into_owned()
+}
+
+fn is_absolute_link_target(target: &str) -> bool {
+    target.starts_with('#')
+        || target.contains("://")
+        || target.starts_with("mailto:")
+        || target.starts_with("tel:")
+        || PathBuf::from(target).is_absolute()
+}
+
+fn open_link_target(target: String) -> Result<(), String> {
+    if target.trim().is_empty() {
+        return Err("cannot open an empty link".to_owned());
+    }
+
+    let status = platform_open_command(&target)
+        .status()
+        .map_err(|error| format!("failed to open {target}: {error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "failed to open {target}: opener exited with {status}"
+        ))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn platform_open_command(target: &str) -> Command {
+    let mut command = Command::new("open");
+    command.arg(target);
+    command
+}
+
+#[cfg(target_os = "windows")]
+fn platform_open_command(target: &str) -> Command {
+    let mut command = Command::new("cmd");
+    command.args(["/C", "start", "", target]);
+    command
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn platform_open_command(target: &str) -> Command {
+    let mut command = Command::new("xdg-open");
+    command.arg(target);
+    command
 }
 
 fn header(state: &PaperView) -> Element<'_, Message> {
@@ -726,7 +814,10 @@ mod tests {
     };
     use paperview_core::{Document, HistoryStore, parser::parse_markdown};
 
-    use super::{Message, PaperView, SplitResize, reader, runtime_event, title, update};
+    use super::{
+        Message, PaperView, SplitResize, open_link_target, reader, resolve_link_target,
+        runtime_event, title, update,
+    };
 
     #[test]
     fn empty_window_title_is_app_name() {
@@ -1286,6 +1377,35 @@ mod tests {
             shrink,
             Some(Message::ResizeSplit(SplitResize::ShrinkPrimary))
         ));
+    }
+
+    #[test]
+    fn relative_links_resolve_against_active_document_parent() {
+        let path = temp_doc("links-source.md", "# Links\n\nSee [docs](docs/guide.md).");
+        let expected = path
+            .parent()
+            .expect("temp doc parent")
+            .join("docs/guide.md");
+
+        assert_eq!(
+            resolve_link_target("docs/guide.md", Some(&path)),
+            expected.to_string_lossy()
+        );
+        assert_eq!(
+            resolve_link_target("https://example.com", Some(&path)),
+            "https://example.com"
+        );
+        assert_eq!(resolve_link_target("#section", Some(&path)), "#section");
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn empty_links_are_rejected_before_platform_open() {
+        assert_eq!(
+            open_link_target(String::new()).expect_err("reject empty link"),
+            "cannot open an empty link"
+        );
     }
 
     fn temp_store(name: &str) -> HistoryStore {
