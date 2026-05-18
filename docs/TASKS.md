@@ -59,7 +59,7 @@ This document tracks the progress of features across the three workspace crates.
 
 | Command | Status | Notes |
 | :--- | :---: | :--- |
-| **paperview search** | ⬜ | Needs `ripgrep` integration |
+| **paperview search** | ✅ | Prints ripgrep-backed path, line, column, and text results |
 | **paperview export** | ⬜ | Needs PDF/HTML backend |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, and heading structure |
 | **paperview config** | ✅ | Supports config path and edit with TOML file creation |

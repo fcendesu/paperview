@@ -126,8 +126,12 @@ targets against the active document before delegating to the OS opener. Clicked
 The first in-document search implementation keeps source search in
 `paperview-core` through `Document::search` and line-based `SearchMatch` values.
 GUI and TUI frontends own their local search state and use the shared matches to
-jump reader scroll position; workspace search remains a separate deferred
-ripgrep-backed surface.
+jump reader scroll position.
+
+The first workspace-search implementation keeps ripgrep invocation and result
+parsing in `paperview-core::search_workspace`. The TUI binary exposes it as a
+headless `search <query> [path]` command that prints path, line, column, and
+matched text without initializing Ratatui.
 
 The first document-stats implementation keeps metadata calculation in
 `paperview-core` through `Document::stats` and `DocumentStats`. The TUI binary

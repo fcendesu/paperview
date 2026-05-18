@@ -25,6 +25,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Table Rendering](table-rendering.md) - structured Markdown table parsing and first GUI/TUI rendering.
 - [Task List Rendering](task-list-rendering.md) - read-only checked and unchecked Markdown task-list rendering.
 - [Tabs](tabs.md) - shared open-document model and GUI tab activation foundation.
+- [Workspace Search](workspace-search.md) - headless ripgrep-backed workspace search command.
 - [Zen Mode](zen-mode.md) - GUI focused reading layout.
 
 Each feature spec should include:

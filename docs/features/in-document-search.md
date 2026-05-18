@@ -35,7 +35,7 @@ Search is case-insensitive and line-based. It searches the source document text 
 
 ## Decisions And Gaps
 
-- Workspace search through `paperview search <query>` is still deferred and should use a separate ripgrep-backed feature.
+- Interactive workspace-search result selection is deferred; the current headless workspace command prints results.
 - Selected-match emphasis in the GUI is deferred; the current GUI highlights matching rendered text occurrences without distinguishing the active match.
 - Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks.
 

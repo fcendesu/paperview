@@ -42,6 +42,20 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             open_path(store.path())?;
             Ok(())
         }
+        [command, query] if command == "search" => {
+            let matches =
+                paperview_core::search_workspace(&query.to_string_lossy(), ".")
+                    .map_err(|error| error.to_string())?;
+            println!("{}", workspace_search_text(&matches));
+            Ok(())
+        }
+        [command, query, root] if command == "search" => {
+            let matches =
+                paperview_core::search_workspace(&query.to_string_lossy(), PathBuf::from(root))
+                    .map_err(|error| error.to_string())?;
+            println!("{}", workspace_search_text(&matches));
+            Ok(())
+        }
         [path] => {
             let document = paperview_core::Document::open(PathBuf::from(path))
                 .map_err(|error| error.to_string())?;
@@ -49,7 +63,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         _ => Err(
-            "usage: paperview-tui [file]\n       paperview-tui stats <file>\n       paperview-tui config path\n       paperview-tui config edit"
+            "usage: paperview-tui [file]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui config path\n       paperview-tui config edit"
                 .to_owned(),
         ),
     }
@@ -128,11 +142,31 @@ fn stats_text(document: &paperview_core::Document) -> String {
     output.join("\n")
 }
 
+fn workspace_search_text(matches: &[paperview_core::WorkspaceSearchMatch]) -> String {
+    if matches.is_empty() {
+        return "No matches".to_owned();
+    }
+
+    matches
+        .iter()
+        .map(|search_match| {
+            format!(
+                "{}:{}:{}: {}",
+                search_match.path.display(),
+                search_match.line_number,
+                search_match.column,
+                search_match.line
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 mod tests {
-    use paperview_core::{ConfigStore, Document};
+    use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
-    use super::{config_path_text, stats_text};
+    use super::{config_path_text, stats_text, workspace_search_text};
 
     #[test]
     fn formats_stats_report() {
@@ -150,5 +184,21 @@ mod tests {
         let store = ConfigStore::new("/tmp/paperview-test-config.toml");
 
         assert_eq!(config_path_text(&store), "/tmp/paperview-test-config.toml");
+    }
+
+    #[test]
+    fn formats_workspace_search_report() {
+        let matches = vec![WorkspaceSearchMatch {
+            path: "docs/PRD.md".into(),
+            line_number: 1,
+            column: 3,
+            line: "PaperView".to_owned(),
+        }];
+
+        assert_eq!(
+            workspace_search_text(&matches),
+            "docs/PRD.md:1:3: PaperView"
+        );
+        assert_eq!(workspace_search_text(&[]), "No matches");
     }
 }

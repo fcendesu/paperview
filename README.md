@@ -93,6 +93,12 @@ cargo run -p paperview-tui -- config path
 cargo run -p paperview-tui -- config edit
 ```
 
+Search a workspace or folder:
+
+```sh
+cargo run -p paperview-tui -- search PaperView docs
+```
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.
@@ -119,6 +125,8 @@ The headless stats command prints word, line, character, reading-time, and
 heading-structure metadata for a document.
 The config commands print or open PaperView's TOML config file, creating a
 default file before edit when needed.
+The workspace search command prints ripgrep-backed `path:line:column` results
+without launching the TUI.
 
 ## Development Checks
 
@@ -165,7 +173,7 @@ Near-term MVP work includes:
 - Exact scroll geometry from rendered layout rectangles.
 - Split View drag resizing.
 - Full LaTeX typesetting and full Mermaid rendering.
-- Remaining documentation-toolkit commands for workspace search and export.
+- Remaining documentation-toolkit command for export.
 - Richer Markdown rendering for remote images, exported anchors, and interactive
   task toggles.
 - Performance measurement against startup, scrolling, and memory targets.

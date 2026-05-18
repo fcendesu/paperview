@@ -53,6 +53,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [Table Rendering](completed/table-rendering.md) - structured Markdown table parsing and first GUI/TUI rendering.
 - [Task List Rendering](completed/task-list-rendering.md) - read-only checked and unchecked Markdown task-list rendering.
 - [TUI History Dashboard](completed/tui-history-dashboard.md) - no-file Ratatui recent-files dashboard with selection and open.
+- [Workspace Search Command](completed/workspace-search-command.md) - headless ripgrep-backed workspace search report.
 
 Each plan should include:
 
