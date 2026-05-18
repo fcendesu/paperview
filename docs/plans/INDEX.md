@@ -38,6 +38,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Reader Scroll Geometry](completed/gui-reader-scroll-geometry.md) - reader-aware estimated heading anchors for TOC sync.
 - [Live Reload Foundation](completed/live-reload-foundation.md) - core file watcher and GUI active-document reload.
 - [Mermaid Foundation](completed/mermaid-foundation.md) - source-preserving Mermaid diagram blocks across core, GUI, and TUI.
+- [Mermaid Flowchart Preview](completed/mermaid-flowchart-preview.md) - native GUI preview for simple Mermaid flowcharts.
 - [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
 - [TUI TOC Scroll Sync](completed/tui-toc-scroll-sync.md) - Ratatui reader highlights the active TOC section while scrolling.
 - [TUI TOC Jump Mode](completed/tui-toc-jump-mode.md) - Ratatui TOC focus mode and jump-to-heading navigation.

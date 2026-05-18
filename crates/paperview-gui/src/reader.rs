@@ -10,7 +10,8 @@ use iced::{
 use paperview_core::{
     Document,
     parser::{
-        Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow, elements::inline,
+        Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow,
+        elements::{diagram, inline},
     },
 };
 
@@ -336,17 +337,62 @@ fn code_block<'a, Message: 'static>(
 }
 
 fn diagram_block<'a, Message: 'static>(language: &'a str, source: &'a str) -> Element<'a, Message> {
-    container(
-        column![
-            text(language).size(12).color(theme::SHELL_ACCENT),
-            text(source).size(14).color(theme::READER_TEXT)
-        ]
-        .spacing(8),
-    )
-    .padding(16)
-    .width(Fill)
-    .style(|_| theme::diagram_container())
-    .into()
+    let mut content = column![text(language).size(12).color(theme::SHELL_ACCENT)].spacing(12);
+
+    if let Some(preview) = diagram::flowchart_preview(source) {
+        content = content.push(flowchart_preview(preview));
+    }
+
+    content = content.push(text(source).size(14).color(theme::READER_TEXT));
+
+    container(content)
+        .padding(16)
+        .width(Fill)
+        .style(|_| theme::diagram_container())
+        .into()
+}
+
+fn flowchart_preview<Message: 'static>(
+    preview: diagram::FlowchartPreview,
+) -> Element<'static, Message> {
+    let direction = match preview.direction {
+        diagram::FlowchartDirection::TopDown => "top down",
+        diagram::FlowchartDirection::BottomTop => "bottom to top",
+        diagram::FlowchartDirection::LeftRight => "left to right",
+        diagram::FlowchartDirection::RightLeft => "right to left",
+    };
+
+    let mut rows = Column::new().spacing(8).push(
+        text(format!("flowchart preview - {direction}"))
+            .size(13)
+            .color(theme::READER_TEXT_MUTED),
+    );
+
+    for edge in preview.edges {
+        rows = rows.push(flowchart_edge(edge));
+    }
+
+    container(rows)
+        .padding(12)
+        .width(Fill)
+        .style(|_| theme::paper_container())
+        .into()
+}
+
+fn flowchart_edge<Message: 'static>(edge: diagram::FlowchartEdge) -> Element<'static, Message> {
+    Row::new()
+        .spacing(8)
+        .push(flowchart_node(edge.from))
+        .push(text("->").size(14).color(theme::SHELL_ACCENT))
+        .push(flowchart_node(edge.to))
+        .into()
+}
+
+fn flowchart_node<Message: 'static>(label: String) -> Element<'static, Message> {
+    container(text(label).size(13).color(theme::READER_TEXT))
+        .padding([6, 10])
+        .style(|_| theme::table_cell_container(false))
+        .into()
 }
 
 fn image_block<'a, Message: 'static>(

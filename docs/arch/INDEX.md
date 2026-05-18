@@ -95,8 +95,9 @@ typesetting is selected.
 
 The first Mermaid implementation keeps diagram semantics in `paperview-core` by
 detecting `mermaid` fenced code blocks and exposing them as `Block::Diagram`.
-Frontends render source-preserving diagram affordances until native diagram
-rendering is selected.
+Core also exposes a simple flowchart preview parser for common `graph` and
+`flowchart` edge lists. The GUI renders those edges as native preview rows while
+keeping source text visible; TUI output remains source-preserving.
 
 The first table implementation keeps table structure in `paperview-core` by
 consuming `pulldown-cmark` table events into `Block::Table`. Frontends render
