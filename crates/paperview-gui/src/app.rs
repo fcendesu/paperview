@@ -532,6 +532,11 @@ impl PaperView {
             |index| format!("{}/{}", index + 1, self.search_matches.len()),
         )
     }
+
+    fn active_search_query(&self) -> Option<&str> {
+        let query = self.search_query.trim();
+        (!query.is_empty()).then_some(query)
+    }
 }
 
 fn first_toc_block_index(document: &paperview_core::parser::ParsedDocument) -> Option<usize> {
@@ -686,18 +691,22 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let body = match state.documents.active() {
-        Some(document) if state.is_zen => {
-            reader::view_with_scroll(document, Some(Message::ReaderScrolled), Message::OpenLink)
-        }
+        Some(document) if state.is_zen => reader::view_with_search(
+            document,
+            Some(Message::ReaderScrolled),
+            Message::OpenLink,
+            state.active_search_query(),
+        ),
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
                 let (primary_width, secondary_width) = state.split_widths();
 
                 row![
-                    container(reader::view_with_scroll(
+                    container(reader::view_with_search(
                         document,
                         Some(Message::ReaderScrolled),
-                        Message::OpenLink
+                        Message::OpenLink,
+                        state.active_search_query()
                     ))
                     .width(Length::FillPortion(primary_width)),
                     container(reader::view(secondary, Message::OpenLink))
@@ -706,7 +715,12 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
                 .spacing(1)
                 .into()
             } else {
-                reader::view_with_scroll(document, Some(Message::ReaderScrolled), Message::OpenLink)
+                reader::view_with_search(
+                    document,
+                    Some(Message::ReaderScrolled),
+                    Message::OpenLink,
+                    state.active_search_query(),
+                )
             };
 
             row![

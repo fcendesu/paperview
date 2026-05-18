@@ -29,19 +29,34 @@ pub fn view<Message: 'static>(
     document: &Document,
     on_link_click: fn(String) -> Message,
 ) -> Element<'_, Message> {
-    view_with_scroll(document, None::<fn(f32) -> Message>, on_link_click)
+    view_with_scroll_and_search(document, None::<fn(f32) -> Message>, on_link_click, None)
 }
 
-pub fn view_with_scroll<'a, Message: 'static>(
+pub fn view_with_search<'a, Message: 'static>(
     document: &'a Document,
     on_scroll: Option<impl Fn(f32) -> Message + 'a>,
     on_link_click: fn(String) -> Message,
+    search_query: Option<&'a str>,
+) -> Element<'a, Message> {
+    view_with_scroll_and_search(document, on_scroll, on_link_click, search_query)
+}
+
+fn view_with_scroll_and_search<'a, Message: 'static>(
+    document: &'a Document,
+    on_scroll: Option<impl Fn(f32) -> Message + 'a>,
+    on_link_click: fn(String) -> Message,
+    search_query: Option<&'a str>,
 ) -> Element<'a, Message> {
     let mut content = column![].spacing(BLOCK_SPACING).width(Fill);
     let document_path = document.path().map(PathBuf::as_path);
 
     for block in &document.parsed().blocks {
-        content = content.push(block_view(block, document_path, on_link_click));
+        content = content.push(block_view(
+            block,
+            document_path,
+            on_link_click,
+            normalized_search_query(search_query),
+        ));
     }
 
     let mut scrollable = scrollable(
@@ -206,30 +221,32 @@ fn block_view<'a, Message: 'static>(
     block: &'a Block,
     document_path: Option<&'a Path>,
     on_link_click: fn(String) -> Message,
+    search_query: Option<&'a str>,
 ) -> Element<'a, Message> {
     match block {
-        Block::Heading { level, spans } => heading(*level, spans, on_link_click),
-        Block::Paragraph(spans) => paragraph(spans, on_link_click),
-        Block::BlockQuote(spans) => blockquote(spans, on_link_click),
+        Block::Heading { level, spans } => heading(*level, spans, on_link_click, search_query),
+        Block::Paragraph(spans) => paragraph(spans, on_link_click, search_query),
+        Block::BlockQuote(spans) => blockquote(spans, on_link_click, search_query),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::Diagram { language, source } => diagram_block(language, source),
         Block::Image { alt, url, title } => image_block(alt, url, title, document_path),
-        Block::List { ordered, items } => list(*ordered, items, on_link_click),
+        Block::List { ordered, items } => list(*ordered, items, on_link_click, search_query),
         Block::Math { display, source } => math_block(*display, source),
         Block::Table {
             alignments,
             header,
             rows,
-        } => table_block(alignments, header, rows, on_link_click),
+        } => table_block(alignments, header, rows, on_link_click, search_query),
         Block::Rule => rule::horizontal(1).into(),
     }
 }
 
-fn heading<Message: 'static>(
+fn heading<'a, Message: 'static>(
     level: HeadingLevel,
-    spans: &[InlineSpan],
+    spans: &'a [InlineSpan],
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
+    search_query: Option<&'a str>,
+) -> Element<'a, Message> {
     let size = match level {
         HeadingLevel::H1 => 32,
         HeadingLevel::H2 => 24,
@@ -237,25 +254,27 @@ fn heading<Message: 'static>(
         HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => 18,
     };
 
-    inline_text(spans, size, theme::READER_TEXT, on_link_click)
+    inline_text(spans, size, theme::READER_TEXT, on_link_click, search_query)
 }
 
-fn paragraph<Message: 'static>(
-    spans: &[InlineSpan],
+fn paragraph<'a, Message: 'static>(
+    spans: &'a [InlineSpan],
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
-    inline_text(spans, 16, theme::READER_TEXT, on_link_click)
+    search_query: Option<&'a str>,
+) -> Element<'a, Message> {
+    inline_text(spans, 16, theme::READER_TEXT, on_link_click, search_query)
 }
 
-fn inline_text<Message: 'static>(
-    spans: &[InlineSpan],
+fn inline_text<'a, Message: 'static>(
+    spans: &'a [InlineSpan],
     size: u32,
     base_color: iced::Color,
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
+    search_query: Option<&'a str>,
+) -> Element<'a, Message> {
     let spans = spans
         .iter()
-        .map(|span| rich_span(span, base_color))
+        .flat_map(|span| rich_spans(span, base_color, search_query))
         .collect::<Vec<_>>();
 
     rich_text(spans)
@@ -264,11 +283,28 @@ fn inline_text<Message: 'static>(
         .into()
 }
 
-fn rich_span(
-    source: &InlineSpan,
+fn rich_spans<'a>(
+    source: &'a InlineSpan,
     base_color: iced::Color,
-) -> iced::widget::text::Span<'_, String, Font> {
-    let mut output = span(source.text.as_str()).color(base_color);
+    search_query: Option<&str>,
+) -> Vec<iced::widget::text::Span<'a, String, Font>> {
+    highlight_segments(&source.text, search_query)
+        .into_iter()
+        .map(|segment| rich_span_segment(source, segment.text, base_color, segment.highlighted))
+        .collect()
+}
+
+fn rich_span_segment<'a>(
+    source: &'a InlineSpan,
+    text_value: &'a str,
+    base_color: iced::Color,
+    highlighted: bool,
+) -> iced::widget::text::Span<'a, String, Font> {
+    let mut output = span(text_value).color(if highlighted {
+        theme::SEARCH_HIGHLIGHT_TEXT
+    } else {
+        base_color
+    });
 
     if source.strong || source.emphasis {
         output = output.font(Font {
@@ -287,31 +323,38 @@ fn rich_span(
     }
 
     if source.code {
-        output = output
-            .font(Font::MONOSPACE)
-            .background(Background::Color(theme::CODE_BACKGROUND))
-            .padding([1, 4]);
+        output = output.font(Font::MONOSPACE).padding([1, 4]);
     }
 
+    output = if highlighted {
+        output.background(Background::Color(theme::SEARCH_HIGHLIGHT_BACKGROUND))
+    } else if source.code {
+        output.background(Background::Color(theme::CODE_BACKGROUND))
+    } else {
+        output
+    };
+
     if let Some(link) = &source.link {
-        output = output
-            .color(theme::SHELL_ACCENT)
-            .underline(true)
-            .link(link.clone());
+        output = output.underline(true).link(link.clone());
+        if !highlighted {
+            output = output.color(theme::SHELL_ACCENT);
+        }
     }
 
     output
 }
 
-fn blockquote<Message: 'static>(
-    spans: &[InlineSpan],
+fn blockquote<'a, Message: 'static>(
+    spans: &'a [InlineSpan],
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
+    search_query: Option<&'a str>,
+) -> Element<'a, Message> {
     container(inline_text(
         spans,
         16,
         theme::READER_TEXT_MUTED,
         on_link_click,
+        search_query,
     ))
     .padding([8, 14])
     .width(Fill)
@@ -487,11 +530,12 @@ fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Mess
         .into()
 }
 
-fn list<Message: 'static>(
+fn list<'a, Message: 'static>(
     ordered: bool,
-    items: &[ListItem],
+    items: &'a [ListItem],
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
+    search_query: Option<&'a str>,
+) -> Element<'a, Message> {
     let mut list = Column::new().spacing(8);
 
     for (index, item) in items.iter().enumerate() {
@@ -513,6 +557,7 @@ fn list<Message: 'static>(
                     16,
                     theme::READER_TEXT,
                     on_link_click,
+                    search_query,
                 )),
         );
     }
@@ -525,15 +570,28 @@ fn table_block<'a, Message: 'static>(
     header: &'a TableRow,
     rows: &'a [TableRow],
     on_link_click: fn(String) -> Message,
+    search_query: Option<&'a str>,
 ) -> Element<'a, Message> {
     let mut table = Column::new().spacing(0).width(Fill);
 
     if !header.is_empty() {
-        table = table.push(table_row(header, alignments, true, on_link_click));
+        table = table.push(table_row(
+            header,
+            alignments,
+            true,
+            on_link_click,
+            search_query,
+        ));
     }
 
     for row in rows {
-        table = table.push(table_row(row, alignments, false, on_link_click));
+        table = table.push(table_row(
+            row,
+            alignments,
+            false,
+            on_link_click,
+            search_query,
+        ));
     }
 
     container(table)
@@ -547,6 +605,7 @@ fn table_row<'a, Message: 'static>(
     alignments: &'a [TableAlignment],
     is_header: bool,
     on_link_click: fn(String) -> Message,
+    search_query: Option<&'a str>,
 ) -> Element<'a, Message> {
     let mut row = Row::new().spacing(0).width(Fill);
 
@@ -559,18 +618,20 @@ fn table_row<'a, Message: 'static>(
                 .unwrap_or(TableAlignment::None),
             is_header,
             on_link_click,
+            search_query,
         ));
     }
 
     row.into()
 }
 
-fn table_cell<Message: 'static>(
-    value: &[InlineSpan],
+fn table_cell<'a, Message: 'static>(
+    value: &'a [InlineSpan],
     alignment: TableAlignment,
     is_header: bool,
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
+    search_query: Option<&'a str>,
+) -> Element<'a, Message> {
     let label = inline_text(
         value,
         if is_header { 14 } else { 13 },
@@ -580,6 +641,7 @@ fn table_cell<Message: 'static>(
             theme::READER_TEXT_MUTED
         },
         on_link_click,
+        search_query,
     );
 
     let mut cell = container(label)
@@ -596,6 +658,66 @@ fn table_cell<Message: 'static>(
     cell.into()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HighlightSegment<'a> {
+    text: &'a str,
+    highlighted: bool,
+}
+
+fn normalized_search_query(query: Option<&str>) -> Option<&str> {
+    query.and_then(|query| {
+        let trimmed = query.trim();
+        (!trimmed.is_empty()).then_some(trimmed)
+    })
+}
+
+fn highlight_segments<'a>(text: &'a str, query: Option<&str>) -> Vec<HighlightSegment<'a>> {
+    let Some(query) = normalized_search_query(query) else {
+        return vec![HighlightSegment {
+            text,
+            highlighted: false,
+        }];
+    };
+    let lower_text = text.to_lowercase();
+    let lower_query = query.to_lowercase();
+    let mut segments = Vec::new();
+    let mut cursor = 0;
+
+    while let Some(relative_start) = lower_text[cursor..].find(&lower_query) {
+        let start = cursor + relative_start;
+        let end = start + lower_query.len();
+
+        if start > cursor {
+            segments.push(HighlightSegment {
+                text: &text[cursor..start],
+                highlighted: false,
+            });
+        }
+
+        segments.push(HighlightSegment {
+            text: &text[start..end],
+            highlighted: true,
+        });
+        cursor = end;
+    }
+
+    if cursor < text.len() {
+        segments.push(HighlightSegment {
+            text: &text[cursor..],
+            highlighted: false,
+        });
+    }
+
+    if segments.is_empty() {
+        segments.push(HighlightSegment {
+            text,
+            highlighted: false,
+        });
+    }
+
+    segments
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -605,7 +727,10 @@ mod tests {
 
     use paperview_core::parser::parse_markdown;
 
-    use super::{active_heading_for_scroll, heading_scroll_progress, resolve_image_path};
+    use super::{
+        HighlightSegment, active_heading_for_scroll, heading_scroll_progress, highlight_segments,
+        resolve_image_path,
+    };
 
     #[test]
     fn weighted_scroll_mapping_accounts_for_large_sections() {
@@ -647,6 +772,42 @@ mod tests {
         );
 
         fs::remove_dir_all(dir).expect("remove temp dir");
+    }
+
+    #[test]
+    fn splits_text_into_search_highlight_segments() {
+        assert_eq!(
+            highlight_segments("PaperView paper reader", Some("paper")),
+            vec![
+                HighlightSegment {
+                    text: "Paper",
+                    highlighted: true
+                },
+                HighlightSegment {
+                    text: "View ",
+                    highlighted: false
+                },
+                HighlightSegment {
+                    text: "paper",
+                    highlighted: true
+                },
+                HighlightSegment {
+                    text: " reader",
+                    highlighted: false
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn ignores_empty_search_highlight_queries() {
+        assert_eq!(
+            highlight_segments("PaperView", Some(" ")),
+            vec![HighlightSegment {
+                text: "PaperView",
+                highlighted: false
+            }]
+        );
     }
 
     #[test]

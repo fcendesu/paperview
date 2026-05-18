@@ -10,6 +10,7 @@ Current GUI behavior:
 - Typing a query finds case-insensitive source-line matches.
 - Previous and next controls cycle through matches.
 - Selecting a match scrolls the active reader near the matching source line.
+- Matching rendered reader text is highlighted in the active document.
 
 Current TUI controls:
 
@@ -27,6 +28,7 @@ Search is case-insensitive and line-based. It searches the source document text 
 - `paperview-core::search::search_lines` returns line index, column, and source line text for matches.
 - `Document::search` exposes source search without requiring frontends to inspect document internals.
 - The GUI stores query, result list, and selected match state in `PaperView` and uses the active reader scroll operation to jump matches.
+- GUI reader rendering splits rich inline spans around query matches and applies search highlight styling while preserving inline formatting and links.
 - The TUI reader keeps search query, result list, and selected match state in `ReaderApp`.
 - TUI reader rendering styles matched lines and gives the selected match a stronger highlighted span.
 - Search results are refreshed after live reload so the selected result remains bounded to the reloaded document.
@@ -34,8 +36,8 @@ Search is case-insensitive and line-based. It searches the source document text 
 ## Decisions And Gaps
 
 - Workspace search through `paperview search <query>` is still deferred and should use a separate ripgrep-backed feature.
-- GUI match highlighting is deferred; the current GUI behavior jumps to the matching line and reports match position.
-- Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks, especially in the GUI.
+- Selected-match emphasis in the GUI is deferred; the current GUI highlights matching rendered text occurrences without distinguishing the active match.
+- Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks.
 
 ## Verification Expectations
 

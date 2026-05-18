@@ -47,7 +47,8 @@ GUI highlights:
 - Table-of-contents sidebar generated from headings.
 - Active table-of-contents highlighting while scrolling the GUI reader.
 - Click TOC entries to jump the active GUI reader.
-- Header search field with previous/next match navigation.
+- Header search field with previous/next match navigation and highlighted
+  rendered matches.
 - Heading, paragraph, list, blockquote, and table-cell bold, italic, inline code,
   and clickable link styling.
 - Bordered Markdown tables with shaded headers.
