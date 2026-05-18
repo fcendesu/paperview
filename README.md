@@ -30,7 +30,7 @@ paragraphs, lists, blockquotes, and table cells with basic inline styling, code
 blocks, tables, rules, source-preserving LaTeX math, source-preserving Mermaid
 diagrams, and image metadata panels are supported. Richer
 technical-document features such as full LaTeX typesetting, rendered Mermaid
-diagrams, bitmap image previews, task lists, search, advanced Split View
+diagrams, remote image fetching, task lists, search, advanced Split View
 controls, and export are still on the roadmap.
 
 ## Run The GUI
@@ -49,7 +49,7 @@ GUI highlights:
 - Heading, paragraph, list, blockquote, and table-cell bold, italic, inline code,
   and clickable link styling.
 - Bordered Markdown tables with shaded headers.
-- Standalone image metadata panels.
+- Standalone local bitmap image previews with metadata fallback.
 - Source-preserving display math panels for LaTeX blocks.
 - Source-preserving diagram panels for Mermaid fences.
 - Multiple document tabs with close controls.
@@ -139,7 +139,7 @@ Near-term MVP work includes:
 - Split View drag resizing.
 - Full LaTeX typesetting and rendered Mermaid diagrams.
 - Search and documentation-toolkit commands.
-- Richer Markdown rendering for bitmap images, exported anchors, and task lists.
+- Richer Markdown rendering for remote images, exported anchors, and task lists.
 - Performance measurement against startup, scrolling, and memory targets.
 
 See [`docs/TASKS.md`](docs/TASKS.md) for the current implementation tracker.

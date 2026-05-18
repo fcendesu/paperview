@@ -24,6 +24,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI History Open](completed/gui-history-open.md) - clickable GUI history entries that reopen and persist recent documents.
 - [GUI Clickable Links](completed/gui-clickable-links.md) - clickable GUI inline links through the platform opener.
 - [GUI Anchor Links](completed/gui-anchor-links.md) - clicked `#slug` links jump to matching headings.
+- [GUI Image Previews](completed/gui-image-previews.md) - local bitmap previews for standalone images.
 - [GUI Drag And Drop](completed/gui-drag-and-drop.md) - native GUI file-drop opening.
 - [GUI Zen Mode](completed/gui-zen-mode.md) - focused GUI reader layout.
 - [GUI Tabs Foundation](completed/gui-tabs-foundation.md) - shared open-document model and GUI tab activation.

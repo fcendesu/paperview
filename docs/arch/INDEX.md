@@ -105,7 +105,9 @@ Markdown text.
 
 The first image implementation keeps standalone image metadata in
 `paperview-core` by promoting image-only paragraphs into `Block::Image`. Inline
-images remain text until richer inline spans exist.
+images remain text until richer inline spans exist. The GUI resolves local
+standalone image paths against the active document and renders bitmap previews
+with Iced image widgets when the file exists.
 
 The inline-span implementation stores `InlineSpan` values for heading,
 paragraph, blockquote, list item, and table-cell content. Plain heading text is

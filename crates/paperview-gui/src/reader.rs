@@ -1,6 +1,11 @@
+use std::path::{Path, PathBuf};
+
 use iced::{
-    Background, Element, Fill, Font, font,
-    widget::{Column, Row, column, container, rich_text, rule, scrollable, span, text},
+    Background, ContentFit, Element, Fill, Font, Length, font,
+    widget::{
+        Column, Row, column, container, image as image_widget, rich_text, rule, scrollable, span,
+        text,
+    },
 };
 use paperview_core::{
     Document,
@@ -17,6 +22,7 @@ const HEADING_LINE_CHARS: usize = 36;
 const BODY_LINE_CHARS: usize = 72;
 const CODE_LINE_HEIGHT: f32 = 18.0;
 const BODY_LINE_HEIGHT: f32 = 24.0;
+const IMAGE_PREVIEW_HEIGHT: f32 = 360.0;
 
 pub fn view<Message: 'static>(
     document: &Document,
@@ -31,9 +37,10 @@ pub fn view_with_scroll<'a, Message: 'static>(
     on_link_click: fn(String) -> Message,
 ) -> Element<'a, Message> {
     let mut content = column![].spacing(BLOCK_SPACING).width(Fill);
+    let document_path = document.path().map(PathBuf::as_path);
 
     for block in &document.parsed().blocks {
-        content = content.push(block_view(block, on_link_click));
+        content = content.push(block_view(block, document_path, on_link_click));
     }
 
     let mut scrollable = scrollable(
@@ -192,17 +199,18 @@ fn normalized_progress(progress: f32) -> f32 {
     }
 }
 
-fn block_view<Message: 'static>(
-    block: &Block,
+fn block_view<'a, Message: 'static>(
+    block: &'a Block,
+    document_path: Option<&'a Path>,
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
+) -> Element<'a, Message> {
     match block {
         Block::Heading { level, spans } => heading(*level, spans, on_link_click),
         Block::Paragraph(spans) => paragraph(spans, on_link_click),
         Block::BlockQuote(spans) => blockquote(spans, on_link_click),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::Diagram { language, source } => diagram_block(language, source),
-        Block::Image { alt, url, title } => image_block(alt, url, title),
+        Block::Image { alt, url, title } => image_block(alt, url, title, document_path),
         Block::List { ordered, items } => list(*ordered, items, on_link_click),
         Block::Math { display, source } => math_block(*display, source),
         Block::Table {
@@ -345,7 +353,13 @@ fn image_block<'a, Message: 'static>(
     alt: &'a str,
     url: &'a str,
     title: &'a str,
+    document_path: Option<&'a Path>,
 ) -> Element<'a, Message> {
+    let resolved_path = resolve_image_path(url, document_path);
+    let display_path = resolved_path
+        .as_ref()
+        .map_or_else(|| url.to_owned(), |path| path.display().to_string());
+
     let mut details = column![
         text("image").size(12).color(theme::SHELL_ACCENT),
         text(if alt.is_empty() {
@@ -355,7 +369,7 @@ fn image_block<'a, Message: 'static>(
         })
         .size(16)
         .color(theme::READER_TEXT),
-        text(url).size(13).color(theme::READER_TEXT_MUTED)
+        text(display_path).size(13).color(theme::READER_TEXT_MUTED)
     ]
     .spacing(6);
 
@@ -363,11 +377,39 @@ fn image_block<'a, Message: 'static>(
         details = details.push(text(title).size(13).color(theme::READER_TEXT_MUTED));
     }
 
+    if let Some(path) = resolved_path {
+        details = details.push(
+            image_widget(path)
+                .width(Length::Fill)
+                .height(IMAGE_PREVIEW_HEIGHT)
+                .content_fit(ContentFit::Contain),
+        );
+    }
+
     container(details)
         .padding(16)
         .width(Fill)
         .style(|_| theme::image_container())
         .into()
+}
+
+fn resolve_image_path(url: &str, document_path: Option<&Path>) -> Option<PathBuf> {
+    if url.trim().is_empty() || is_remote_image_url(url) {
+        return None;
+    }
+
+    let path = PathBuf::from(url);
+    let resolved = if path.is_absolute() {
+        path
+    } else {
+        document_path.and_then(Path::parent)?.join(path)
+    };
+
+    resolved.is_file().then_some(resolved)
+}
+
+fn is_remote_image_url(url: &str) -> bool {
+    url.contains("://") || url.starts_with("data:")
 }
 
 fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Message> {
@@ -493,9 +535,14 @@ fn table_cell<Message: 'static>(
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
     use paperview_core::parser::parse_markdown;
 
-    use super::{active_heading_for_scroll, heading_scroll_progress};
+    use super::{active_heading_for_scroll, heading_scroll_progress, resolve_image_path};
 
     #[test]
     fn weighted_scroll_mapping_accounts_for_large_sections() {
@@ -514,5 +561,46 @@ mod tests {
         assert_eq!(heading_scroll_progress(&parsed, 0), 0.0);
         assert!(heading_scroll_progress(&parsed, 2) > 0.8);
         assert_eq!(heading_scroll_progress(&parsed, usize::MAX), 1.0);
+    }
+
+    #[test]
+    fn relative_image_paths_resolve_from_document_parent() {
+        let dir = temp_dir("image-resolve");
+        let image_dir = dir.join("assets");
+        let image_path = image_dir.join("preview.png");
+        let document_path = dir.join("doc.md");
+
+        fs::create_dir_all(&image_dir).expect("create image dir");
+        fs::write(&image_path, b"not decoded in this test").expect("write image placeholder");
+        fs::write(&document_path, "# Image").expect("write document");
+
+        assert_eq!(
+            resolve_image_path("assets/preview.png", Some(&document_path)),
+            Some(image_path.clone())
+        );
+        assert_eq!(
+            resolve_image_path("assets/missing.png", Some(&document_path)),
+            None
+        );
+
+        fs::remove_dir_all(dir).expect("remove temp dir");
+    }
+
+    #[test]
+    fn remote_image_urls_do_not_resolve_to_local_previews() {
+        assert_eq!(
+            resolve_image_path("https://example.com/image.png", None),
+            None
+        );
+        assert_eq!(resolve_image_path("data:image/png;base64,AAAA", None), None);
+    }
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after Unix epoch")
+            .as_nanos();
+
+        std::env::temp_dir().join(format!("paperview-reader-{nanos}-{name}"))
     }
 }
