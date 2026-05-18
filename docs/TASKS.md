@@ -60,7 +60,7 @@ This document tracks the progress of features across the three workspace crates.
 | Command | Status | Notes |
 | :--- | :---: | :--- |
 | **paperview search** | ✅ | Prints ripgrep-backed path, line, column, and text results |
-| **paperview export** | 🏗️ | HTML export writes `.html` beside the source; PDF export is deferred |
+| **paperview export** | 🏗️ | HTML export writes `.html`; PDF format is recognized but backend-unavailable |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, and heading structure |
 | **paperview config** | ✅ | Supports config path and edit with TOML file creation |
 

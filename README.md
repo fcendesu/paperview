@@ -105,6 +105,9 @@ Export a document to HTML without launching the TUI:
 cargo run -p paperview-tui -- export docs/PRD.md --to html
 ```
 
+The export command also recognizes `--to pdf`, but PDF generation is not wired
+to a backend yet and returns a clear unavailable message.
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.
@@ -134,7 +137,8 @@ default file before edit when needed.
 The workspace search command prints ripgrep-backed `path:line:column` results
 without launching the TUI.
 The export command writes standalone HTML beside the source document and prints
-the generated path.
+the generated path. PDF export is recognized by the CLI but remains
+backend-unavailable.
 
 ## Development Checks
 

@@ -3,6 +3,103 @@ use crate::{
     parser::{Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TableCell},
 };
 
+use std::{error::Error, fmt, str::FromStr};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExportFormat {
+    Html,
+    Pdf,
+}
+
+impl ExportFormat {
+    #[must_use]
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Html => "html",
+            Self::Pdf => "pdf",
+        }
+    }
+}
+
+impl FromStr for ExportFormat {
+    type Err = ExportFormatParseError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "html" => Ok(Self::Html),
+            "pdf" => Ok(Self::Pdf),
+            _ => Err(ExportFormatParseError {
+                format: value.to_owned(),
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ExportFormatParseError {
+    format: String,
+}
+
+impl fmt::Display for ExportFormatParseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "unsupported export format: {} (supported: html, pdf)",
+            self.format
+        )
+    }
+}
+
+impl Error for ExportFormatParseError {}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ExportError {
+    PdfUnavailable,
+}
+
+impl fmt::Display for ExportError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PdfUnavailable => {
+                write!(formatter, "PDF export is not available yet")
+            }
+        }
+    }
+}
+
+impl Error for ExportError {}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ExportArtifact {
+    extension: &'static str,
+    contents: Vec<u8>,
+}
+
+impl ExportArtifact {
+    #[must_use]
+    pub fn extension(&self) -> &'static str {
+        self.extension
+    }
+
+    #[must_use]
+    pub fn contents(&self) -> &[u8] {
+        &self.contents
+    }
+}
+
+pub fn export_document(
+    document: &Document,
+    format: ExportFormat,
+) -> Result<ExportArtifact, ExportError> {
+    match format {
+        ExportFormat::Html => Ok(ExportArtifact {
+            extension: format.extension(),
+            contents: export_html(document).into_bytes(),
+        }),
+        ExportFormat::Pdf => Err(ExportError::PdfUnavailable),
+    }
+}
+
 #[must_use]
 pub fn export_html(document: &Document) -> String {
     let title = escape_text(document.title());
@@ -300,7 +397,10 @@ const CSS: &str = r#"    :root {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Document, export::export_html};
+    use crate::{
+        Document,
+        export::{ExportError, ExportFormat, export_document, export_html},
+    };
 
     #[test]
     fn exports_basic_html_document() {
@@ -323,5 +423,31 @@ mod tests {
 
         assert!(html.contains("<h1>PaperView &amp; Friends</h1>"));
         assert!(html.contains("href=\"docs/&quot;quote&quot;.md\""));
+    }
+
+    #[test]
+    fn parses_export_formats() {
+        assert_eq!("html".parse::<ExportFormat>(), Ok(ExportFormat::Html));
+        assert_eq!("PDF".parse::<ExportFormat>(), Ok(ExportFormat::Pdf));
+        assert!("docx".parse::<ExportFormat>().is_err());
+    }
+
+    #[test]
+    fn exports_html_artifact() {
+        let document = Document::from_source("# PaperView");
+        let artifact = export_document(&document, ExportFormat::Html).expect("html export");
+
+        assert_eq!(artifact.extension(), "html");
+        assert!(artifact.contents().starts_with(b"<!doctype html>"));
+    }
+
+    #[test]
+    fn reports_pdf_as_unavailable() {
+        let document = Document::from_source("# PaperView");
+
+        assert_eq!(
+            export_document(&document, ExportFormat::Pdf),
+            Err(ExportError::PdfUnavailable)
+        );
     }
 }

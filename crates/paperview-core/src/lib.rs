@@ -10,7 +10,9 @@ pub mod watcher;
 
 pub use config::{Config, ConfigStore, ConfigStoreError};
 pub use document::{Document, DocumentError, SupportedFileType};
-pub use export::export_html;
+pub use export::{
+    ExportArtifact, ExportError, ExportFormat, ExportFormatParseError, export_document, export_html,
+};
 pub use history::{FileEntry, History, HistoryStore, HistoryStoreError};
 pub use open_documents::OpenDocuments;
 pub use search::{
