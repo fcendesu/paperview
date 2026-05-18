@@ -11,6 +11,8 @@ Current GUI behavior:
 - Previous and next controls cycle through matches.
 - Selecting a match scrolls the active reader near the matching source line.
 - Matching rendered reader text is highlighted in the active document.
+- The selected GUI match uses a stronger active highlight in the rendered
+  block that corresponds to the selected source line.
 
 Current TUI controls:
 
@@ -28,7 +30,10 @@ Search is case-insensitive and line-based. It searches the source document text 
 - `paperview-core::search::search_lines` returns line index, column, and source line text for matches.
 - `Document::search` exposes source search without requiring frontends to inspect document internals.
 - The GUI stores query, result list, and selected match state in `PaperView` and uses the active reader scroll operation to jump matches.
-- GUI reader rendering splits rich inline spans around query matches and applies search highlight styling while preserving inline formatting and links.
+- GUI reader rendering splits rich inline spans around query matches and
+  applies search highlight styling while preserving inline formatting and
+  links. It also receives the selected search result's source line and applies
+  active-highlight styling to the matching rendered block.
 - The TUI reader keeps search query, result list, and selected match state in `ReaderApp`.
 - TUI reader rendering styles matched lines and gives the selected match a stronger highlighted span.
 - Search results are refreshed after live reload so the selected result remains bounded to the reloaded document.
@@ -36,7 +41,8 @@ Search is case-insensitive and line-based. It searches the source document text 
 ## Decisions And Gaps
 
 - Interactive workspace-search result selection is deferred; the current headless workspace command prints results.
-- Selected-match emphasis in the GUI is deferred; the current GUI highlights matching rendered text occurrences without distinguishing the active match.
+- GUI selected-match emphasis is source-line based, so complex Markdown can
+  still drift from exact rendered geometry.
 - Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks.
 
 ## Verification Expectations

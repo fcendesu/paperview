@@ -537,6 +537,12 @@ impl PaperView {
         let query = self.search_query.trim();
         (!query.is_empty()).then_some(query)
     }
+
+    fn active_search_line(&self) -> Option<&str> {
+        self.search_selected_index
+            .and_then(|index| self.search_matches.get(index))
+            .map(|search_match| search_match.line.as_str())
+    }
 }
 
 fn first_toc_block_index(document: &paperview_core::parser::ParsedDocument) -> Option<usize> {
@@ -696,6 +702,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
             Some(Message::ReaderScrolled),
             Message::OpenLink,
             state.active_search_query(),
+            state.active_search_line(),
         ),
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
@@ -706,7 +713,8 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
                         document,
                         Some(Message::ReaderScrolled),
                         Message::OpenLink,
-                        state.active_search_query()
+                        state.active_search_query(),
+                        state.active_search_line()
                     ))
                     .width(Length::FillPortion(primary_width)),
                     container(reader::view(secondary, Message::OpenLink))
@@ -720,6 +728,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
                     Some(Message::ReaderScrolled),
                     Message::OpenLink,
                     state.active_search_query(),
+                    state.active_search_line(),
                 )
             };
 

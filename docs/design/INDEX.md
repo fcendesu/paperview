@@ -106,7 +106,11 @@ and as Markdown-shaped `[x]` / `[ ]` markers in the TUI.
 - **Hover State:** Sidebar items should transition to a slightly lighter grey.
 - **Scroll Sync:** As the user scrolls, the corresponding entry in the "On this page" TOC turns accent blue. Clicking a TOC entry jumps the active reader to that section. The current GUI maps active reader scroll progress and TOC jumps to estimated reader heading anchors; exact Iced layout rectangles are deferred.
 - **Drag & Drop Overlay:** When a file is dragged over the window, the GUI shows a subtle accent border around the shell and a header status prompt indicating the hovered path.
-- **Search:** The GUI header includes a compact document search field with previous/next controls, match count, and highlighted rendered matches in the active reader. The TUI uses `/` for search entry, reports match position in the header, and highlights matched reader lines.
+- **Search:** The GUI header includes a compact document search field with
+  previous/next controls, match count, highlighted rendered matches in the
+  active reader, and a stronger warm active highlight for the selected match.
+  The TUI uses `/` for search entry, reports match position in the header, and
+  highlights matched reader lines.
 
 ## 5. Zen Mode & Edit Mode
 
