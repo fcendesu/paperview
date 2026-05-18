@@ -284,6 +284,25 @@ pub fn inactive_tab_container() -> container::Style {
     }
 }
 
+pub fn split_divider(is_active: bool) -> container::Style {
+    let color = if is_active {
+        SHELL_ACCENT
+    } else {
+        SHELL_BACKGROUND
+    };
+
+    container::Style {
+        background: Some(Background::Color(color)),
+        text_color: Some(SHELL_TEXT),
+        border: Border {
+            color,
+            width: 1.0,
+            radius: border::radius(0),
+        },
+        ..container::Style::default()
+    }
+}
+
 pub fn reader_backdrop() -> container::Style {
     container::Style::default()
         .background(SHELL_BACKGROUND)

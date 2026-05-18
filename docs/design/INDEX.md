@@ -34,6 +34,7 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
   `Cmd + \` on macOS and `Ctrl + \` elsewhere to toggle Split View.
 - **Split View Resize:** The current GUI uses `Cmd + ]` / `Cmd + [` on macOS
   and `Ctrl + ]` / `Ctrl + [` elsewhere to grow or shrink the primary pane.
+  Users can also drag the vertical divider between split panes.
 - **Secondary Pane Selector:** While Split View is on, non-active tabs expose a
   compact selector for choosing the right-side pane.
 
@@ -50,8 +51,8 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
   into two panes: active tab on the left, secondary open tab on the right.
     - **Independent Scrolling:** Deferred.
     - **Secondary Selection:** Chosen from non-active tabs while Split View is on.
-    - **Keyboard Resize:** The primary pane ratio is bounded from 30% to 70%
-      and defaults to 50%.
+    - **Resize:** The primary pane ratio is bounded from 30% to 70%, defaults
+      to 50%, and can be changed by keyboard shortcuts or divider drag.
     - **Comparison Mode:** Highlighting a section on one side can sync the other side (optional toggle; deferred).
 - **Margins:** Generous white space (padding: ~40px - 60px).
 - **Typography:**

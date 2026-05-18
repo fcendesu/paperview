@@ -60,12 +60,14 @@ GUI highlights:
 - Multiple document tabs with close controls.
 - Native drag-and-drop, including multiple dropped files into tabs.
 - Split View for comparing the active tab with another open tab, including a
-  header toggle, secondary tab selection, and keyboard resizing.
+  header toggle, secondary tab selection, keyboard resizing, and divider drag
+  resizing.
 - Live reload when the active file changes on disk.
 - Zen Mode with `Cmd + Shift + F` on macOS or `Ctrl + Shift + F` elsewhere.
 - Split View toggle with `Cmd + \` on macOS or `Ctrl + \` elsewhere.
 - Split View resize with `Cmd + [` / `Cmd + ]` on macOS or `Ctrl + [` /
   `Ctrl + ]` elsewhere.
+- Drag the Split View divider to resize panes directly.
 
 ## Run The TUI
 
@@ -201,7 +203,6 @@ repository knowledge base and source of truth.
 Near-term MVP work includes:
 
 - Exact scroll geometry from rendered layout rectangles.
-- Split View drag resizing.
 - Full LaTeX typesetting and full Mermaid rendering.
 - PDF export.
 - Richer Markdown rendering for remote images, exported anchors, and

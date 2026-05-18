@@ -4,11 +4,11 @@ use iced::{
     Element, Event, Fill, Length, Subscription, Task,
     event::{self, Status as EventStatus},
     futures::{SinkExt, StreamExt, stream::BoxStream},
-    keyboard,
+    keyboard, mouse,
     widget::{
-        button, column, container,
+        button, column, container, mouse_area,
         operation::{self, RelativeOffset},
-        row, text, text_input,
+        responsive, row, text, text_input,
     },
     window,
 };
@@ -22,6 +22,7 @@ const DEFAULT_SPLIT_PRIMARY_WIDTH: u16 = 50;
 const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
 const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
 const SPLIT_RESIZE_STEP: u16 = 10;
+const SPLIT_DIVIDER_HIT_ZONE: f32 = 16.0;
 
 #[derive(Debug, Clone)]
 pub struct PaperView {
@@ -33,6 +34,8 @@ pub struct PaperView {
     is_zen: bool,
     split_document_index: Option<usize>,
     split_primary_width: u16,
+    split_drag_cursor: Option<SplitDragCursor>,
+    is_split_dragging: bool,
     active_toc_block_index: Option<usize>,
     search_query: String,
     search_matches: Vec<SearchMatch>,
@@ -58,6 +61,9 @@ pub enum Message {
     ToggleZen,
     ToggleSplit,
     ResizeSplit(SplitResize),
+    SplitDragMoved { x: f32, width: f32 },
+    SplitDragStarted,
+    SplitDragEnded,
     ReaderScrolled(f32),
     OpenLink(String),
     LinkOpened,
@@ -75,6 +81,12 @@ pub enum Message {
 pub enum SplitResize {
     GrowPrimary,
     ShrinkPrimary,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SplitDragCursor {
+    x: f32,
+    width: f32,
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -106,6 +118,8 @@ impl PaperView {
                     is_zen: false,
                     split_document_index: None,
                     split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                    split_drag_cursor: None,
+                    is_split_dragging: false,
                     active_toc_block_index: None,
                     search_query: String::new(),
                     search_matches: Vec::new(),
@@ -132,6 +146,8 @@ impl PaperView {
                             is_zen: false,
                             split_document_index: None,
                             split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                            split_drag_cursor: None,
+                            is_split_dragging: false,
                             active_toc_block_index,
                             search_query: String::new(),
                             search_matches: Vec::new(),
@@ -147,6 +163,8 @@ impl PaperView {
                         is_zen: false,
                         split_document_index: None,
                         split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                        split_drag_cursor: None,
+                        is_split_dragging: false,
                         active_toc_block_index: None,
                         search_query: String::new(),
                         search_matches: Vec::new(),
@@ -166,6 +184,8 @@ impl PaperView {
                     is_zen: false,
                     split_document_index: None,
                     split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                    split_drag_cursor: None,
+                    is_split_dragging: false,
                     active_toc_block_index: None,
                     search_query: String::new(),
                     search_matches: Vec::new(),
@@ -206,6 +226,9 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         }
         Message::ToggleSplit => state.toggle_split(),
         Message::ResizeSplit(direction) => state.resize_split(direction),
+        Message::SplitDragMoved { x, width } => state.move_split_drag(x, width),
+        Message::SplitDragStarted => state.start_split_drag(),
+        Message::SplitDragEnded => state.end_split_drag(),
         Message::ReaderScrolled(progress) => state.sync_active_toc_to_scroll(progress),
         Message::OpenLink(target) => return state.open_link(target),
         Message::LinkOpened => {}
@@ -334,6 +357,7 @@ impl PaperView {
             .is_none()
             .then(|| self.first_secondary_index())
             .flatten();
+        self.end_split_drag();
     }
 
     fn resize_split(&mut self, direction: SplitResize) {
@@ -351,6 +375,33 @@ impl PaperView {
                 .saturating_sub(SPLIT_RESIZE_STEP)
                 .max(MIN_SPLIT_PRIMARY_WIDTH),
         };
+    }
+
+    fn move_split_drag(&mut self, x: f32, width: f32) {
+        self.split_drag_cursor = Some(SplitDragCursor { x, width });
+
+        if self.is_split_dragging {
+            self.split_primary_width =
+                split_primary_width_from_cursor(x, width, self.split_primary_width);
+        }
+    }
+
+    fn start_split_drag(&mut self) {
+        if self.split_document_index.is_none() {
+            return;
+        }
+
+        self.is_split_dragging = true;
+    }
+
+    fn end_split_drag(&mut self) {
+        self.is_split_dragging = false;
+    }
+
+    fn is_split_divider_hovered(&self) -> bool {
+        self.split_drag_cursor.is_some_and(|cursor| {
+            is_split_divider_hit(cursor.x, cursor.width, self.split_primary_width)
+        })
     }
 
     fn ensure_split_target(&mut self) {
@@ -557,6 +608,27 @@ fn clamp_search_selection(selection: Option<usize>, len: usize) -> Option<usize>
     }
 }
 
+fn split_primary_width_from_cursor(x: f32, width: f32, fallback: u16) -> u16 {
+    if width <= 0.0 {
+        return fallback.clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
+    }
+
+    ((x / width) * 100.0).round().clamp(
+        MIN_SPLIT_PRIMARY_WIDTH as f32,
+        MAX_SPLIT_PRIMARY_WIDTH as f32,
+    ) as u16
+}
+
+fn is_split_divider_hit(x: f32, width: f32, primary_width: u16) -> bool {
+    if width <= 0.0 {
+        return false;
+    }
+
+    let divider_x = width * f32::from(primary_width) / 100.0;
+
+    (x - divider_x).abs() <= SPLIT_DIVIDER_HIT_ZONE
+}
+
 fn search_scroll_progress(document: &Document, line_index: usize) -> f32 {
     let line_count = document.source().lines().count();
 
@@ -582,6 +654,9 @@ fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Opt
         Event::Window(window::Event::FilesHoveredLeft) => Some(Message::FilesHoveredLeft),
         Event::Window(window::Event::FileDropped(path)) => {
             Some(Message::OpenDroppedFiles(vec![path]))
+        }
+        Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+            Some(Message::SplitDragEnded)
         }
         Event::Keyboard(keyboard::Event::KeyPressed {
             key,
@@ -706,22 +781,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         ),
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
-                let (primary_width, secondary_width) = state.split_widths();
-
-                row![
-                    container(reader::view_with_search(
-                        document,
-                        Some(Message::ReaderScrolled),
-                        Message::OpenLink,
-                        state.active_search_query(),
-                        state.active_search_line()
-                    ))
-                    .width(Length::FillPortion(primary_width)),
-                    container(reader::view(secondary, Message::OpenLink))
-                        .width(Length::FillPortion(secondary_width))
-                ]
-                .spacing(1)
-                .into()
+                split_reader(state, document, secondary)
             } else {
                 reader::view_with_search(
                     document,
@@ -756,6 +816,53 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         .height(Fill)
         .style(|_| theme::shell_container(state.is_drag_hovered))
         .into()
+}
+
+fn split_reader<'a>(
+    state: &'a PaperView,
+    document: &'a Document,
+    secondary: &'a Document,
+) -> Element<'a, Message> {
+    responsive(move |size| {
+        let (primary_width, secondary_width) = state.split_widths();
+        let is_divider_active = state.is_split_dragging || state.is_split_divider_hovered();
+
+        let panes = row![
+            container(reader::view_with_search(
+                document,
+                Some(Message::ReaderScrolled),
+                Message::OpenLink,
+                state.active_search_query(),
+                state.active_search_line()
+            ))
+            .width(Length::FillPortion(primary_width)),
+            split_divider(is_divider_active),
+            container(reader::view(secondary, Message::OpenLink))
+                .width(Length::FillPortion(secondary_width))
+        ]
+        .spacing(0);
+
+        mouse_area(panes)
+            .on_move(move |position| Message::SplitDragMoved {
+                x: position.x,
+                width: size.width,
+            })
+            .into()
+    })
+    .into()
+}
+
+fn split_divider(is_active: bool) -> Element<'static, Message> {
+    mouse_area(
+        container(text(""))
+            .width(8)
+            .height(Fill)
+            .style(move |_| theme::split_divider(is_active)),
+    )
+    .on_press(Message::SplitDragStarted)
+    .on_release(Message::SplitDragEnded)
+    .interaction(mouse::Interaction::ResizingHorizontally)
+    .into()
 }
 
 fn resolve_link_target(target: &str, active_path: Option<&PathBuf>) -> String {
@@ -1031,8 +1138,9 @@ mod tests {
     use paperview_core::{Document, HistoryStore, parser::parse_markdown};
 
     use super::{
-        Message, PaperView, SplitResize, open_link_target, reader, resolve_link_target,
-        runtime_event, search_scroll_progress, title, update,
+        Message, PaperView, SplitResize, is_split_divider_hit, open_link_target, reader,
+        resolve_link_target, runtime_event, search_scroll_progress,
+        split_primary_width_from_cursor, title, update,
     };
 
     #[test]
@@ -1458,6 +1566,84 @@ mod tests {
             apply(&mut state, Message::ResizeSplit(SplitResize::ShrinkPrimary));
         }
         assert_eq!(state.split_widths(), (30, 70));
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn split_drag_math_is_bounded() {
+        assert_eq!(split_primary_width_from_cursor(0.0, 1000.0, 50), 30);
+        assert_eq!(split_primary_width_from_cursor(500.0, 1000.0, 50), 50);
+        assert_eq!(split_primary_width_from_cursor(650.0, 1000.0, 50), 65);
+        assert_eq!(split_primary_width_from_cursor(1000.0, 1000.0, 50), 70);
+        assert_eq!(split_primary_width_from_cursor(500.0, 0.0, 90), 70);
+    }
+
+    #[test]
+    fn split_divider_hit_testing_uses_current_ratio() {
+        assert!(is_split_divider_hit(500.0, 1000.0, 50));
+        assert!(is_split_divider_hit(516.0, 1000.0, 50));
+        assert!(!is_split_divider_hit(520.0, 1000.0, 50));
+        assert!(is_split_divider_hit(650.0, 1000.0, 65));
+    }
+
+    #[test]
+    fn split_drag_resizes_primary_width_when_started_on_divider() {
+        let first = temp_doc("split-drag-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-drag-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-drag.toml"),
+        );
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::ToggleSplit);
+
+        apply(
+            &mut state,
+            Message::SplitDragMoved {
+                x: 500.0,
+                width: 1000.0,
+            },
+        );
+        apply(&mut state, Message::SplitDragStarted);
+        apply(
+            &mut state,
+            Message::SplitDragMoved {
+                x: 650.0,
+                width: 1000.0,
+            },
+        );
+        apply(&mut state, Message::SplitDragEnded);
+
+        assert_eq!(state.split_widths(), (65, 35));
+        assert!(!state.is_split_dragging);
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn split_drag_requires_enabled_split() {
+        let first = temp_doc("split-drag-disabled-first.md", "# First\n\nOne.");
+        let second = temp_doc("split-drag-disabled-second.md", "# Second\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-drag-disabled.toml"),
+        );
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+
+        apply(&mut state, Message::SplitDragStarted);
+        apply(
+            &mut state,
+            Message::SplitDragMoved {
+                x: 650.0,
+                width: 1000.0,
+            },
+        );
+
+        assert_eq!(state.split_widths(), (50, 50));
+        assert!(!state.is_split_dragging);
 
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");

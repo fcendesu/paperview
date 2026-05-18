@@ -12,6 +12,7 @@ Current GUI behavior:
   `Ctrl + \` elsewhere.
 - Resize the primary pane with `Cmd + ]` / `Cmd + [` on macOS and `Ctrl + ]` /
   `Ctrl + [` elsewhere.
+- Resize the split by dragging the vertical divider between panes.
 - Split View only activates when at least two tabs are open.
 - When enabled, the active document renders in the left pane and the secondary
   document renders in the right pane.
@@ -31,6 +32,8 @@ Current GUI behavior:
 - Non-active tabs show a compact secondary-pane selector while Split View is on.
 - The primary pane width is stored as a bounded 30/70 to 70/30 ratio in GUI
   state; it defaults to 50/50 and is not persisted yet.
+- The draggable divider updates the same bounded ratio used by keyboard
+  resizing.
 - History and table-of-contents sidebars remain visible in Split View.
 - The table of contents follows the active document only.
 - Live reload remains scoped to the active document watcher.
@@ -38,7 +41,6 @@ Current GUI behavior:
 ## Open Decisions
 
 - Independent scroll persistence and scroll synchronization are deferred.
-- Drag-to-resize split panes are deferred.
 - Split ratio persistence is deferred.
 - TUI Split View is deferred.
 

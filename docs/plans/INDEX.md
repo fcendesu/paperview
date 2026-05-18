@@ -41,6 +41,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Split View Foundation](completed/gui-split-view-foundation.md) - side-by-side GUI reader panes for two open tabs.
 - [GUI Split View Controls](completed/gui-split-view-controls.md) - visible Split View toggle and secondary tab selector.
 - [GUI Split View Resizing](completed/gui-split-view-resizing.md) - keyboard resizing for proportional split panes.
+- [GUI Split View Drag Resizing](completed/gui-split-view-drag-resizing.md) - draggable GUI divider for proportional split panes.
 - [GUI TOC Scroll Sync](completed/gui-toc-scroll-sync.md) - active-reader scroll progress highlights the current TOC section.
 - [GUI TOC Click Navigation](completed/gui-toc-click-navigation.md) - clickable TOC entries jump the active reader.
 - [GUI Reader Scroll Geometry](completed/gui-reader-scroll-geometry.md) - reader-aware estimated heading anchors for TOC sync.
