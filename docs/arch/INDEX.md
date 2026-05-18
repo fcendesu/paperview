@@ -125,8 +125,9 @@ targets against the active document before delegating to the OS opener. Clicked
 
 The first in-document search implementation keeps source search in
 `paperview-core` through `Document::search` and line-based `SearchMatch` values.
-The TUI owns keyboard search state and uses the shared matches to jump the
-reader scroll position; GUI and workspace search surfaces are deferred.
+GUI and TUI frontends own their local search state and use the shared matches to
+jump reader scroll position; workspace search remains a separate deferred
+ripgrep-backed surface.
 
 ---
 

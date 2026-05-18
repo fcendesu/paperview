@@ -8,11 +8,13 @@ use iced::{
     widget::{
         button, column, container,
         operation::{self, RelativeOffset},
-        row, text,
+        row, text, text_input,
     },
     window,
 };
-use paperview_core::{Document, History, HistoryStore, OpenDocuments, WatchEvent, watch_file};
+use paperview_core::{
+    Document, History, HistoryStore, OpenDocuments, SearchMatch, WatchEvent, watch_file,
+};
 
 use crate::{history, navigation, reader, theme};
 
@@ -32,6 +34,9 @@ pub struct PaperView {
     split_document_index: Option<usize>,
     split_primary_width: u16,
     active_toc_block_index: Option<usize>,
+    search_query: String,
+    search_matches: Vec<SearchMatch>,
+    search_selected_index: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +63,9 @@ pub enum Message {
     LinkOpened,
     LinkOpenFailed(String),
     TocSelected(usize),
+    SearchQueryChanged(String),
+    SearchNext,
+    SearchPrevious,
     SelectSplitTab(usize),
     SelectTab(usize),
     CloseTab(usize),
@@ -99,6 +107,9 @@ impl PaperView {
                     split_document_index: None,
                     split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                     active_toc_block_index: None,
+                    search_query: String::new(),
+                    search_matches: Vec::new(),
+                    search_selected_index: None,
                 }
             }
             [path] => {
@@ -122,6 +133,9 @@ impl PaperView {
                             split_document_index: None,
                             split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                             active_toc_block_index,
+                            search_query: String::new(),
+                            search_matches: Vec::new(),
+                            search_selected_index: None,
                         }
                     }
                     Err(error) => Self {
@@ -134,6 +148,9 @@ impl PaperView {
                         split_document_index: None,
                         split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                         active_toc_block_index: None,
+                        search_query: String::new(),
+                        search_matches: Vec::new(),
+                        search_selected_index: None,
                     },
                 }
             }
@@ -150,6 +167,9 @@ impl PaperView {
                     split_document_index: None,
                     split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
                     active_toc_block_index: None,
+                    search_query: String::new(),
+                    search_matches: Vec::new(),
+                    search_selected_index: None,
                 }
             }
         }
@@ -196,6 +216,11 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
             state.active_toc_block_index = Some(block_index);
             return state.scroll_to_toc_block(block_index);
         }
+        Message::SearchQueryChanged(query) => {
+            return state.update_search_query(query);
+        }
+        Message::SearchNext => return state.select_next_search_match(),
+        Message::SearchPrevious => return state.select_previous_search_match(),
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
         Message::CloseTab(index) => state.close_tab(index),
@@ -214,6 +239,7 @@ impl PaperView {
                 self.status = Status::Loaded(path);
                 self.ensure_split_target();
                 self.sync_active_toc_to_top();
+                self.refresh_search_matches();
             }
             Err(error) => {
                 self.status = Status::Error(error.to_string());
@@ -233,6 +259,7 @@ impl PaperView {
                     self.status = Status::Loaded(path);
                     self.ensure_split_target();
                     self.sync_active_toc_to_top();
+                    self.refresh_search_matches();
                 }
                 Err(error) => {
                     last_error = Some(error.to_string());
@@ -257,6 +284,7 @@ impl PaperView {
                 self.documents.replace_active(document);
                 self.status = Status::Loaded(path);
                 self.sync_active_toc_to_top();
+                self.refresh_search_matches();
             }
             Err(error) => {
                 self.status = Status::Error(error.to_string());
@@ -280,6 +308,7 @@ impl PaperView {
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         self.ensure_split_target();
         self.sync_active_toc_to_top();
+        self.refresh_search_matches();
     }
 
     fn close_tab(&mut self, index: usize) {
@@ -287,6 +316,7 @@ impl PaperView {
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         self.ensure_split_target();
         self.sync_active_toc_to_top();
+        self.refresh_search_matches();
     }
 
     fn select_split_tab(&mut self, index: usize) {
@@ -422,10 +452,108 @@ impl PaperView {
             .into_iter()
             .find_map(|item| (item.slug == anchor).then_some(item.block_index))
     }
+
+    fn update_search_query(&mut self, query: String) -> Task<Message> {
+        self.search_query = query;
+        self.refresh_search_matches();
+
+        if self.search_matches.is_empty() {
+            Task::none()
+        } else {
+            self.search_selected_index = Some(0);
+            self.scroll_to_selected_search_match()
+        }
+    }
+
+    fn refresh_search_matches(&mut self) {
+        self.search_matches = self
+            .documents
+            .active()
+            .map_or_else(Vec::new, |document| document.search(&self.search_query));
+        self.search_selected_index =
+            clamp_search_selection(self.search_selected_index, self.search_matches.len());
+    }
+
+    fn select_next_search_match(&mut self) -> Task<Message> {
+        if self.search_matches.is_empty() {
+            return Task::none();
+        }
+
+        let next = self
+            .search_selected_index
+            .map_or(0, |index| (index + 1) % self.search_matches.len());
+        self.search_selected_index = Some(next);
+        self.scroll_to_selected_search_match()
+    }
+
+    fn select_previous_search_match(&mut self) -> Task<Message> {
+        if self.search_matches.is_empty() {
+            return Task::none();
+        }
+
+        let previous = self.search_selected_index.map_or(0, |index| {
+            if index == 0 {
+                self.search_matches.len() - 1
+            } else {
+                index - 1
+            }
+        });
+        self.search_selected_index = Some(previous);
+        self.scroll_to_selected_search_match()
+    }
+
+    fn scroll_to_selected_search_match(&self) -> Task<Message> {
+        let Some(index) = self.search_selected_index else {
+            return Task::none();
+        };
+        let Some(document) = self.documents.active() else {
+            return Task::none();
+        };
+        let Some(search_match) = self.search_matches.get(index) else {
+            return Task::none();
+        };
+
+        operation::snap_to(
+            reader::ACTIVE_READER_SCROLLABLE_ID,
+            RelativeOffset {
+                x: 0.0,
+                y: search_scroll_progress(document, search_match.line_index),
+            },
+        )
+    }
+
+    fn search_summary(&self) -> String {
+        if self.search_query.trim().is_empty() {
+            return "0/0".to_owned();
+        }
+
+        self.search_selected_index.map_or_else(
+            || "0/0".to_owned(),
+            |index| format!("{}/{}", index + 1, self.search_matches.len()),
+        )
+    }
 }
 
 fn first_toc_block_index(document: &paperview_core::parser::ParsedDocument) -> Option<usize> {
     document.toc().first().map(|item| item.block_index)
+}
+
+fn clamp_search_selection(selection: Option<usize>, len: usize) -> Option<usize> {
+    if len == 0 {
+        None
+    } else {
+        Some(selection.unwrap_or(0).min(len - 1))
+    }
+}
+
+fn search_scroll_progress(document: &Document, line_index: usize) -> f32 {
+    let line_count = document.source().lines().count();
+
+    if line_count <= 1 {
+        0.0
+    } else {
+        (line_index as f32 / (line_count - 1) as f32).clamp(0.0, 1.0)
+    }
 }
 
 pub fn subscription(state: &PaperView) -> Subscription<Message> {
@@ -692,6 +820,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
     } else {
         split_button
     };
+    let search_controls = search_controls(state);
 
     container(
         row![
@@ -701,13 +830,60 @@ fn header(state: &PaperView) -> Element<'_, Message> {
             ]
             .spacing(4)
             .width(Fill),
+            search_controls,
             split_button
         ]
+        .spacing(12)
         .height(64),
     )
     .padding([14, 18])
     .width(Fill)
     .style(|_| theme::header_container())
+    .into()
+}
+
+fn search_controls(state: &PaperView) -> Element<'_, Message> {
+    let can_search = state.documents.active().is_some();
+    let has_matches = !state.search_matches.is_empty();
+    let mut input = text_input("Search", &state.search_query)
+        .padding([7, 10])
+        .size(13)
+        .width(220)
+        .style(theme::search_input);
+
+    if can_search {
+        input = input
+            .on_input(Message::SearchQueryChanged)
+            .on_submit(Message::SearchNext);
+    }
+
+    let previous = button(text("<").size(13))
+        .padding([7, 10])
+        .style(move |_, status| theme::header_action_button(false, status));
+    let previous = if has_matches {
+        previous.on_press(Message::SearchPrevious)
+    } else {
+        previous
+    };
+
+    let next = button(text(">").size(13))
+        .padding([7, 10])
+        .style(move |_, status| theme::header_action_button(false, status));
+    let next = if has_matches {
+        next.on_press(Message::SearchNext)
+    } else {
+        next
+    };
+
+    row![
+        input,
+        text(state.search_summary())
+            .size(12)
+            .color(theme::SHELL_TEXT_MUTED),
+        previous,
+        next
+    ]
+    .spacing(6)
     .into()
 }
 
@@ -833,7 +1009,7 @@ mod tests {
 
     use super::{
         Message, PaperView, SplitResize, open_link_target, reader, resolve_link_target,
-        runtime_event, title, update,
+        runtime_event, search_scroll_progress, title, update,
     };
 
     #[test]
@@ -956,6 +1132,77 @@ mod tests {
             reader::heading_scroll_progress(&parse_markdown("# Only"), 0),
             0.0
         );
+    }
+
+    #[test]
+    fn search_query_updates_gui_matches() {
+        let path = temp_doc(
+            "gui-search.md",
+            "# First\n\nNeedle here.\n\nAnother needle.",
+        );
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("search.toml"));
+
+        apply(&mut state, Message::SearchQueryChanged("needle".to_owned()));
+
+        assert_eq!(state.search_matches.len(), 2);
+        assert_eq!(state.search_selected_index, Some(0));
+        assert_eq!(state.search_summary(), "1/2");
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn search_navigation_wraps_gui_matches() {
+        let path = temp_doc(
+            "gui-search-wrap.md",
+            "Needle one.\n\nMiddle.\n\nNeedle two.",
+        );
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("search-wrap.toml"),
+        );
+
+        apply(&mut state, Message::SearchQueryChanged("needle".to_owned()));
+        apply(&mut state, Message::SearchNext);
+        assert_eq!(state.search_selected_index, Some(1));
+
+        apply(&mut state, Message::SearchNext);
+        assert_eq!(state.search_selected_index, Some(0));
+
+        apply(&mut state, Message::SearchPrevious);
+        assert_eq!(state.search_selected_index, Some(1));
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn search_matches_refresh_after_active_tab_changes() {
+        let first = temp_doc("gui-search-first.md", "# First\n\nNeedle.");
+        let second = temp_doc("gui-search-second.md", "# Second\n\nNo match.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("search-tabs.toml"),
+        );
+
+        apply(&mut state, Message::SearchQueryChanged("needle".to_owned()));
+        assert_eq!(state.search_matches.len(), 1);
+
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        assert!(state.search_matches.is_empty());
+        assert_eq!(state.search_selected_index, None);
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn search_scroll_progress_uses_source_line_position() {
+        let document = Document::from_source("one\nneedle\ntwo\nthree");
+
+        assert_eq!(search_scroll_progress(&document, 0), 0.0);
+        assert!(search_scroll_progress(&document, 1) > 0.3);
+        assert_eq!(search_scroll_progress(&document, usize::MAX), 1.0);
     }
 
     #[test]

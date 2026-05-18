@@ -1,6 +1,6 @@
 use iced::{
     Background, Border, Color, Shadow, Vector, border,
-    widget::{button, container},
+    widget::{button, container, text_input},
 };
 
 pub const SHELL_BACKGROUND: Color = Color::from_rgb(0.067, 0.075, 0.094);
@@ -157,6 +157,28 @@ pub fn header_action_button(is_active: bool, status: button::Status) -> button::
             radius: border::radius(6),
         },
         ..button::Style::default()
+    }
+}
+
+pub fn search_input(_theme: &iced::Theme, status: text_input::Status) -> text_input::Style {
+    let is_focused = matches!(status, text_input::Status::Focused { .. });
+    let border_color = if is_focused {
+        SHELL_ACCENT
+    } else {
+        SHELL_ACTIVE_SURFACE
+    };
+
+    text_input::Style {
+        background: Background::Color(SHELL_BACKGROUND),
+        border: Border {
+            color: border_color,
+            width: 1.0,
+            radius: border::radius(6),
+        },
+        icon: SHELL_TEXT_MUTED,
+        placeholder: SHELL_TEXT_MUTED,
+        value: SHELL_TEXT,
+        selection: SHELL_ACCENT,
     }
 }
 

@@ -2,7 +2,14 @@
 
 ## Product Behavior
 
-PaperView has a shared in-document search foundation and a first TUI search workflow.
+PaperView has a shared in-document search foundation plus GUI and TUI search workflows.
+
+Current GUI behavior:
+
+- The header includes a search field for the active document.
+- Typing a query finds case-insensitive source-line matches.
+- Previous and next controls cycle through matches.
+- Selecting a match scrolls the active reader near the matching source line.
 
 Current TUI controls:
 
@@ -18,15 +25,15 @@ Search is case-insensitive and line-based. It searches the source document text 
 
 - `paperview-core::search::search_lines` returns line index, column, and source line text for matches.
 - `Document::search` exposes source search without requiring frontends to inspect document internals.
+- The GUI stores query, result list, and selected match state in `PaperView` and uses the active reader scroll operation to jump matches.
 - The TUI reader keeps search query, result list, and selected match state in `ReaderApp`.
 - Search results are refreshed after live reload so the selected result remains bounded to the reloaded document.
 
 ## Decisions And Gaps
 
-- GUI search UI is deferred until there is a native input surface in the header or reader chrome.
 - Workspace search through `paperview search <query>` is still deferred and should use a separate ripgrep-backed feature.
-- TUI match highlighting is deferred; the current behavior jumps to the matching line and reports match position in the header.
-- Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks.
+- Match highlighting is deferred; the current behavior jumps to the matching line and reports match position.
+- Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks, especially in the GUI.
 
 ## Verification Expectations
 
@@ -34,6 +41,7 @@ Run focused checks with:
 
 ```sh
 cargo test -p paperview-core search
+cargo test -p paperview-gui search
 cargo test -p paperview-tui search
 ```
 
