@@ -1,3 +1,4 @@
+pub mod config;
 pub mod document;
 pub mod history;
 pub mod open_documents;
@@ -6,6 +7,7 @@ pub mod search;
 pub mod stats;
 pub mod watcher;
 
+pub use config::{Config, ConfigStore, ConfigStoreError};
 pub use document::{Document, DocumentError, SupportedFileType};
 pub use history::{FileEntry, History, HistoryStore, HistoryStoreError};
 pub use open_documents::OpenDocuments;

@@ -134,6 +134,10 @@ The first document-stats implementation keeps metadata calculation in
 exposes it as a headless `stats <file>` command that prints a report without
 initializing Ratatui.
 
+The first config implementation keeps TOML config path resolution and file
+creation in `paperview-core::ConfigStore`. The TUI binary exposes headless
+`config path` and `config edit` commands without initializing Ratatui.
+
 ---
 
 ## 5. Performance Optimizations

@@ -86,6 +86,13 @@ Print document stats without launching the TUI:
 cargo run -p paperview-tui -- stats docs/PRD.md
 ```
 
+Show or open the config file:
+
+```sh
+cargo run -p paperview-tui -- config path
+cargo run -p paperview-tui -- config edit
+```
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.
@@ -110,6 +117,8 @@ lines.
 
 The headless stats command prints word, line, character, reading-time, and
 heading-structure metadata for a document.
+The config commands print or open PaperView's TOML config file, creating a
+default file before edit when needed.
 
 ## Development Checks
 
@@ -156,7 +165,7 @@ Near-term MVP work includes:
 - Exact scroll geometry from rendered layout rectangles.
 - Split View drag resizing.
 - Full LaTeX typesetting and full Mermaid rendering.
-- Remaining documentation-toolkit commands for workspace search, config, and export.
+- Remaining documentation-toolkit commands for workspace search and export.
 - Richer Markdown rendering for remote images, exported anchors, and interactive
   task toggles.
 - Performance measurement against startup, scrolling, and memory targets.

@@ -1,7 +1,12 @@
 mod app;
 mod render;
 
-use std::{env, ffi::OsString, path::PathBuf, process::ExitCode};
+use std::{
+    env,
+    ffi::OsString,
+    path::{Path, PathBuf},
+    process::{Command, ExitCode},
+};
 
 fn main() {
     match run(env::args_os().skip(1)) {
@@ -27,14 +32,68 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             println!("{}", stats_text(&document));
             Ok(())
         }
+        [command, action] if command == "config" && action == "path" => {
+            println!("{}", config_path_text(&paperview_core::ConfigStore::default()));
+            Ok(())
+        }
+        [command, action] if command == "config" && action == "edit" => {
+            let store = paperview_core::ConfigStore::default();
+            store.ensure_exists().map_err(|error| error.to_string())?;
+            open_path(store.path())?;
+            Ok(())
+        }
         [path] => {
             let document = paperview_core::Document::open(PathBuf::from(path))
                 .map_err(|error| error.to_string())?;
             app::run(document).map_err(|error| error.to_string())?;
             Ok(())
         }
-        _ => Err("usage: paperview-tui [file]\n       paperview-tui stats <file>".to_owned()),
+        _ => Err(
+            "usage: paperview-tui [file]\n       paperview-tui stats <file>\n       paperview-tui config path\n       paperview-tui config edit"
+                .to_owned(),
+        ),
     }
+}
+
+fn config_path_text(store: &paperview_core::ConfigStore) -> String {
+    store.path().display().to_string()
+}
+
+fn open_path(path: &Path) -> Result<(), String> {
+    let target = path.display().to_string();
+    let status = platform_open_command(path)
+        .status()
+        .map_err(|error| format!("failed to open {target}: {error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "failed to open {target}: opener exited with {status}"
+        ))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn platform_open_command(path: &Path) -> Command {
+    let mut command = Command::new("open");
+    command.arg(path);
+    command
+}
+
+#[cfg(target_os = "windows")]
+fn platform_open_command(path: &Path) -> Command {
+    let mut command = Command::new("cmd");
+    command.args(["/C", "start", ""]);
+    command.arg(path);
+    command
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn platform_open_command(path: &Path) -> Command {
+    let mut command = Command::new("xdg-open");
+    command.arg(path);
+    command
 }
 
 fn stats_text(document: &paperview_core::Document) -> String {
@@ -71,9 +130,9 @@ fn stats_text(document: &paperview_core::Document) -> String {
 
 #[cfg(test)]
 mod tests {
-    use paperview_core::Document;
+    use paperview_core::{ConfigStore, Document};
 
-    use super::stats_text;
+    use super::{config_path_text, stats_text};
 
     #[test]
     fn formats_stats_report() {
@@ -84,5 +143,12 @@ mod tests {
         assert!(report.contains("Words: 4"));
         assert!(report.contains("Estimated reading time: 1 min"));
         assert!(report.contains("Heading structure:\n- PaperView"));
+    }
+
+    #[test]
+    fn formats_config_path() {
+        let store = ConfigStore::new("/tmp/paperview-test-config.toml");
+
+        assert_eq!(config_path_text(&store), "/tmp/paperview-test-config.toml");
     }
 }
