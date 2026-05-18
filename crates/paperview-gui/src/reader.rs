@@ -4,7 +4,9 @@ use iced::{
 };
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel, InlineSpan, TableAlignment, elements::inline},
+    parser::{
+        Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow, elements::inline,
+    },
 };
 
 use crate::theme;
@@ -381,8 +383,8 @@ fn list<Message: 'static>(ordered: bool, items: &[Vec<InlineSpan>]) -> Element<'
 
 fn table_block<'a, Message: 'static>(
     alignments: &'a [TableAlignment],
-    header: &'a [String],
-    rows: &'a [Vec<String>],
+    header: &'a TableRow,
+    rows: &'a [TableRow],
 ) -> Element<'a, Message> {
     let mut table = Column::new().spacing(0).width(Fill);
 
@@ -401,7 +403,7 @@ fn table_block<'a, Message: 'static>(
 }
 
 fn table_row<'a, Message: 'static>(
-    cells: &'a [String],
+    cells: &'a [TableCell],
     alignments: &'a [TableAlignment],
     is_header: bool,
 ) -> Element<'a, Message> {
@@ -422,29 +424,32 @@ fn table_row<'a, Message: 'static>(
 }
 
 fn table_cell<Message: 'static>(
-    value: &str,
+    value: &[InlineSpan],
     alignment: TableAlignment,
     is_header: bool,
 ) -> Element<'_, Message> {
-    let mut label = text(value)
-        .size(if is_header { 14 } else { 13 })
-        .color(if is_header {
+    let label = inline_text(
+        value,
+        if is_header { 14 } else { 13 },
+        if is_header {
             theme::READER_TEXT
         } else {
             theme::READER_TEXT_MUTED
-        });
+        },
+    );
 
-    label = match alignment {
-        TableAlignment::Right => label.align_x(iced::alignment::Horizontal::Right),
-        TableAlignment::Center => label.align_x(iced::alignment::Horizontal::Center),
-        TableAlignment::None | TableAlignment::Left => label,
-    };
-
-    container(label)
+    let mut cell = container(label)
         .padding([8, 10])
         .width(Fill)
-        .style(move |_| theme::table_cell_container(is_header))
-        .into()
+        .style(move |_| theme::table_cell_container(is_header));
+
+    cell = match alignment {
+        TableAlignment::Right => cell.align_x(iced::alignment::Horizontal::Right),
+        TableAlignment::Center => cell.align_x(iced::alignment::Horizontal::Center),
+        TableAlignment::None | TableAlignment::Left => cell,
+    };
+
+    cell.into()
 }
 
 #[cfg(test)]

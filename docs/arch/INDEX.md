@@ -105,7 +105,7 @@ The first image implementation keeps standalone image metadata in
 images remain text until richer inline spans exist.
 
 The inline-span implementation stores `InlineSpan` values for paragraph,
-blockquote, and list item content. Tables and headings keep their string content
+blockquote, list item, and table-cell content. Headings keep string content
 until the inline model is expanded further.
 
 ---

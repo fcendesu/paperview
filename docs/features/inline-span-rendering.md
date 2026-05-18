@@ -2,8 +2,8 @@
 
 ## Current Behavior
 
-PaperView preserves common inline Markdown semantics inside paragraph, list, and
-blockquote blocks.
+PaperView preserves common inline Markdown semantics inside paragraph, list,
+blockquote, and table-cell content.
 
 - Bold text is represented as strong spans.
 - Italic text is represented as emphasis spans.
@@ -11,11 +11,10 @@ blockquote blocks.
 - Links preserve their destination URL.
 - Inline images remain visible as Markdown text until image spans are modeled.
 
-The GUI renders paragraph, list, and blockquote spans with Iced rich text. The
-TUI renders those spans back into Markdown-shaped text.
+The GUI renders paragraph, list, blockquote, and table-cell spans with Iced rich
+text. The TUI renders those spans back into Markdown-shaped text.
 
-This is still a partial foundation. Headings and table cells use the older
-string model.
+This is still a partial foundation. Headings use the older string model.
 
 ## Implementation Notes
 
@@ -26,16 +25,18 @@ string model.
 - Adjacent spans with identical styling are merged during parsing.
 - Paragraph and blockquote blocks now store `Vec<InlineSpan>`.
 - List items now store `Vec<InlineSpan>` per item.
+- Table cells now store `Vec<InlineSpan>` per cell.
 
 ## Open Decisions
 
-- Extend inline spans to table cells and headings.
+- Extend inline spans to headings.
 - Decide when GUI links should become clickable commands.
 - Decide how nested inline styles should be exposed for export.
 
 ## Verification
 
-- Parser tests cover paragraph, list, and blockquote span preservation.
+- Parser tests cover paragraph, list, blockquote, and table-cell span
+  preservation.
 - TUI tests cover Markdown-shaped inline rendering.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.

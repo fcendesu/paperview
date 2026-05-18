@@ -1,6 +1,6 @@
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel, TableAlignment, TocItem, elements::inline},
+    parser::{Block, HeadingLevel, TableAlignment, TableCell, TableRow, TocItem, elements::inline},
 };
 use ratatui::{
     style::{Color, Modifier, Style},
@@ -135,8 +135,8 @@ fn render_heading(level: HeadingLevel, text: &str, output: &mut String) {
 
 fn render_table(
     alignments: &[TableAlignment],
-    header: &[String],
-    rows: &[Vec<String>],
+    header: &TableRow,
+    rows: &[TableRow],
     output: &mut String,
 ) {
     let widths = table_widths(header, rows);
@@ -151,7 +151,7 @@ fn render_table(
     }
 }
 
-fn table_widths(header: &[String], rows: &[Vec<String>]) -> Vec<usize> {
+fn table_widths(header: &TableRow, rows: &[TableRow]) -> Vec<usize> {
     let column_count = rows
         .iter()
         .map(Vec::len)
@@ -161,12 +161,12 @@ fn table_widths(header: &[String], rows: &[Vec<String>]) -> Vec<usize> {
     let mut widths = vec![3; column_count];
 
     for (index, cell) in header.iter().enumerate() {
-        widths[index] = widths[index].max(cell.chars().count());
+        widths[index] = widths[index].max(inline::plain_text(cell).chars().count());
     }
 
     for row in rows {
         for (index, cell) in row.iter().enumerate() {
-            widths[index] = widths[index].max(cell.chars().count());
+            widths[index] = widths[index].max(inline::plain_text(cell).chars().count());
         }
     }
 
@@ -174,17 +174,26 @@ fn table_widths(header: &[String], rows: &[Vec<String>]) -> Vec<usize> {
 }
 
 fn render_table_row(
-    cells: &[String],
+    cells: &[TableCell],
     widths: &[usize],
     alignments: &[TableAlignment],
     output: &mut String,
 ) {
     output.push('|');
     for (index, width) in widths.iter().enumerate() {
-        let cell = cells.get(index).map(String::as_str).unwrap_or("");
+        let plain_cell;
+        let markdown_cell;
+        let (plain, markdown) = if let Some(cell) = cells.get(index) {
+            plain_cell = inline::plain_text(cell);
+            markdown_cell = inline::markdown_text(cell);
+            (plain_cell.as_str(), markdown_cell.as_str())
+        } else {
+            ("", "")
+        };
         output.push(' ');
         output.push_str(&aligned_cell(
-            cell,
+            markdown,
+            plain,
             *width,
             alignments
                 .get(index)
@@ -216,16 +225,17 @@ fn render_table_separator(widths: &[usize], alignments: &[TableAlignment], outpu
     output.push('\n');
 }
 
-fn aligned_cell(cell: &str, width: usize, alignment: TableAlignment) -> String {
+fn aligned_cell(display: &str, plain: &str, width: usize, alignment: TableAlignment) -> String {
+    let padding = width.saturating_sub(plain.chars().count());
+
     match alignment {
-        TableAlignment::Right => format!("{cell:>width$}"),
+        TableAlignment::Right => format!("{}{display}", " ".repeat(padding)),
         TableAlignment::Center => {
-            let padding = width.saturating_sub(cell.chars().count());
             let left = padding / 2;
             let right = padding - left;
-            format!("{}{}{}", " ".repeat(left), cell, " ".repeat(right))
+            format!("{}{}{}", " ".repeat(left), display, " ".repeat(right))
         }
-        TableAlignment::None | TableAlignment::Left => format!("{cell:<width$}"),
+        TableAlignment::None | TableAlignment::Left => format!("{display}{}", " ".repeat(padding)),
     }
 }
 
@@ -350,6 +360,17 @@ mod tests {
         assert!(rendered.contains("Done |"));
         assert!(rendered.contains("| TUI"));
         assert!(rendered.contains("In progress |"));
+    }
+
+    #[test]
+    fn renders_table_cell_inline_markdown() {
+        let document = Document::from_source(
+            "| Feature | Link |\n| --- | --- |\n| **GUI** | [docs](docs/gui.md) |",
+        );
+        let rendered = render_document(&document);
+
+        assert!(rendered.contains("**GUI**"));
+        assert!(rendered.contains("[docs](docs/gui.md)"));
     }
 
     #[test]

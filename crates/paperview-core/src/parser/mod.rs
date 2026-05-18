@@ -89,8 +89,8 @@ pub enum Block {
     },
     Table {
         alignments: Vec<TableAlignment>,
-        header: Vec<String>,
-        rows: Vec<Vec<String>>,
+        header: TableRow,
+        rows: Vec<TableRow>,
     },
     List {
         ordered: bool,
@@ -111,6 +111,9 @@ pub struct InlineSpan {
     pub code: bool,
     pub link: Option<String>,
 }
+
+pub type TableCell = Vec<InlineSpan>;
+pub type TableRow = Vec<TableCell>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HeadingLevel {
@@ -205,10 +208,10 @@ struct OpenList {
 #[derive(Debug)]
 struct OpenTable {
     alignments: Vec<TableAlignment>,
-    header: Vec<String>,
-    rows: Vec<Vec<String>>,
-    current_row: Option<Vec<String>>,
-    current_cell: Option<String>,
+    header: TableRow,
+    rows: Vec<TableRow>,
+    current_row: Option<TableRow>,
+    current_cell: Option<TableCell>,
     in_header: bool,
 }
 
@@ -294,7 +297,7 @@ impl DocumentBuilder {
             }
             Tag::TableCell => {
                 if let Some(table) = &mut self.open_table {
-                    table.current_cell = Some(String::new());
+                    table.current_cell = Some(Vec::new());
                 }
             }
             Tag::Image {
@@ -346,7 +349,7 @@ impl DocumentBuilder {
                     && let Some(cell) = table.current_cell.take()
                     && let Some(row) = &mut table.current_row
                 {
-                    row.push(table::cell_text(&cell));
+                    row.push(cell);
                 }
             }
             TagEnd::TableRow => {
@@ -406,7 +409,7 @@ impl DocumentBuilder {
         if let Some(table) = &mut self.open_table
             && let Some(cell) = &mut table.current_cell
         {
-            cell.push_str(text);
+            inline::push_span(cell, inline::span(text, &self.inline_state));
             return;
         }
 
@@ -431,6 +434,13 @@ impl DocumentBuilder {
     }
 
     fn push_code(&mut self, code: &str) {
+        if let Some(table) = &mut self.open_table
+            && let Some(cell) = &mut table.current_cell
+        {
+            inline::push_span(cell, inline::code_span(code, &self.inline_state));
+            return;
+        }
+
         if let Some(list) = &mut self.open_list
             && let Some(item) = &mut list.current_item
         {
@@ -762,11 +772,41 @@ mod tests {
             parsed.blocks,
             vec![Block::Table {
                 alignments: vec![TableAlignment::Left, TableAlignment::Right],
-                header: vec!["Feature".to_owned(), "Status".to_owned()],
+                header: vec![vec![text_span("Feature")], vec![text_span("Status")]],
                 rows: vec![
-                    vec!["GUI".to_owned(), "Done".to_owned()],
-                    vec!["TUI".to_owned(), "In progress".to_owned()]
+                    vec![vec![text_span("GUI")], vec![text_span("Done")]],
+                    vec![vec![text_span("TUI")], vec![text_span("In progress")]]
                 ]
+            }]
+        );
+    }
+
+    #[test]
+    fn preserves_table_cell_inline_spans() {
+        let parsed =
+            parse_markdown("| Feature | Link |\n| --- | --- |\n| **GUI** | [docs](docs/gui.md) |");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![Block::Table {
+                alignments: vec![TableAlignment::None, TableAlignment::None],
+                header: vec![vec![text_span("Feature")], vec![text_span("Link")]],
+                rows: vec![vec![
+                    vec![InlineSpan {
+                        text: "GUI".to_owned(),
+                        strong: true,
+                        emphasis: false,
+                        code: false,
+                        link: None
+                    }],
+                    vec![InlineSpan {
+                        text: "docs".to_owned(),
+                        strong: false,
+                        emphasis: false,
+                        code: false,
+                        link: Some("docs/gui.md".to_owned())
+                    }]
+                ]]
             }]
         );
     }

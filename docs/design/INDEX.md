@@ -90,8 +90,9 @@ green accent border until native formula and diagram rendering are selected.
 Standalone image metadata uses a cool blue panel until bitmap previews are
 available.
 
-Paragraph, list, and blockquote rich text currently renders bold, italic, inline
-code, and links. Links are visually accented but are not clickable yet.
+Paragraph, list, blockquote, and table-cell rich text currently renders bold,
+italic, inline code, and links. Links are visually accented but are not clickable
+yet.
 
 ---
 
