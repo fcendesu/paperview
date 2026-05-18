@@ -12,9 +12,10 @@ list, blockquote, and table-cell content.
 - Inline images remain visible as Markdown text until image spans are modeled.
 
 The GUI renders heading, paragraph, list, blockquote, and table-cell spans with
-Iced rich text. Link spans are clickable in the GUI and open through the
-platform default opener. Relative GUI links resolve from the active document's
-parent directory when the document has a path. The TUI renders spans back into
+Iced rich text. Link spans are clickable in the GUI: in-document anchor links
+jump to matching heading slugs, and other links open through the platform
+default opener. Relative GUI links resolve from the active document's parent
+directory when the document has a path. The TUI renders spans back into
 Markdown-shaped text and keeps links display-only.
 
 Document titles, TOC labels, heading slugs, and scroll geometry derive from
@@ -34,19 +35,23 @@ plain heading text.
 - Table cells now store `Vec<InlineSpan>` per cell.
 - `paperview-gui::reader` attaches Iced rich-text link metadata to link spans
   and emits a GUI message when a link is clicked.
-- `paperview-gui::app` resolves relative link targets against the active
+- `paperview-gui::app` routes `#slug` links through the same scroll task used
+  by TOC clicks.
+- `paperview-gui::app` resolves other relative link targets against the active
   document path and delegates opening to the platform default opener.
 
 ## Open Decisions
 
-- Decide how in-document anchor links should navigate to headings.
+- Decide how exported documents should share or translate PaperView heading
+  slugs.
 - Decide how nested inline styles should be exposed for export.
 
 ## Verification
 
 - Parser tests cover heading, paragraph, list, blockquote, and table-cell span
   preservation.
-- GUI tests cover relative link target resolution and empty-link rejection.
+- GUI tests cover anchor jumps, missing anchors, relative link target
+  resolution, and empty-link rejection.
 - TUI tests cover Markdown-shaped inline rendering.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.

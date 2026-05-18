@@ -25,5 +25,4 @@ preserving the existing TUI Markdown-shaped display behavior.
 Completed clickable GUI inline links. The reader attaches Iced link metadata to
 inline link spans across headings, paragraphs, lists, blockquotes, and table
 cells. The GUI resolves relative targets from the active document path and opens
-links through the platform default opener. In-document anchor navigation remains
-deferred.
+links through the platform default opener.

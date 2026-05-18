@@ -387,15 +387,13 @@ impl PaperView {
         )
     }
 
-    fn open_link(&self, target: String) -> Task<Message> {
+    fn open_link(&mut self, target: String) -> Task<Message> {
+        if let Some(anchor) = target.strip_prefix('#') {
+            return self.open_anchor_link(anchor);
+        }
+
         let resolved =
             resolve_link_target(&target, self.documents.active().and_then(Document::path));
-
-        if resolved.starts_with('#') {
-            return Task::done(Message::LinkOpenFailed(format!(
-                "in-document links are not supported yet: {resolved}"
-            )));
-        }
 
         Task::perform(
             async move { open_link_target(resolved) },
@@ -404,6 +402,25 @@ impl PaperView {
                 Err(error) => Message::LinkOpenFailed(error),
             },
         )
+    }
+
+    fn open_anchor_link(&mut self, anchor: &str) -> Task<Message> {
+        let Some(block_index) = self.anchor_block_index(anchor) else {
+            self.status = Status::Error(format!("heading anchor not found: #{anchor}"));
+            return Task::none();
+        };
+
+        self.active_toc_block_index = Some(block_index);
+        self.scroll_to_toc_block(block_index)
+    }
+
+    fn anchor_block_index(&self, anchor: &str) -> Option<usize> {
+        self.documents
+            .active()?
+            .parsed()
+            .toc()
+            .into_iter()
+            .find_map(|item| (item.slug == anchor).then_some(item.block_index))
     }
 }
 
@@ -1406,6 +1423,57 @@ mod tests {
             open_link_target(String::new()).expect_err("reject empty link"),
             "cannot open an empty link"
         );
+    }
+
+    #[test]
+    fn anchor_links_select_matching_heading() {
+        let path = temp_doc(
+            "anchor-link.md",
+            "# Intro\n\n[Jump](#details)\n\n## Details",
+        );
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("anchor.toml"));
+
+        apply(&mut state, Message::OpenLink("#details".to_owned()));
+
+        assert_eq!(state.active_toc_block_index, Some(2));
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn anchor_links_use_duplicate_heading_slugs() {
+        let path = temp_doc(
+            "anchor-duplicates.md",
+            "# Intro\n\n## Details\n\n## Details\n\n[Jump](#details-2)",
+        );
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("anchor-duplicates.toml"),
+        );
+
+        apply(&mut state, Message::OpenLink("#details-2".to_owned()));
+
+        assert_eq!(state.active_toc_block_index, Some(2));
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn missing_anchor_links_set_error_status() {
+        let path = temp_doc("anchor-missing.md", "# Intro\n\n[Missing](#missing)");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("anchor-missing.toml"),
+        );
+
+        apply(&mut state, Message::OpenLink("#missing".to_owned()));
+
+        assert!(
+            matches!(state.status, super::Status::Error(ref error) if error == "heading anchor not found: #missing")
+        );
+
+        fs::remove_file(path).expect("remove test document");
     }
 
     fn temp_store(name: &str) -> HistoryStore {

@@ -47,7 +47,7 @@ This document tracks the progress of features across the three workspace crates.
 - Mermaid Support currently covers parser recognition for `mermaid` fences and source-preserving diagram panels in GUI/TUI; native diagram rendering and export assets are deferred.
 - Table Rendering currently covers structured table parsing, inline cell formatting, GUI table panels, and aligned TUI table output; wide-table scrolling and responsive column sizing are deferred.
 - Image Rendering currently covers standalone image metadata blocks, inline image text preservation, GUI metadata panels, and TUI Markdown image output; bitmap preview, relative-path resolution, remote fetching, and click-to-zoom are deferred.
-- Inline Span Rendering currently covers heading, paragraph, list, blockquote, and table-cell bold, italic, inline code, and link metadata. GUI renders rich text with clickable links, and TUI renders Markdown-shaped inline text.
+- Inline Span Rendering currently covers heading, paragraph, list, blockquote, and table-cell bold, italic, inline code, and link metadata. GUI renders rich text with clickable links, including in-document heading anchors, and TUI renders Markdown-shaped inline text.
 
 ---
 

@@ -12,15 +12,18 @@ The first TOC slice supports:
 - Source block index for future scroll synchronization.
 - Empty-state text when a document has no headings.
 
-The GUI TOC supports click-to-scroll navigation. The TUI TOC supports keyboard
-focus with `Tab`, selection with `j` / `k` or arrow keys, and jump-to-heading
-with `Enter`.
+The GUI TOC supports click-to-scroll navigation. GUI in-document links that
+target heading slugs, such as `[Usage](#usage)`, use the same scroll behavior.
+The TUI TOC supports keyboard focus with `Tab`, selection with `j` / `k` or
+arrow keys, and jump-to-heading with `Enter`.
 
 ## Implementation Notes
 
 - Core TOC extraction lives on `paperview_core::parser::ParsedDocument::toc`.
 - TOC records use `TocItem`, which includes `level`, `title`, `slug`, and `block_index`.
 - GUI rendering lives in `crates/paperview-gui/src/navigation.rs`.
+- GUI anchor-link routing lives in `crates/paperview-gui/src/app.rs` and
+  matches clicked `#slug` targets against TOC slugs.
 - The GUI reader and TOC are composed side by side only when a document is loaded.
 - TUI rendering uses `crates/paperview-tui/src/app.rs` for the interactive shell and `crates/paperview-tui/src/render.rs` for text conversion helpers.
 

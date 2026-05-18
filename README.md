@@ -139,7 +139,7 @@ Near-term MVP work includes:
 - Split View drag resizing.
 - Full LaTeX typesetting and rendered Mermaid diagrams.
 - Search and documentation-toolkit commands.
-- Richer Markdown rendering for bitmap images, in-document anchors, and task lists.
+- Richer Markdown rendering for bitmap images, exported anchors, and task lists.
 - Performance measurement against startup, scrolling, and memory targets.
 
 See [`docs/TASKS.md`](docs/TASKS.md) for the current implementation tracker.

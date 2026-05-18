@@ -92,7 +92,9 @@ available.
 
 Heading, paragraph, list, blockquote, and table-cell rich text currently renders
 bold, italic, inline code, and links. GUI links are visually accented and
-clickable; TUI links remain Markdown-shaped display text.
+clickable. In-document GUI links jump to matching headings, while external and
+file links use the platform default opener. TUI links remain Markdown-shaped
+display text.
 
 ---
 
