@@ -91,7 +91,8 @@ The first tabs implementation keeps open-document ownership in
 activate, and replace documents without duplicating path de-duplication rules.
 The GUI uses this model for clickable tabs and close controls. The TUI uses the
 same model for multi-file launch and keyboard tab switching with `[` / `]`;
-its active tab drives rendered lines, TOC, search results, and file watching.
+`x` closes the active TUI tab through the shared close behavior. Its active tab
+drives rendered lines, TOC, search results, and file watching.
 
 The first LaTeX implementation keeps math semantics in `paperview-core` by
 preserving inline math text and exposing display math as `Block::Math`.

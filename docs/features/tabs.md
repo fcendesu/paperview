@@ -18,10 +18,13 @@ Current behavior:
 - Launching the TUI with multiple file paths opens them as tabs.
 - The TUI header shows a compact tab row with the active tab highlighted.
 - `[` and `]` switch to the previous and next TUI tab.
+- `x` closes the active TUI tab.
+- Closing a TUI tab activates the next available neighbor; closing the final
+  tab exits the reader.
 - The TUI reader, table of contents, live reload target, and search results
   follow the active tab.
 
-Tab reordering, TUI tab close controls, and split-view integration are deferred.
+Tab reordering and split-view integration are deferred.
 
 ## Implementation Notes
 
@@ -31,14 +34,15 @@ Tab reordering, TUI tab close controls, and split-view integration are deferred.
 - GUI tab rendering lives in `crates/paperview-gui/src/app.rs`.
 - Tab styling lives in `crates/paperview-gui/src/theme.rs`.
 - TUI state owns `OpenDocuments` instead of a single `Document`.
-- TUI tab rendering and keyboard switching live in `crates/paperview-tui/src/app.rs`.
+- TUI tab rendering, keyboard switching, and close behavior live in
+  `crates/paperview-tui/src/app.rs`.
 - `paperview-tui [file ...]` opens multiple documents into the TUI tab set.
 - Live reload remains scoped to the active tab for this slice.
 
 ## Open Decisions
 
 - Multi-file drag/drop uses tabs; folder drops remain deferred.
-- TUI tab close controls are deferred.
+- TUI tab reordering is deferred.
 - Split view should build on top of the same core document collection instead of forking document state.
 
 ## Verification Expectations
@@ -61,4 +65,5 @@ cargo run -p paperview-tui -- docs/PRD.md README.md
 
 Open another document from History or drag-and-drop, then click between tabs and confirm the reader, title, and TOC update.
 In the TUI smoke test, use `[` and `]` to switch tabs and confirm the reader,
-title, TOC, and live header tab highlight follow the active document.
+title, TOC, and live header tab highlight follow the active document. Use `x`
+to close a tab and confirm the neighbor becomes active.

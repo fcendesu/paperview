@@ -125,6 +125,8 @@ impl ReaderApp {
                     KeyCode::Char('N') => self.select_previous_search_match(),
                     KeyCode::Char(']') => self.select_next_tab(),
                     KeyCode::Char('[') => self.select_previous_tab(),
+                    KeyCode::Char('x') if self.close_active_tab() => return Ok(()),
+                    KeyCode::Char('x') => {}
                     KeyCode::Tab => self.toggle_focus(),
                     KeyCode::Char('j') | KeyCode::Down => self.move_down(),
                     KeyCode::Char('k') | KeyCode::Up => self.move_up(),
@@ -333,8 +335,9 @@ impl ReaderApp {
             )),
             tab_line(&self.documents),
             Line::from(Span::styled(
-                self.header_status()
-                    .unwrap_or_else(|| "[/] search  [[/]] tabs  [Tab] toc  [q] quit".to_owned()),
+                self.header_status().unwrap_or_else(|| {
+                    "[/] search  [[/]] tabs  [x] close  [Tab] toc  [q] quit".to_owned()
+                }),
                 Style::default().fg(Color::DarkGray).bg(Color::Black),
             )),
         ]
@@ -374,6 +377,22 @@ impl ReaderApp {
             self.documents.len(),
             self.active_document().title()
         ));
+    }
+
+    fn close_active_tab(&mut self) -> bool {
+        let Some(index) = self.documents.active_index() else {
+            return true;
+        };
+        let title = self.active_document().title().to_owned();
+        self.documents.close(index);
+
+        if self.documents.is_empty() {
+            return true;
+        }
+
+        self.load_active_document(true);
+        self.status = Some(format!("Closed {title}"));
+        false
     }
 
     fn load_active_document(&mut self, reset_scroll: bool) {
@@ -1005,6 +1024,32 @@ mod tests {
         assert_eq!(line.spans[0].style.bg, Some(Color::Cyan));
         assert_eq!(line.spans[2].content.as_ref(), " 2:Second ");
         assert_eq!(line.spans[2].style.fg, Some(Color::DarkGray));
+    }
+
+    #[test]
+    fn closing_active_tab_selects_neighbor() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second\n\n## Two").with_path("second.md"),
+            Document::from_source("# Third").with_path("third.md"),
+        ]);
+        app.select_next_tab();
+
+        assert!(!app.close_active_tab());
+
+        assert_eq!(app.documents.len(), 2);
+        assert_eq!(app.active_document().title(), "Third");
+        assert_eq!(app.documents.active_index(), Some(1));
+        assert_eq!(app.scroll, 0);
+        assert_eq!(app.status.as_deref(), Some("Closed Second"));
+    }
+
+    #[test]
+    fn closing_last_tab_requests_exit() {
+        let mut app = ReaderApp::new(Document::from_source("# Only").with_path("only.md"));
+
+        assert!(app.close_active_tab());
+        assert!(app.documents.is_empty());
     }
 
     #[test]
