@@ -26,4 +26,3 @@ blockquotes.
 Completed inline span support for list items and blockquotes. The shared parser
 now stores list item and blockquote content as `InlineSpan` values, the GUI
 renders them with rich text, and the TUI renders Markdown-shaped inline output.
-Table cells and headings remain deferred.

@@ -17,6 +17,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [History Persistence](completed/history-persistence.md) - TOML-backed recent-file storage loaded and saved by the GUI.
 - [Image Rendering](completed/image-rendering.md) - standalone image metadata blocks and first GUI/TUI rendering.
 - [Inline Span Foundation](completed/inline-span-foundation.md) - paragraph bold, italic, code, and link span model.
+- [Heading Inline Spans](completed/heading-inline-spans.md) - inline spans for Markdown headings.
 - [List And Blockquote Inline Spans](completed/list-blockquote-inline-spans.md) - inline spans for list items and blockquotes.
 - [Table Cell Inline Spans](completed/table-cell-inline-spans.md) - inline spans for Markdown table cells.
 - [LaTeX Math Foundation](completed/latex-foundation.md) - source-preserving inline and display math support across core, GUI, and TUI.

@@ -26,4 +26,4 @@ existing table structure and alignment behavior.
 Completed inline span support for Markdown table cells. Header and body cells
 now store `InlineSpan` values, GUI tables render rich cell content, and TUI
 tables render Markdown-shaped inline cell output while measuring columns from
-plain text. Heading inline spans remain deferred.
+plain text.

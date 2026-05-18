@@ -2,8 +2,8 @@
 
 ## Current Behavior
 
-PaperView preserves common inline Markdown semantics inside paragraph, list,
-blockquote, and table-cell content.
+PaperView preserves common inline Markdown semantics inside heading, paragraph,
+list, blockquote, and table-cell content.
 
 - Bold text is represented as strong spans.
 - Italic text is represented as emphasis spans.
@@ -11,10 +11,11 @@ blockquote, and table-cell content.
 - Links preserve their destination URL.
 - Inline images remain visible as Markdown text until image spans are modeled.
 
-The GUI renders paragraph, list, blockquote, and table-cell spans with Iced rich
-text. The TUI renders those spans back into Markdown-shaped text.
+The GUI renders heading, paragraph, list, blockquote, and table-cell spans with
+Iced rich text. The TUI renders those spans back into Markdown-shaped text.
 
-This is still a partial foundation. Headings use the older string model.
+Document titles, TOC labels, heading slugs, and scroll geometry derive from
+plain heading text.
 
 ## Implementation Notes
 
@@ -23,19 +24,20 @@ This is still a partial foundation. Headings use the older string model.
 - `paperview-core::parser::elements::inline` owns inline state helpers and
   plain/Markdown text conversion.
 - Adjacent spans with identical styling are merged during parsing.
+- Headings store `Vec<InlineSpan>` and derive plain labels where navigation or
+  window titles need strings.
 - Paragraph and blockquote blocks now store `Vec<InlineSpan>`.
 - List items now store `Vec<InlineSpan>` per item.
 - Table cells now store `Vec<InlineSpan>` per cell.
 
 ## Open Decisions
 
-- Extend inline spans to headings.
 - Decide when GUI links should become clickable commands.
 - Decide how nested inline styles should be exposed for export.
 
 ## Verification
 
-- Parser tests cover paragraph, list, blockquote, and table-cell span
+- Parser tests cover heading, paragraph, list, blockquote, and table-cell span
   preservation.
 - TUI tests cover Markdown-shaped inline rendering.
 - Workspace verification should include `cargo fmt --all`,

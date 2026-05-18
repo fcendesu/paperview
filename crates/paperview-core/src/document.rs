@@ -18,10 +18,7 @@ impl Document {
     pub fn from_source(source: impl Into<String>) -> Self {
         let source = source.into();
         let parsed = parser::parse_markdown(&source);
-        let title = parsed
-            .title()
-            .map(ToOwned::to_owned)
-            .unwrap_or_else(|| "Untitled".to_owned());
+        let title = parsed.title().unwrap_or_else(|| "Untitled".to_owned());
 
         Self {
             path: None,

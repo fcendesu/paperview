@@ -26,5 +26,4 @@ preserve and render common inline Markdown semantics.
 Completed the paragraph inline span foundation. Paragraph blocks now store
 `InlineSpan` values for bold, italic, inline code, and links. The GUI renders
 paragraphs with Iced rich text, and the TUI renders paragraph spans back into
-Markdown-shaped text. Inline spans for lists, tables, blockquotes, and headings
-remain deferred.
+Markdown-shaped text.

@@ -16,12 +16,12 @@ pub struct ParsedDocument {
 
 impl ParsedDocument {
     #[must_use]
-    pub fn title(&self) -> Option<&str> {
+    pub fn title(&self) -> Option<String> {
         self.blocks.iter().find_map(|block| match block {
             Block::Heading {
                 level: HeadingLevel::H1,
-                text,
-            } => Some(text.as_str()),
+                spans,
+            } => Some(heading_text(spans)),
             _ => None,
         })
     }
@@ -34,8 +34,9 @@ impl ParsedDocument {
             .iter()
             .enumerate()
             .filter_map(|(block_index, block)| match block {
-                Block::Heading { level, text } => {
-                    let base_slug = slugify(text);
+                Block::Heading { level, spans } => {
+                    let title = heading_text(spans);
+                    let base_slug = slugify(&title);
                     let count = seen_slugs.entry(base_slug.clone()).or_insert(0);
                     *count += 1;
 
@@ -47,7 +48,7 @@ impl ParsedDocument {
 
                     Some(TocItem {
                         level: *level,
-                        title: text.clone(),
+                        title,
                         slug,
                         block_index,
                     })
@@ -70,7 +71,7 @@ pub struct TocItem {
 pub enum Block {
     Heading {
         level: HeadingLevel,
-        text: String,
+        spans: Vec<InlineSpan>,
     },
     Paragraph(Vec<InlineSpan>),
     BlockQuote(Vec<InlineSpan>),
@@ -188,7 +189,7 @@ pub fn parse_markdown(source: &str) -> ParsedDocument {
 enum OpenBlock {
     Heading {
         level: HeadingLevel,
-        text: String,
+        spans: Vec<InlineSpan>,
     },
     Paragraph(Vec<InlineSpan>),
     BlockQuote(Vec<InlineSpan>),
@@ -252,7 +253,7 @@ impl DocumentBuilder {
             Tag::Heading { level, .. } => {
                 self.open_block = Some(OpenBlock::Heading {
                     level: level.into(),
-                    text: String::new(),
+                    spans: Vec::new(),
                 });
             }
             Tag::Paragraph if self.open_list.is_none() && self.open_block.is_none() => {
@@ -421,7 +422,9 @@ impl DocumentBuilder {
         }
 
         match &mut self.open_block {
-            Some(OpenBlock::Heading { text: target, .. }) => target.push_str(text),
+            Some(OpenBlock::Heading { spans, .. }) => {
+                inline::push_span(spans, inline::span(text, &self.inline_state));
+            }
             Some(OpenBlock::BlockQuote(spans)) => {
                 inline::push_span(spans, inline::span(text, &self.inline_state));
             }
@@ -449,7 +452,9 @@ impl DocumentBuilder {
         }
 
         match &mut self.open_block {
-            Some(OpenBlock::Paragraph(spans)) | Some(OpenBlock::BlockQuote(spans)) => {
+            Some(OpenBlock::Heading { spans, .. })
+            | Some(OpenBlock::Paragraph(spans))
+            | Some(OpenBlock::BlockQuote(spans)) => {
                 inline::push_span(spans, inline::code_span(code, &self.inline_state));
             }
             _ => {
@@ -500,10 +505,11 @@ impl DocumentBuilder {
         };
 
         match open_block {
-            OpenBlock::Heading { level, text } => self.blocks.push(Block::Heading {
-                level,
-                text: normalize_text(&text),
-            }),
+            OpenBlock::Heading { level, spans } => {
+                if !inline::plain_text(&spans).trim().is_empty() {
+                    self.blocks.push(Block::Heading { level, spans });
+                }
+            }
             OpenBlock::Paragraph(spans) => {
                 if !inline::plain_text(&spans).trim().is_empty() {
                     self.blocks.push(Block::Paragraph(spans));
@@ -535,6 +541,10 @@ fn code_block_language(kind: CodeBlockKind<'_>) -> Option<String> {
         CodeBlockKind::Fenced(language) if !language.is_empty() => Some(language.into_string()),
         _ => None,
     }
+}
+
+fn heading_text(spans: &[InlineSpan]) -> String {
+    normalize_text(&inline::plain_text(spans))
 }
 
 fn normalize_text(text: &str) -> String {
@@ -589,7 +599,7 @@ mod tests {
             vec![
                 Block::Heading {
                     level: HeadingLevel::H1,
-                    text: "PaperView".to_owned()
+                    spans: vec![text_span("PaperView")]
                 },
                 Block::Paragraph(vec![text_span("Native Markdown viewer.")])
             ]
@@ -600,7 +610,46 @@ mod tests {
     fn exposes_first_h1_as_title() {
         let parsed = parse_markdown("## Preface\n\n# PaperView");
 
-        assert_eq!(parsed.title(), Some("PaperView"));
+        assert_eq!(parsed.title(), Some("PaperView".to_owned()));
+    }
+
+    #[test]
+    fn preserves_heading_inline_spans() {
+        let parsed = parse_markdown("# **PaperView** [docs](docs/index.md) `reader`");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![Block::Heading {
+                level: HeadingLevel::H1,
+                spans: vec![
+                    InlineSpan {
+                        text: "PaperView".to_owned(),
+                        strong: true,
+                        emphasis: false,
+                        code: false,
+                        link: None
+                    },
+                    text_span(" "),
+                    InlineSpan {
+                        text: "docs".to_owned(),
+                        strong: false,
+                        emphasis: false,
+                        code: false,
+                        link: Some("docs/index.md".to_owned())
+                    },
+                    text_span(" "),
+                    InlineSpan {
+                        text: "reader".to_owned(),
+                        strong: false,
+                        emphasis: false,
+                        code: true,
+                        link: None
+                    }
+                ]
+            }]
+        );
+
+        assert_eq!(parsed.title(), Some("PaperView docs reader".to_owned()));
     }
 
     #[test]

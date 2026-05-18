@@ -122,8 +122,9 @@ fn spacing_after(index: usize, document: &paperview_core::parser::ParsedDocument
 
 fn estimated_block_height(block: &Block) -> f32 {
     match block {
-        Block::Heading { level, text } => {
-            heading_line_height(*level) * estimated_line_count(text, HEADING_LINE_CHARS)
+        Block::Heading { level, spans } => {
+            heading_line_height(*level)
+                * estimated_line_count(&inline::plain_text(spans), HEADING_LINE_CHARS)
         }
         Block::Paragraph(spans) => {
             BODY_LINE_HEIGHT * estimated_line_count(&inline::plain_text(spans), BODY_LINE_CHARS)
@@ -189,7 +190,7 @@ fn normalized_progress(progress: f32) -> f32 {
 
 fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
     match block {
-        Block::Heading { level, text } => heading(*level, text),
+        Block::Heading { level, spans } => heading(*level, spans),
         Block::Paragraph(spans) => paragraph(spans),
         Block::BlockQuote(spans) => blockquote(spans),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
@@ -206,7 +207,7 @@ fn block_view<Message: 'static>(block: &Block) -> Element<'_, Message> {
     }
 }
 
-fn heading<Message: 'static>(level: HeadingLevel, value: &str) -> Element<'_, Message> {
+fn heading<Message: 'static>(level: HeadingLevel, spans: &[InlineSpan]) -> Element<'_, Message> {
     let size = match level {
         HeadingLevel::H1 => 32,
         HeadingLevel::H2 => 24,
@@ -214,7 +215,7 @@ fn heading<Message: 'static>(level: HeadingLevel, value: &str) -> Element<'_, Me
         HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => 18,
     };
 
-    text(value).size(size).color(theme::READER_TEXT).into()
+    inline_text(spans, size, theme::READER_TEXT)
 }
 
 fn paragraph<Message: 'static>(spans: &[InlineSpan]) -> Element<'_, Message> {

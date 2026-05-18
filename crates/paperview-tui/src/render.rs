@@ -1,6 +1,9 @@
 use paperview_core::{
     Document,
-    parser::{Block, HeadingLevel, TableAlignment, TableCell, TableRow, TocItem, elements::inline},
+    parser::{
+        Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow, TocItem,
+        elements::inline,
+    },
 };
 use ratatui::{
     style::{Color, Modifier, Style},
@@ -55,7 +58,7 @@ pub fn render_document_with_anchors(document: &Document) -> RenderedDocument {
 
 fn render_block(block: &Block, output: &mut String) {
     match block {
-        Block::Heading { level, text } => render_heading(*level, text, output),
+        Block::Heading { level, spans } => render_heading(*level, spans, output),
         Block::Paragraph(spans) => {
             output.push_str(&inline::markdown_text(spans));
             output.push('\n');
@@ -126,10 +129,10 @@ fn render_block(block: &Block, output: &mut String) {
     }
 }
 
-fn render_heading(level: HeadingLevel, text: &str, output: &mut String) {
+fn render_heading(level: HeadingLevel, spans: &[InlineSpan], output: &mut String) {
     output.push_str(&"#".repeat(usize::from(level.as_depth())));
     output.push(' ');
-    output.push_str(text);
+    output.push_str(&inline::markdown_text(spans));
     output.push('\n');
 }
 
@@ -393,6 +396,15 @@ mod tests {
             render_document(&document)
                 .contains("A **bold** and *quiet* [link](https://example.com) with `code`.\n")
         );
+    }
+
+    #[test]
+    fn renders_heading_inline_markdown() {
+        let document = Document::from_source("# **PaperView** [docs](docs/index.md) `reader`");
+        let rendered = render_document(&document);
+
+        assert!(rendered.contains("# **PaperView** [docs](docs/index.md) `reader`\n"));
+        assert!(rendered.contains("- PaperView docs reader\n"));
     }
 
     #[test]
