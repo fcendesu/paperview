@@ -133,6 +133,12 @@ parsing in `paperview-core::search_workspace`. The TUI binary exposes it as a
 headless `search <query> [path]` command that prints path, line, column, and
 matched text without initializing Ratatui.
 
+The first export implementation keeps HTML rendering in
+`paperview-core::export_html`, using the shared parsed document model and
+escaping user content before writing markup. The TUI binary exposes it as a
+headless `export <file> --to html` command that writes an `.html` file beside
+the source document without initializing Ratatui.
+
 The first document-stats implementation keeps metadata calculation in
 `paperview-core` through `Document::stats` and `DocumentStats`. The TUI binary
 exposes it as a headless `stats <file>` command that prints a report without

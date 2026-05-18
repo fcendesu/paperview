@@ -4,6 +4,7 @@ mod render;
 use std::{
     env,
     ffi::OsString,
+    fs,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
 };
@@ -30,6 +31,13 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             let document = paperview_core::Document::open(PathBuf::from(path))
                 .map_err(|error| error.to_string())?;
             println!("{}", stats_text(&document));
+            Ok(())
+        }
+        [command, path, flag, format] if command == "export" && flag == "--to" => {
+            let document = paperview_core::Document::open(PathBuf::from(path))
+                .map_err(|error| error.to_string())?;
+            let output_path = export_document(&document, format.to_string_lossy().as_ref())?;
+            println!("{}", output_path.display());
             Ok(())
         }
         [command, action] if command == "config" && action == "path" => {
@@ -63,7 +71,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         _ => Err(
-            "usage: paperview-tui [file]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui config path\n       paperview-tui config edit"
+            "usage: paperview-tui [file]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui export <file> --to html\n       paperview-tui config path\n       paperview-tui config edit"
                 .to_owned(),
         ),
     }
@@ -71,6 +79,26 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 
 fn config_path_text(store: &paperview_core::ConfigStore) -> String {
     store.path().display().to_string()
+}
+
+fn export_document(document: &paperview_core::Document, format: &str) -> Result<PathBuf, String> {
+    match format {
+        "html" => {
+            let output_path = html_export_path(document)?;
+            fs::write(&output_path, paperview_core::export_html(document))
+                .map_err(|error| format!("failed to write {}: {error}", output_path.display()))?;
+            Ok(output_path)
+        }
+        _ => Err(format!("unsupported export format: {format}")),
+    }
+}
+
+fn html_export_path(document: &paperview_core::Document) -> Result<PathBuf, String> {
+    let path = document
+        .path()
+        .ok_or_else(|| "cannot export an in-memory document".to_owned())?;
+
+    Ok(path.with_extension("html"))
 }
 
 fn open_path(path: &Path) -> Result<(), String> {
@@ -164,9 +192,11 @@ fn workspace_search_text(matches: &[paperview_core::WorkspaceSearchMatch]) -> St
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
-    use super::{config_path_text, stats_text, workspace_search_text};
+    use super::{config_path_text, html_export_path, stats_text, workspace_search_text};
 
     #[test]
     fn formats_stats_report() {
@@ -200,5 +230,15 @@ mod tests {
             "docs/PRD.md:1:3: PaperView"
         );
         assert_eq!(workspace_search_text(&[]), "No matches");
+    }
+
+    #[test]
+    fn derives_html_export_path() {
+        let document = Document::from_source("# PaperView").with_path("docs/PRD.md");
+
+        assert_eq!(
+            html_export_path(&document).expect("export path"),
+            PathBuf::from("docs/PRD.html")
+        );
     }
 }

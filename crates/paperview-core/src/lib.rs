@@ -1,5 +1,6 @@
 pub mod config;
 pub mod document;
+pub mod export;
 pub mod history;
 pub mod open_documents;
 pub mod parser;
@@ -9,6 +10,7 @@ pub mod watcher;
 
 pub use config::{Config, ConfigStore, ConfigStoreError};
 pub use document::{Document, DocumentError, SupportedFileType};
+pub use export::export_html;
 pub use history::{FileEntry, History, HistoryStore, HistoryStoreError};
 pub use open_documents::OpenDocuments;
 pub use search::{
