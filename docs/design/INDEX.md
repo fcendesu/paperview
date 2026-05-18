@@ -96,7 +96,8 @@ Heading, paragraph, list, blockquote, and table-cell rich text currently renders
 bold, italic, inline code, and links. GUI links are visually accented and
 clickable. In-document GUI links jump to matching headings, while external and
 file links use the platform default opener. TUI links remain Markdown-shaped
-display text.
+display text. Task-list items render as read-only checkbox markers in the GUI
+and as Markdown-shaped `[x]` / `[ ]` markers in the TUI.
 
 ---
 

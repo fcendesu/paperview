@@ -95,7 +95,7 @@ pub enum Block {
     },
     List {
         ordered: bool,
-        items: Vec<Vec<InlineSpan>>,
+        items: Vec<ListItem>,
     },
     Math {
         display: bool,
@@ -111,6 +111,12 @@ pub struct InlineSpan {
     pub emphasis: bool,
     pub code: bool,
     pub link: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListItem {
+    pub checked: Option<bool>,
+    pub content: Vec<InlineSpan>,
 }
 
 pub type TableCell = Vec<InlineSpan>;
@@ -202,8 +208,8 @@ enum OpenBlock {
 #[derive(Debug, Default)]
 struct OpenList {
     ordered: bool,
-    items: Vec<Vec<InlineSpan>>,
-    current_item: Option<Vec<InlineSpan>>,
+    items: Vec<ListItem>,
+    current_item: Option<ListItem>,
 }
 
 #[derive(Debug)]
@@ -242,6 +248,7 @@ impl DocumentBuilder {
             Event::Code(code) => self.push_code(&code),
             Event::InlineMath(source) => self.push_text(&math::inline_text(&source)),
             Event::DisplayMath(source) => self.push_display_math(&source),
+            Event::TaskListMarker(checked) => self.push_task_list_marker(checked),
             Event::SoftBreak | Event::HardBreak => self.push_text("\n"),
             Event::Rule => self.blocks.push(Block::Rule),
             _ => {}
@@ -319,7 +326,10 @@ impl DocumentBuilder {
             }
             Tag::Item => {
                 if let Some(list) = &mut self.open_list {
-                    list.current_item = Some(Vec::new());
+                    list.current_item = Some(ListItem {
+                        checked: None,
+                        content: Vec::new(),
+                    });
                 }
             }
             _ => {}
@@ -417,7 +427,7 @@ impl DocumentBuilder {
         if let Some(list) = &mut self.open_list
             && let Some(item) = &mut list.current_item
         {
-            inline::push_span(item, inline::span(text, &self.inline_state));
+            inline::push_span(&mut item.content, inline::span(text, &self.inline_state));
             return;
         }
 
@@ -447,7 +457,10 @@ impl DocumentBuilder {
         if let Some(list) = &mut self.open_list
             && let Some(item) = &mut list.current_item
         {
-            inline::push_span(item, inline::code_span(code, &self.inline_state));
+            inline::push_span(
+                &mut item.content,
+                inline::code_span(code, &self.inline_state),
+            );
             return;
         }
 
@@ -497,6 +510,14 @@ impl DocumentBuilder {
             display: true,
             source: math::display_source(source),
         });
+    }
+
+    fn push_task_list_marker(&mut self, checked: bool) {
+        if let Some(list) = &mut self.open_list
+            && let Some(item) = &mut list.current_item
+        {
+            item.checked = Some(checked);
+        }
     }
 
     fn close_block(&mut self) {
@@ -578,7 +599,9 @@ fn slugify(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Block, HeadingLevel, InlineSpan, TableAlignment, TocItem, parse_markdown};
+    use super::{
+        Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TocItem, parse_markdown,
+    };
 
     fn text_span(text: &str) -> InlineSpan {
         InlineSpan {
@@ -587,6 +610,20 @@ mod tests {
             emphasis: false,
             code: false,
             link: None,
+        }
+    }
+
+    fn list_item(content: Vec<InlineSpan>) -> ListItem {
+        ListItem {
+            checked: None,
+            content,
+        }
+    }
+
+    fn task_item(checked: bool, content: Vec<InlineSpan>) -> ListItem {
+        ListItem {
+            checked: Some(checked),
+            content,
         }
     }
 
@@ -664,7 +701,10 @@ mod tests {
                 Block::BlockQuote(vec![text_span("Quiet reader")]),
                 Block::List {
                     ordered: false,
-                    items: vec![vec![text_span("Fast")], vec![text_span("Native")]]
+                    items: vec![
+                        list_item(vec![text_span("Fast")]),
+                        list_item(vec![text_span("Native")])
+                    ]
                 },
                 Block::CodeBlock {
                     language: Some("rust".to_owned()),
@@ -767,7 +807,7 @@ mod tests {
                 Block::List {
                     ordered: false,
                     items: vec![
-                        vec![
+                        list_item(vec![
                             InlineSpan {
                                 text: "Fast".to_owned(),
                                 strong: false,
@@ -783,11 +823,28 @@ mod tests {
                                 code: true,
                                 link: None
                             }
-                        ],
-                        vec![text_span("Plain")]
+                        ]),
+                        list_item(vec![text_span("Plain")])
                     ]
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn preserves_task_list_markers() {
+        let parsed = parse_markdown("- [x] Done\n- [ ] Todo\n- Plain");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![Block::List {
+                ordered: false,
+                items: vec![
+                    task_item(true, vec![text_span("Done")]),
+                    task_item(false, vec![text_span("Todo")]),
+                    list_item(vec![text_span("Plain")])
+                ]
+            }]
         );
     }
 

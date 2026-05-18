@@ -105,6 +105,11 @@ consuming `pulldown-cmark` table events into `Block::Table`. Frontends render
 from the shared alignments, header cells, and body rows instead of reparsing
 Markdown text.
 
+The first task-list implementation keeps checkbox state in `paperview-core` by
+storing list items as `ListItem` values with optional checked state and inline
+content. Frontends render checked and unchecked markers from that shared model
+without reparsing Markdown list text.
+
 The first image implementation keeps standalone image metadata in
 `paperview-core` by promoting image-only paragraphs into `Block::Image`. Inline
 images remain text until richer inline spans exist. The GUI resolves local

@@ -27,11 +27,12 @@ Supported input formats:
 
 Implemented Markdown rendering is still intentionally basic: headings,
 paragraphs, lists, blockquotes, and table cells with basic inline styling, code
-blocks, tables, rules, LaTeX display math panels with readable previews,
-Mermaid diagram panels with simple flowchart previews, and image metadata panels
-are supported. Richer technical-document features such as full LaTeX
-typesetting, full Mermaid rendering, remote image fetching, task lists, search,
-advanced Split View controls, and export are still on the roadmap.
+blocks, tables, task-list markers, rules, LaTeX display math panels with
+readable previews, Mermaid diagram panels with simple flowchart previews, and
+image metadata panels are supported. Richer technical-document features such as
+full LaTeX typesetting, full Mermaid rendering, remote image fetching,
+interactive task toggles, search, advanced Split View controls, and export are
+still on the roadmap.
 
 ## Run The GUI
 
@@ -49,6 +50,7 @@ GUI highlights:
 - Heading, paragraph, list, blockquote, and table-cell bold, italic, inline code,
   and clickable link styling.
 - Bordered Markdown tables with shaded headers.
+- Read-only checked and unchecked task-list markers.
 - Standalone local bitmap image previews with metadata fallback.
 - Source-preserving display math panels with readable previews.
 - Mermaid diagram panels with simple native flowchart previews.
@@ -92,6 +94,7 @@ jump through headings from the TOC, and preserves LaTeX display math plus
 Mermaid diagram source. Markdown tables render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
+Task-list markers render as `- [x]` and `- [ ]` lines.
 
 ## Development Checks
 
@@ -139,7 +142,8 @@ Near-term MVP work includes:
 - Split View drag resizing.
 - Full LaTeX typesetting and full Mermaid rendering.
 - Search and documentation-toolkit commands.
-- Richer Markdown rendering for remote images, exported anchors, and task lists.
+- Richer Markdown rendering for remote images, exported anchors, and interactive
+  task toggles.
 - Performance measurement against startup, scrolling, and memory targets.
 
 See [`docs/TASKS.md`](docs/TASKS.md) for the current implementation tracker.

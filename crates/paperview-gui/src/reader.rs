@@ -10,7 +10,7 @@ use iced::{
 use paperview_core::{
     Document,
     parser::{
-        Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow,
+        Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TableCell, TableRow,
         elements::{diagram, inline, math},
     },
 };
@@ -166,7 +166,9 @@ fn estimated_block_height(block: &Block) -> f32 {
         Block::List { items, .. } => {
             let item_lines = items
                 .iter()
-                .map(|item| estimated_line_count(&inline::plain_text(item), BODY_LINE_CHARS))
+                .map(|item| {
+                    estimated_line_count(&inline::plain_text(&item.content), BODY_LINE_CHARS)
+                })
                 .sum::<f32>();
 
             (BODY_LINE_HEIGHT * item_lines) + (8.0 * items.len().saturating_sub(1) as f32)
@@ -487,23 +489,31 @@ fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Mess
 
 fn list<Message: 'static>(
     ordered: bool,
-    items: &[Vec<InlineSpan>],
+    items: &[ListItem],
     on_link_click: fn(String) -> Message,
 ) -> Element<'_, Message> {
     let mut list = Column::new().spacing(8);
 
     for (index, item) in items.iter().enumerate() {
-        let marker = if ordered {
-            format!("{}.", index + 1)
-        } else {
-            "-".to_owned()
+        let marker = match item.checked {
+            Some(true) if ordered => format!("{}. ☑", index + 1),
+            Some(false) if ordered => format!("{}. ☐", index + 1),
+            Some(true) => "☑".to_owned(),
+            Some(false) => "☐".to_owned(),
+            None if ordered => format!("{}.", index + 1),
+            None => "-".to_owned(),
         };
 
         list = list.push(
             Row::new()
                 .spacing(4)
                 .push(text(marker).size(16).color(theme::READER_TEXT))
-                .push(inline_text(item, 16, theme::READER_TEXT, on_link_click)),
+                .push(inline_text(
+                    &item.content,
+                    16,
+                    theme::READER_TEXT,
+                    on_link_click,
+                )),
         );
     }
 

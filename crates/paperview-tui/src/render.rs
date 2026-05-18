@@ -104,12 +104,16 @@ fn render_block(block: &Block, output: &mut String) {
         }
         Block::List { ordered, items } => {
             for (index, item) in items.iter().enumerate() {
-                let item = inline::markdown_text(item);
-                if *ordered {
-                    output.push_str(&format!("{}. {item}\n", index + 1));
-                } else {
-                    output.push_str(&format!("- {item}\n"));
-                }
+                let content = inline::markdown_text(&item.content);
+                let marker = match (*ordered, item.checked) {
+                    (true, Some(true)) => format!("{}. [x]", index + 1),
+                    (true, Some(false)) => format!("{}. [ ]", index + 1),
+                    (_, Some(true)) => "- [x]".to_owned(),
+                    (_, Some(false)) => "- [ ]".to_owned(),
+                    (true, None) => format!("{}.", index + 1),
+                    (false, None) => "-".to_owned(),
+                };
+                output.push_str(&format!("{marker} {content}\n"));
             }
         }
         Block::Math { source, .. } => {
@@ -417,6 +421,15 @@ mod tests {
         assert!(rendered.contains("> A **quiet** [quote](https://example.com)\n"));
         assert!(rendered.contains("- *Fast* `reader`\n"));
         assert!(rendered.contains("- Plain\n"));
+    }
+
+    #[test]
+    fn renders_task_list_markdown() {
+        let document = Document::from_source("- [x] Done\n- [ ] Todo");
+        let rendered = render_document(&document);
+
+        assert!(rendered.contains("- [x] Done\n"));
+        assert!(rendered.contains("- [ ] Todo\n"));
     }
 
     #[test]

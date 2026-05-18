@@ -10,7 +10,7 @@ The initial block model supports:
 - Paragraphs
 - Blockquotes
 - Fenced code blocks with optional language labels
-- Ordered and unordered lists
+- Ordered, unordered, and read-only task lists
 - Horizontal rules
 - Heading, paragraph, list, blockquote, and table-cell inline spans for bold,
   italic, inline code, and links
@@ -22,12 +22,14 @@ This remains an early rendering foundation, not a polished final UI. TUI renderi
 - `paperview-core::parser::parse_markdown` uses `pulldown-cmark`.
 - `ParsedDocument::title` returns the first level-one heading.
 - Heading, paragraph, list, blockquote, and table-cell inline styling is preserved with `InlineSpan`.
+- List items use the shared `ListItem` model so task-list checkbox state can be
+  preserved beside rich inline content.
 - Frontends use PaperView's own `HeadingLevel` type rather than depending on `pulldown-cmark` event types.
 - Markdown element modules remain under `paperview-core/src/parser/elements/`; focused per-element implementations should move there as rendering requirements deepen.
 
 ## Open Decisions
 
-- Add tables and task lists as dedicated element modules rather than expanding the parser orchestrator indefinitely.
+- Move mature table and task-list behavior into dedicated element modules rather than expanding the parser orchestrator indefinitely.
 - Improve exact scroll restoration and richer inline span interactions as the reader matures.
 
 ## Verification Expectations

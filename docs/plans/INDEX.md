@@ -45,6 +45,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [TUI TOC Jump Mode](completed/tui-toc-jump-mode.md) - Ratatui TOC focus mode and jump-to-heading navigation.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.
 - [Table Rendering](completed/table-rendering.md) - structured Markdown table parsing and first GUI/TUI rendering.
+- [Task List Rendering](completed/task-list-rendering.md) - read-only checked and unchecked Markdown task-list rendering.
 - [TUI History Dashboard](completed/tui-history-dashboard.md) - no-file Ratatui recent-files dashboard with selection and open.
 
 Each plan should include:
