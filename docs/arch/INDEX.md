@@ -153,6 +153,11 @@ The first document-stats implementation keeps metadata calculation in
 exposes it as a headless `stats <file>` command that prints a report without
 initializing Ratatui.
 
+The first performance-baseline implementation lives in the TUI binary as a
+headless `perf <file>` command. It measures source read time, shared document
+parse/model construction, and TUI line rendering through
+`render_document_with_anchors` without initializing Ratatui.
+
 The first config implementation keeps TOML config path resolution and file
 creation in `paperview-core::ConfigStore`. The TUI binary exposes headless
 `config path` and `config edit` commands without initializing Ratatui.

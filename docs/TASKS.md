@@ -62,6 +62,7 @@ This document tracks the progress of features across the three workspace crates.
 | **paperview search** | ✅ | Prints ripgrep-backed path, line, column, and text results |
 | **paperview export** | 🏗️ | HTML export writes `.html`; PDF format is recognized but backend-unavailable |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, and heading structure |
+| **paperview perf** | ✅ | Prints read, parse/model, and TUI render baseline timings |
 | **paperview config** | ✅ | Supports config path and edit with TOML file creation |
 
 ---
@@ -70,7 +71,7 @@ This document tracks the progress of features across the three workspace crates.
 
 | Task | Status | Target |
 | :--- | :---: | :--- |
-| **Cold Startup Time** | ⬜ | < 500ms |
+| **Cold Startup Time** | 🏗️ | `paperview-tui perf <file>` records read/parse/render baseline; full startup timing still needed |
 | **Scrolling 60 FPS** | ⬜ | Constant |
 | **Memory Footprint** | ⬜ | < 100MB (Typical) |
 | **Zero-Dependency Build**| ⬜ | Single Binary |

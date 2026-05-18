@@ -36,3 +36,13 @@ PaperView should preserve the product goals from `docs/PRD.md`:
 - Lower memory usage than Electron-style alternatives.
 
 When performance-sensitive code changes, record the verification approach in the relevant feature spec or execution plan.
+
+Use the headless perf command for a quick local document pipeline baseline:
+
+```sh
+cargo run -p paperview-tui -- perf docs/PRD.md
+```
+
+This measures source read, document parse/model construction, and TUI line
+rendering. It does not yet measure GUI startup, widget layout, memory, or scroll
+frame timing.

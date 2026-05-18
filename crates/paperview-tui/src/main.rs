@@ -7,6 +7,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
+    time::{Duration, Instant},
 };
 
 fn main() -> ExitCode {
@@ -31,6 +32,11 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             let document = paperview_core::Document::open(PathBuf::from(path))
                 .map_err(|error| error.to_string())?;
             println!("{}", stats_text(&document));
+            Ok(())
+        }
+        [command, path] if command == "perf" => {
+            let report = measure_perf(PathBuf::from(path))?;
+            println!("{}", perf_text(&report));
             Ok(())
         }
         [command, path, flag, format] if command == "export" && flag == "--to" => {
@@ -82,7 +88,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         _ => Err(
-            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
+            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui perf <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
                 .to_owned(),
         ),
     }
@@ -91,7 +97,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 fn is_reserved_command(value: &OsString) -> bool {
     matches!(
         value.to_string_lossy().as_ref(),
-        "search" | "stats" | "export" | "config"
+        "search" | "stats" | "perf" | "export" | "config"
     )
 }
 
@@ -199,6 +205,82 @@ fn stats_text(document: &paperview_core::Document) -> String {
     output.join("\n")
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PerfReport {
+    path: PathBuf,
+    bytes: usize,
+    source_lines: usize,
+    blocks: usize,
+    headings: usize,
+    rendered_lines: usize,
+    read_duration: Duration,
+    parse_duration: Duration,
+    render_duration: Duration,
+    total_duration: Duration,
+}
+
+fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
+    paperview_core::SupportedFileType::from_path(&path)
+        .ok_or_else(|| format!("unsupported file type: {}", path.display()))?;
+
+    let total_started = Instant::now();
+
+    let read_started = Instant::now();
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    let read_duration = read_started.elapsed();
+    let bytes = source.len();
+    let source_lines = source.lines().count();
+
+    let parse_started = Instant::now();
+    let document = paperview_core::Document::from_source(source).with_path(path.clone());
+    let parse_duration = parse_started.elapsed();
+    let blocks = document.parsed().blocks.len();
+    let headings = document.parsed().toc().len();
+
+    let render_started = Instant::now();
+    let rendered = render::render_document_with_anchors(&document);
+    let render_duration = render_started.elapsed();
+
+    Ok(PerfReport {
+        path,
+        bytes,
+        source_lines,
+        blocks,
+        headings,
+        rendered_lines: rendered.lines.len(),
+        read_duration,
+        parse_duration,
+        render_duration,
+        total_duration: total_started.elapsed(),
+    })
+}
+
+fn perf_text(report: &PerfReport) -> String {
+    [
+        format!("File: {}", report.path.display()),
+        format!("Bytes: {}", report.bytes),
+        format!("Source lines: {}", report.source_lines),
+        format!("Parsed blocks: {}", report.blocks),
+        format!("Headings: {}", report.headings),
+        format!("Rendered TUI lines: {}", report.rendered_lines),
+        format!("Read: {}", format_duration(report.read_duration)),
+        format!("Parse: {}", format_duration(report.parse_duration)),
+        format!("Render: {}", format_duration(report.render_duration)),
+        format!("Total: {}", format_duration(report.total_duration)),
+    ]
+    .join("\n")
+}
+
+fn format_duration(duration: Duration) -> String {
+    let micros = duration.as_micros();
+    if micros < 1_000 {
+        format!("{micros}us")
+    } else {
+        format!("{:.2}ms", micros as f64 / 1_000.0)
+    }
+}
+
 fn workspace_search_text(matches: &[paperview_core::WorkspaceSearchMatch]) -> String {
     if matches.is_empty() {
         return "No matches".to_owned();
@@ -221,13 +303,13 @@ fn workspace_search_text(matches: &[paperview_core::WorkspaceSearchMatch]) -> St
 
 #[cfg(test)]
 mod tests {
-    use std::{env, ffi::OsString, fs, path::PathBuf};
+    use std::{env, ffi::OsString, fs, path::PathBuf, time::Duration};
 
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
     use super::{
-        config_path_text, export_path, is_reserved_command, open_documents, run, stats_text,
-        workspace_search_text,
+        PerfReport, config_path_text, export_path, format_duration, is_reserved_command,
+        measure_perf, open_documents, perf_text, run, stats_text, workspace_search_text,
     };
 
     #[test]
@@ -239,6 +321,36 @@ mod tests {
         assert!(report.contains("Words: 4"));
         assert!(report.contains("Estimated reading time: 1 min"));
         assert!(report.contains("Heading structure:\n- PaperView"));
+    }
+
+    #[test]
+    fn formats_perf_report() {
+        let report = PerfReport {
+            path: "docs/PRD.md".into(),
+            bytes: 128,
+            source_lines: 12,
+            blocks: 4,
+            headings: 2,
+            rendered_lines: 9,
+            read_duration: Duration::from_micros(250),
+            parse_duration: Duration::from_micros(1_500),
+            render_duration: Duration::from_micros(2_250),
+            total_duration: Duration::from_micros(4_000),
+        };
+        let text = perf_text(&report);
+
+        assert!(text.contains("File: docs/PRD.md"));
+        assert!(text.contains("Bytes: 128"));
+        assert!(text.contains("Parsed blocks: 4"));
+        assert!(text.contains("Read: 250us"));
+        assert!(text.contains("Parse: 1.50ms"));
+        assert!(text.contains("Total: 4.00ms"));
+    }
+
+    #[test]
+    fn formats_duration_units() {
+        assert_eq!(format_duration(Duration::from_micros(999)), "999us");
+        assert_eq!(format_duration(Duration::from_micros(1_000)), "1.00ms");
     }
 
     #[test]
@@ -325,6 +437,22 @@ mod tests {
     #[test]
     fn recognizes_reserved_commands() {
         assert!(is_reserved_command(&OsString::from("search")));
+        assert!(is_reserved_command(&OsString::from("perf")));
         assert!(!is_reserved_command(&OsString::from("docs/PRD.md")));
+    }
+
+    #[test]
+    fn measures_perf_report_shape() {
+        let path = env::temp_dir().join(format!("paperview-perf-test-{}.md", std::process::id()));
+        fs::write(&path, "# PaperView\n\nBody.").expect("write perf document");
+
+        let report = measure_perf(path.clone()).expect("measure perf");
+
+        assert_eq!(report.bytes, 18);
+        assert_eq!(report.source_lines, 3);
+        assert_eq!(report.blocks, 2);
+        assert_eq!(report.headings, 1);
+        assert!(report.rendered_lines >= 2);
+        fs::remove_file(path).expect("remove perf document");
     }
 }
