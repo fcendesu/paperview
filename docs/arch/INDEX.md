@@ -129,6 +129,11 @@ GUI and TUI frontends own their local search state and use the shared matches to
 jump reader scroll position; workspace search remains a separate deferred
 ripgrep-backed surface.
 
+The first document-stats implementation keeps metadata calculation in
+`paperview-core` through `Document::stats` and `DocumentStats`. The TUI binary
+exposes it as a headless `stats <file>` command that prints a report without
+initializing Ratatui.
+
 ---
 
 ## 5. Performance Optimizations

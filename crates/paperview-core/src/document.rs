@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{parser, search};
+use crate::{parser, search, stats};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Document {
@@ -71,6 +71,11 @@ impl Document {
     #[must_use]
     pub fn search(&self, query: &str) -> Vec<search::SearchMatch> {
         search::search_lines(&self.source, query)
+    }
+
+    #[must_use]
+    pub fn stats(&self) -> stats::DocumentStats {
+        stats::document_stats(&self.source, &self.parsed)
     }
 }
 
@@ -188,6 +193,16 @@ mod tests {
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0].line_index, 0);
         assert_eq!(matches[1].line_index, 2);
+    }
+
+    #[test]
+    fn reports_document_stats() {
+        let document = Document::from_source("# PaperView\n\nNative paper reader.");
+        let stats = document.stats();
+
+        assert_eq!(stats.word_count, 4);
+        assert_eq!(stats.heading_count, 1);
+        assert_eq!(stats.headings[0].depth, 1);
     }
 
     #[test]

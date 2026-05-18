@@ -19,6 +19,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [In-Document Search Foundation](completed/in-document-search-foundation.md) - shared document search API and first TUI search workflow.
 - [Inline Span Foundation](completed/inline-span-foundation.md) - paragraph bold, italic, code, and link span model.
 - [Heading Inline Spans](completed/heading-inline-spans.md) - inline spans for Markdown headings.
+- [Document Stats Command](completed/document-stats-command.md) - headless document metadata and heading-structure report.
 - [List And Blockquote Inline Spans](completed/list-blockquote-inline-spans.md) - inline spans for list items and blockquotes.
 - [Table Cell Inline Spans](completed/table-cell-inline-spans.md) - inline spans for Markdown table cells.
 - [LaTeX Math Foundation](completed/latex-foundation.md) - source-preserving inline and display math support across core, GUI, and TUI.

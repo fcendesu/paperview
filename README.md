@@ -80,6 +80,12 @@ Open the recent-files dashboard:
 cargo run -p paperview-tui
 ```
 
+Print document stats without launching the TUI:
+
+```sh
+cargo run -p paperview-tui -- stats docs/PRD.md
+```
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.
@@ -101,6 +107,9 @@ blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports
 case-insensitive in-document search with match navigation and highlighted match
 lines.
+
+The headless stats command prints word, line, character, reading-time, and
+heading-structure metadata for a document.
 
 ## Development Checks
 
@@ -147,7 +156,7 @@ Near-term MVP work includes:
 - Exact scroll geometry from rendered layout rectangles.
 - Split View drag resizing.
 - Full LaTeX typesetting and full Mermaid rendering.
-- Documentation-toolkit commands.
+- Remaining documentation-toolkit commands for workspace search, config, and export.
 - Richer Markdown rendering for remote images, exported anchors, and interactive
   task toggles.
 - Performance measurement against startup, scrolling, and memory targets.
