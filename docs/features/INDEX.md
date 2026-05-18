@@ -11,6 +11,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Hybrid Theme](hybrid-theme.md) - dark shell, cream reader surface, and GUI visual token contract.
 - [History Sidebar](history-sidebar.md) - shared recent-file model and first GUI history rail.
 - [Image Rendering](image-rendering.md) - structured standalone image parsing and first GUI/TUI rendering.
+- [In-Document Search](in-document-search.md) - shared document search API and first TUI search workflow.
 - [Inline Span Rendering](inline-span-rendering.md) - heading, paragraph, list, blockquote, and table-cell inline span rendering.
 - [LaTeX Support](latex-support.md) - source-preserving inline and display math foundation.
 - [Live Reload](live-reload.md) - notify-backed active-document reload foundation.

@@ -123,6 +123,11 @@ text attaches link metadata to inline link spans and resolves clicked relative
 targets against the active document before delegating to the OS opener. Clicked
 `#slug` links reuse the GUI TOC scroll path and update the active TOC item.
 
+The first in-document search implementation keeps source search in
+`paperview-core` through `Document::search` and line-based `SearchMatch` values.
+The TUI owns keyboard search state and uses the shared matches to jump the
+reader scroll position; GUI and workspace search surfaces are deferred.
+
 ---
 
 ## 5. Performance Optimizations

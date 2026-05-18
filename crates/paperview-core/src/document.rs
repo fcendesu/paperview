@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::parser;
+use crate::{parser, search};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Document {
@@ -66,6 +66,11 @@ impl Document {
     #[must_use]
     pub fn parsed(&self) -> &parser::ParsedDocument {
         &self.parsed
+    }
+
+    #[must_use]
+    pub fn search(&self, query: &str) -> Vec<search::SearchMatch> {
+        search::search_lines(&self.source, query)
     }
 }
 
@@ -172,6 +177,17 @@ mod tests {
         assert_eq!(document.source(), "# Loaded\n\nFrom disk.");
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn searches_document_source() {
+        let document = Document::from_source("# PaperView\n\nNative paper reader.");
+
+        let matches = document.search("paper");
+
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].line_index, 0);
+        assert_eq!(matches[1].line_index, 2);
     }
 
     #[test]

@@ -6,8 +6,8 @@ use std::{
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
-    Document, FileEntry, FileWatcher, History, HistoryStore, WatchEvent, parser::TocItem,
-    watch_file,
+    Document, FileEntry, FileWatcher, History, HistoryStore, SearchMatch, WatchEvent,
+    parser::TocItem, watch_file,
 };
 use ratatui::{
     DefaultTerminal, Frame,
@@ -42,6 +42,10 @@ struct ReaderApp {
     focus: ReaderFocus,
     scroll: u16,
     status: Option<String>,
+    search_mode: SearchMode,
+    search_query: String,
+    search_matches: Vec<SearchMatch>,
+    search_selected_index: Option<usize>,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
 }
@@ -50,6 +54,12 @@ struct ReaderApp {
 enum ReaderFocus {
     Reader,
     Toc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SearchMode {
+    Inactive,
+    Editing,
 }
 
 impl ReaderApp {
@@ -67,6 +77,10 @@ impl ReaderApp {
             focus: ReaderFocus::Reader,
             scroll: 0,
             status,
+            search_mode: SearchMode::Inactive,
+            search_query: String::new(),
+            search_matches: Vec::new(),
+            search_selected_index: None,
             _watcher: watcher,
             watch_receiver,
         }
@@ -81,8 +95,16 @@ impl ReaderApp {
                 && let Event::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
             {
+                if self.search_mode == SearchMode::Editing {
+                    self.handle_search_key(key.code);
+                    continue;
+                }
+
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                    KeyCode::Char('/') => self.start_search(),
+                    KeyCode::Char('n') => self.select_next_search_match(),
+                    KeyCode::Char('N') => self.select_previous_search_match(),
                     KeyCode::Tab => self.toggle_focus(),
                     KeyCode::Char('j') | KeyCode::Down => self.move_down(),
                     KeyCode::Char('k') | KeyCode::Up => self.move_up(),
@@ -111,13 +133,13 @@ impl ReaderApp {
             header,
         );
 
-        if let Some(status) = &self.status {
+        if let Some(status) = self.header_status() {
             let status_area = header.inner(ratatui::layout::Margin {
                 vertical: 1,
                 horizontal: 2,
             });
             frame.render_widget(
-                Paragraph::new(status.as_str()).style(Style::default().fg(Color::DarkGray)),
+                Paragraph::new(status).style(Style::default().fg(Color::DarkGray)),
                 status_area,
             );
         }
@@ -176,6 +198,108 @@ impl ReaderApp {
 
     fn scroll_to_bottom(&mut self) {
         self.scroll = self.max_scroll();
+    }
+
+    fn start_search(&mut self) {
+        self.search_mode = SearchMode::Editing;
+        self.search_query.clear();
+        self.status = Some("Search: type a query, Enter jumps, Esc cancels".to_owned());
+    }
+
+    fn handle_search_key(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.search_mode = SearchMode::Inactive;
+                self.status = None;
+            }
+            KeyCode::Enter => self.submit_search(),
+            KeyCode::Backspace => {
+                self.search_query.pop();
+            }
+            KeyCode::Char(character) => {
+                self.search_query.push(character);
+            }
+            _ => {}
+        }
+    }
+
+    fn submit_search(&mut self) {
+        self.search_mode = SearchMode::Inactive;
+        self.refresh_search_matches();
+
+        if self.search_matches.is_empty() {
+            self.search_selected_index = None;
+            self.status = Some(format!("No matches for '{}'", self.search_query));
+            return;
+        }
+
+        self.search_selected_index = Some(0);
+        self.scroll_to_search_match(0);
+        self.status = Some(self.search_status());
+    }
+
+    fn refresh_search_matches(&mut self) {
+        self.search_matches = self.document.search(&self.search_query);
+        self.search_selected_index =
+            clamp_search_selection(self.search_selected_index, self.search_matches.len());
+    }
+
+    fn select_next_search_match(&mut self) {
+        if self.search_matches.is_empty() {
+            return;
+        }
+
+        let next = self
+            .search_selected_index
+            .map_or(0, |index| (index + 1) % self.search_matches.len());
+        self.search_selected_index = Some(next);
+        self.scroll_to_search_match(next);
+        self.status = Some(self.search_status());
+    }
+
+    fn select_previous_search_match(&mut self) {
+        if self.search_matches.is_empty() {
+            return;
+        }
+
+        let previous = self.search_selected_index.map_or(0, |index| {
+            if index == 0 {
+                self.search_matches.len() - 1
+            } else {
+                index - 1
+            }
+        });
+        self.search_selected_index = Some(previous);
+        self.scroll_to_search_match(previous);
+        self.status = Some(self.search_status());
+    }
+
+    fn scroll_to_search_match(&mut self, index: usize) {
+        if let Some(search_match) = self.search_matches.get(index) {
+            self.scroll = (search_match.line_index as u16).min(self.max_scroll());
+            self.focus = ReaderFocus::Reader;
+        }
+    }
+
+    fn search_status(&self) -> String {
+        let Some(index) = self.search_selected_index else {
+            return format!("No matches for '{}'", self.search_query);
+        };
+
+        format!(
+            "Match {}/{} for '{}' - n/N moves",
+            index + 1,
+            self.search_matches.len(),
+            self.search_query
+        )
+    }
+
+    fn header_status(&self) -> Option<String> {
+        if self.search_mode == SearchMode::Editing {
+            return Some(format!("/{}", self.search_query));
+        }
+
+        self.status.clone()
     }
 
     fn toggle_focus(&mut self) {
@@ -293,6 +417,7 @@ impl ReaderApp {
                 self.toc = document.parsed().toc();
                 self.toc_selected_index =
                     clamp_toc_selection(self.toc_selected_index, self.toc.len());
+                self.refresh_search_matches();
                 if self.toc.is_empty() {
                     self.focus = ReaderFocus::Reader;
                 }
@@ -312,6 +437,14 @@ fn initial_toc_selection(toc: &[TocItem]) -> Option<usize> {
 }
 
 fn clamp_toc_selection(selection: Option<usize>, len: usize) -> Option<usize> {
+    if len == 0 {
+        None
+    } else {
+        Some(selection.unwrap_or(0).min(len - 1))
+    }
+}
+
+fn clamp_search_selection(selection: Option<usize>, len: usize) -> Option<usize> {
     if len == 0 {
         None
     } else {
@@ -537,9 +670,13 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
+    use crossterm::event::KeyCode;
     use paperview_core::{Document, FileEntry, HistoryStore};
 
-    use super::{DashboardApp, ReaderApp, ReaderFocus, clamp_toc_selection};
+    use super::{
+        DashboardApp, ReaderApp, ReaderFocus, SearchMode, clamp_search_selection,
+        clamp_toc_selection,
+    };
 
     #[test]
     fn scrolling_is_saturating() {
@@ -628,6 +765,53 @@ mod tests {
         assert_eq!(clamp_toc_selection(Some(3), 2), Some(1));
         assert_eq!(clamp_toc_selection(Some(0), 0), None);
         assert_eq!(clamp_toc_selection(None, 2), Some(0));
+    }
+
+    #[test]
+    fn search_submission_scrolls_to_first_match() {
+        let mut app = ReaderApp::new(Document::from_source("# Title\n\nAlpha.\n\nNeedle here."));
+
+        app.start_search();
+        app.handle_search_key(KeyCode::Char('n'));
+        app.handle_search_key(KeyCode::Char('e'));
+        app.handle_search_key(KeyCode::Char('e'));
+        app.handle_search_key(KeyCode::Char('d'));
+        app.handle_search_key(KeyCode::Char('l'));
+        app.handle_search_key(KeyCode::Char('e'));
+        app.handle_search_key(KeyCode::Enter);
+
+        assert_eq!(app.search_mode, SearchMode::Inactive);
+        assert_eq!(app.search_matches.len(), 1);
+        assert_eq!(app.search_selected_index, Some(0));
+        assert_eq!(app.scroll, 4);
+        assert_eq!(app.focus, ReaderFocus::Reader);
+    }
+
+    #[test]
+    fn search_navigation_wraps_between_matches() {
+        let mut app = ReaderApp::new(Document::from_source(
+            "Needle one.\n\nMiddle.\n\nNeedle two.",
+        ));
+        app.search_query = "needle".to_owned();
+        app.submit_search();
+
+        app.select_next_search_match();
+        assert_eq!(app.search_selected_index, Some(1));
+        assert_eq!(app.scroll, 4);
+
+        app.select_next_search_match();
+        assert_eq!(app.search_selected_index, Some(0));
+        assert_eq!(app.scroll, 0);
+
+        app.select_previous_search_match();
+        assert_eq!(app.search_selected_index, Some(1));
+    }
+
+    #[test]
+    fn search_selection_clamps_after_reload() {
+        assert_eq!(clamp_search_selection(Some(3), 2), Some(1));
+        assert_eq!(clamp_search_selection(Some(0), 0), None);
+        assert_eq!(clamp_search_selection(None, 2), Some(0));
     }
 
     #[test]

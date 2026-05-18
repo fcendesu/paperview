@@ -16,6 +16,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [History Sidebar Foundation](completed/history-sidebar-foundation.md) - shared recent-file model and first GUI history rail.
 - [History Persistence](completed/history-persistence.md) - TOML-backed recent-file storage loaded and saved by the GUI.
 - [Image Rendering](completed/image-rendering.md) - standalone image metadata blocks and first GUI/TUI rendering.
+- [In-Document Search Foundation](completed/in-document-search-foundation.md) - shared document search API and first TUI search workflow.
 - [Inline Span Foundation](completed/inline-span-foundation.md) - paragraph bold, italic, code, and link span model.
 - [Heading Inline Spans](completed/heading-inline-spans.md) - inline spans for Markdown headings.
 - [List And Blockquote Inline Spans](completed/list-blockquote-inline-spans.md) - inline spans for list items and blockquotes.

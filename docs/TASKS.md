@@ -28,6 +28,7 @@ This document tracks the progress of features across the three workspace crates.
 | **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
 | **Scroll Synchronization** | ✅ | ✅ | ✅ |
+| **In-Document Search** | ✅ | ⬜ | ✅ |
 | **LaTeX Support** | ✅ | 🏗️ | 🏗️ |
 | **Mermaid Support** | ✅ | 🏗️ | 🏗️ |
 | **Zen Mode** | ⬜ | ✅ | ⬜ |
@@ -44,6 +45,7 @@ This document tracks the progress of features across the three workspace crates.
 - Tabbed Interface currently covers shared open-document state plus GUI tab activation and close controls; reorder/TUI tabs are deferred.
 - Split View currently covers a GUI foundation for comparing the active tab with one other open tab, including a visible toggle, secondary tab selection, and keyboard resizing; drag resize, scroll sync, and TUI split are deferred.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
+- In-Document Search currently covers shared case-insensitive line search plus TUI `/`, `n`, and `N` navigation; GUI search UI, highlighting, and exact rendered-line geometry are deferred.
 - LaTeX Support currently covers parser preservation for inline math, a dedicated display math block, GUI readable previews for common display math tokens, and TUI source-preserving display math; full formula typesetting and structured inline spans are deferred.
 - Mermaid Support currently covers parser recognition for `mermaid` fences, source-preserving diagram panels in GUI/TUI, and simple GUI flowchart previews; full Mermaid layout, validation, TUI previews, and export assets are deferred.
 - Table Rendering currently covers structured table parsing, inline cell formatting, GUI table panels, and aligned TUI table output; wide-table scrolling and responsive column sizing are deferred.

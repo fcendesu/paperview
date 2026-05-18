@@ -13,7 +13,7 @@ navigate quickly, and keep it in sync while editing elsewhere.
 PaperView is in early MVP development. The workspace currently contains:
 
 - `paperview-core`: document loading, Markdown parsing, recent-file history,
-  live-reload watching, and shared open-document tab state.
+  live-reload watching, in-document search, and shared open-document tab state.
 - `paperview-gui`: an Iced desktop reader with history, table of contents,
   tabs, drag-and-drop, live reload, and Zen Mode.
 - `paperview-tui`: a Ratatui terminal reader with recent-file dashboard,
@@ -86,6 +86,8 @@ TUI controls:
 - `G`: jump to bottom in the reader.
 - `Tab`: switch focus between the reader and table of contents.
 - `Enter`: jump to the selected TOC heading when the TOC is focused.
+- `/`: search within the current document.
+- `n` / `N`: jump to the next or previous search match.
 - In the dashboard, `Enter`: open the selected recent file.
 - `q` / `Esc`: quit the current TUI view.
 
@@ -94,7 +96,8 @@ jump through headings from the TOC, and preserves LaTeX display math plus
 Mermaid diagram source. Markdown tables render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
-Task-list markers render as `- [x]` and `- [ ]` lines.
+Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports
+case-insensitive in-document search with match navigation.
 
 ## Development Checks
 
@@ -141,7 +144,7 @@ Near-term MVP work includes:
 - Exact scroll geometry from rendered layout rectangles.
 - Split View drag resizing.
 - Full LaTeX typesetting and full Mermaid rendering.
-- Search and documentation-toolkit commands.
+- GUI search and documentation-toolkit commands.
 - Richer Markdown rendering for remote images, exported anchors, and interactive
   task toggles.
 - Performance measurement against startup, scrolling, and memory targets.
