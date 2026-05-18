@@ -17,6 +17,8 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.html`.
 - `paperview-core::export_document` routes the shared `ExportFormat::Html`
   backend into an `ExportArtifact` that the CLI can write.
 - The exporter escapes text and HTML attributes before writing user content.
+- Exported headings include duplicate-safe `id` attributes using the same
+  slug policy as the shared table of contents.
 - Current output covers headings, paragraphs, blockquotes, code blocks,
   Mermaid/source diagram blocks, image blocks, tables, lists, task-list
   checkboxes, math blocks, and rules.
@@ -29,8 +31,8 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.html`.
 - HTML is the first export backend; PDF export is recognized by the command
   layer but remains backend-unavailable.
 - Math and Mermaid export are source-preserving rather than fully rendered.
-- Exported heading anchors, external asset bundling, syntax highlighting, and
-  template customization are deferred.
+- External asset bundling, syntax highlighting, and template customization are
+  deferred.
 - Existing files with the derived `.html` path are overwritten.
 
 ## Verification Expectations

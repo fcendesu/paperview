@@ -19,7 +19,8 @@ directory when the document has a path. The TUI renders spans back into
 Markdown-shaped text and keeps links display-only.
 
 Document titles, TOC labels, heading slugs, and scroll geometry derive from
-plain heading text.
+plain heading text. HTML export uses those heading slugs as exported heading
+anchors.
 
 ## Implementation Notes
 
@@ -42,8 +43,6 @@ plain heading text.
 
 ## Open Decisions
 
-- Decide how exported documents should share or translate PaperView heading
-  slugs.
 - Decide how nested inline styles should be exposed for export.
 
 ## Verification

@@ -31,8 +31,9 @@ cargo run -p paperview-tui -- export docs/PRD.md --to html
 ```
 
 The first backend writes the derived `.html` path beside the source file. PDF
-export, rendered math and Mermaid assets, exported heading anchors, syntax
-highlighting, and template customization remain deferred.
+export, rendered math and Mermaid assets, syntax highlighting, and template
+customization remain deferred. Exported heading anchors were added in a later
+slice and now reuse the shared TOC slug policy.
 
 ## Verification
 

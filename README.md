@@ -32,8 +32,8 @@ blocks, tables, task-list markers, rules, LaTeX display math panels with
 readable previews, Mermaid diagram panels with simple flowchart previews, and
 image metadata panels are supported. Richer technical-document features such as
 full LaTeX typesetting, full Mermaid rendering, remote image fetching,
-interactive task toggles, advanced Split View controls, exported anchors, and
-PDF export are still on the roadmap.
+interactive task toggles, advanced Split View controls, and PDF export are
+still on the roadmap.
 
 ## Run The GUI
 
@@ -156,9 +156,9 @@ The config commands print or open PaperView's TOML config file, creating a
 default file before edit when needed.
 The workspace search command prints ripgrep-backed `path:line:column` results
 without launching the TUI.
-The export command writes standalone HTML beside the source document and prints
-the generated path. PDF export is recognized by the CLI but remains
-backend-unavailable.
+The export command writes standalone HTML with heading anchors beside the source
+document and prints the generated path. PDF export is recognized by the CLI but
+remains backend-unavailable.
 
 ## Development Checks
 
@@ -205,8 +205,7 @@ Near-term MVP work includes:
 - Exact scroll geometry from rendered layout rectangles.
 - Full LaTeX typesetting and full Mermaid rendering.
 - PDF export.
-- Richer Markdown rendering for remote images, exported anchors, and
-  interactive task toggles.
+- Richer Markdown rendering for remote images and interactive task toggles.
 - Performance measurement against startup, scrolling, and memory targets.
 
 See [`docs/TASKS.md`](docs/TASKS.md) for the current implementation tracker.

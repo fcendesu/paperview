@@ -111,17 +111,29 @@ pub fn export_html(document: &Document) -> String {
     output.push_str(CSS);
     output.push_str("  </style>\n</head>\n<body>\n<main>\n");
 
+    let heading_slugs = document
+        .parsed()
+        .toc()
+        .into_iter()
+        .map(|item| item.slug)
+        .collect::<Vec<_>>();
+    let mut heading_slugs = heading_slugs.iter();
+
     for block in &document.parsed().blocks {
-        render_block(block, &mut output);
+        let heading_slug = matches!(block, Block::Heading { .. })
+            .then(|| heading_slugs.next())
+            .flatten()
+            .map(String::as_str);
+        render_block(block, heading_slug, &mut output);
     }
 
     output.push_str("</main>\n</body>\n</html>\n");
     output
 }
 
-fn render_block(block: &Block, output: &mut String) {
+fn render_block(block: &Block, heading_slug: Option<&str>, output: &mut String) {
     match block {
-        Block::Heading { level, spans } => render_heading(*level, spans, output),
+        Block::Heading { level, spans } => render_heading(*level, spans, heading_slug, output),
         Block::Paragraph(spans) => {
             output.push_str("<p>");
             render_inline_spans(spans, output);
@@ -171,9 +183,20 @@ fn render_block(block: &Block, output: &mut String) {
     }
 }
 
-fn render_heading(level: HeadingLevel, spans: &[InlineSpan], output: &mut String) {
+fn render_heading(
+    level: HeadingLevel,
+    spans: &[InlineSpan],
+    slug: Option<&str>,
+    output: &mut String,
+) {
     let depth = level.as_depth();
-    output.push_str(&format!("<h{depth}>"));
+    output.push_str(&format!("<h{depth}"));
+    if let Some(slug) = slug {
+        output.push_str(" id=\"");
+        output.push_str(&escape_attr(slug));
+        output.push('"');
+    }
+    output.push('>');
     render_inline_spans(spans, output);
     output.push_str(&format!("</h{depth}>\n"));
 }
@@ -410,7 +433,7 @@ mod tests {
         let html = export_html(&document);
 
         assert!(html.contains("<title>PaperView</title>"));
-        assert!(html.contains("<h1>PaperView</h1>"));
+        assert!(html.contains("<h1 id=\"paperview\">PaperView</h1>"));
         assert!(html.contains("<strong>native</strong>"));
         assert!(html.contains("<a href=\"docs/index.md\">reader</a>"));
         assert!(html.contains("<input type=\"checkbox\" disabled checked> Done"));
@@ -421,8 +444,18 @@ mod tests {
         let document = Document::from_source("# PaperView & Friends\n\n[link](docs/\"quote\".md)");
         let html = export_html(&document);
 
-        assert!(html.contains("<h1>PaperView &amp; Friends</h1>"));
+        assert!(html.contains("<h1 id=\"paperview-friends\">PaperView &amp; Friends</h1>"));
         assert!(html.contains("href=\"docs/&quot;quote&quot;.md\""));
+    }
+
+    #[test]
+    fn exports_duplicate_heading_anchors() {
+        let document = Document::from_source("# Intro\n\n## Details\n\n### Details");
+        let html = export_html(&document);
+
+        assert!(html.contains("<h1 id=\"intro\">Intro</h1>"));
+        assert!(html.contains("<h2 id=\"details\">Details</h2>"));
+        assert!(html.contains("<h3 id=\"details-2\">Details</h3>"));
     }
 
     #[test]

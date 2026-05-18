@@ -21,6 +21,7 @@ arrow keys, and jump-to-heading with `Enter`.
 
 - Core TOC extraction lives on `paperview_core::parser::ParsedDocument::toc`.
 - TOC records use `TocItem`, which includes `level`, `title`, `slug`, and `block_index`.
+- HTML export reuses the same slug sequence for heading `id` attributes.
 - GUI rendering lives in `crates/paperview-gui/src/navigation.rs`.
 - GUI anchor-link routing lives in `crates/paperview-gui/src/app.rs` and
   matches clicked `#slug` targets against TOC slugs.
@@ -29,7 +30,6 @@ arrow keys, and jump-to-heading with `Enter`.
 
 ## Open Decisions
 
-- Slugs are internal metadata for now; future exported HTML may need a shared anchor policy.
 - Mouse-based TOC navigation is deferred.
 - Exact wrapped terminal line geometry remains separate from static TOC rendering.
 
