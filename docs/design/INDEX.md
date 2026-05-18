@@ -85,8 +85,9 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 | **Code Block** | Monospace | 14px | 400 | `#1F2328` |
 
 Current source-preserving technical blocks use the same restrained panel shape
-as code blocks. LaTeX math uses a warm accent border, and Mermaid diagrams use a
-green accent border with simple flowchart previews when supported.
+as code blocks. LaTeX math uses a warm accent border and shows a larger readable
+preview when common math tokens can be translated. Mermaid diagrams use a green
+accent border with simple flowchart previews when supported.
 Standalone local images render as constrained previews with a cool blue metadata
 panel treatment. Missing, remote, and unresolved images keep the metadata-only
 fallback.

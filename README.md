@@ -27,11 +27,11 @@ Supported input formats:
 
 Implemented Markdown rendering is still intentionally basic: headings,
 paragraphs, lists, blockquotes, and table cells with basic inline styling, code
-blocks, tables, rules, source-preserving LaTeX math, Mermaid diagram panels with
-simple flowchart previews, and image metadata panels are supported. Richer
-technical-document features such as full LaTeX typesetting, full Mermaid
-rendering, remote image fetching, task lists, search, advanced Split View
-controls, and export are still on the roadmap.
+blocks, tables, rules, LaTeX display math panels with readable previews,
+Mermaid diagram panels with simple flowchart previews, and image metadata panels
+are supported. Richer technical-document features such as full LaTeX
+typesetting, full Mermaid rendering, remote image fetching, task lists, search,
+advanced Split View controls, and export are still on the roadmap.
 
 ## Run The GUI
 
@@ -50,7 +50,7 @@ GUI highlights:
   and clickable link styling.
 - Bordered Markdown tables with shaded headers.
 - Standalone local bitmap image previews with metadata fallback.
-- Source-preserving display math panels for LaTeX blocks.
+- Source-preserving display math panels with readable previews.
 - Mermaid diagram panels with simple native flowchart previews.
 - Multiple document tabs with close controls.
 - Native drag-and-drop, including multiple dropped files into tabs.

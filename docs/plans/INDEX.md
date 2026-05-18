@@ -21,6 +21,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [List And Blockquote Inline Spans](completed/list-blockquote-inline-spans.md) - inline spans for list items and blockquotes.
 - [Table Cell Inline Spans](completed/table-cell-inline-spans.md) - inline spans for Markdown table cells.
 - [LaTeX Math Foundation](completed/latex-foundation.md) - source-preserving inline and display math support across core, GUI, and TUI.
+- [LaTeX Readable Preview](completed/latex-readable-preview.md) - lightweight GUI display-math previews.
 - [GUI History Open](completed/gui-history-open.md) - clickable GUI history entries that reopen and persist recent documents.
 - [GUI Clickable Links](completed/gui-clickable-links.md) - clickable GUI inline links through the platform opener.
 - [GUI Anchor Links](completed/gui-anchor-links.md) - clicked `#slug` links jump to matching headings.

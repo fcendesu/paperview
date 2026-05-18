@@ -11,7 +11,7 @@ use paperview_core::{
     Document,
     parser::{
         Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow,
-        elements::{diagram, inline},
+        elements::{diagram, inline, math},
     },
 };
 
@@ -465,17 +465,24 @@ fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Mess
         "inline math"
     };
 
-    container(
-        column![
-            text(label).size(12).color(theme::SHELL_ACCENT),
-            text(source).size(16).color(theme::READER_TEXT)
-        ]
-        .spacing(8),
-    )
-    .padding(16)
-    .width(Fill)
-    .style(|_| theme::math_container())
-    .into()
+    let mut content = column![text(label).size(12).color(theme::SHELL_ACCENT)].spacing(8);
+
+    if let Some(preview) = math::readable_preview(source) {
+        content = content.push(
+            container(text(preview).size(20).color(theme::READER_TEXT))
+                .padding([8, 10])
+                .width(Fill)
+                .style(|_| theme::paper_container()),
+        );
+    }
+
+    content = content.push(text(source).size(16).color(theme::READER_TEXT));
+
+    container(content)
+        .padding(16)
+        .width(Fill)
+        .style(|_| theme::math_container())
+        .into()
 }
 
 fn list<Message: 'static>(

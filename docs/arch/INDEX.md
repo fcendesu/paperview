@@ -90,8 +90,9 @@ The first tabs implementation keeps open-document ownership in `paperview-core::
 
 The first LaTeX implementation keeps math semantics in `paperview-core` by
 preserving inline math text and exposing display math as `Block::Math`.
-Frontends render source-preserving math affordances until native formula
-typesetting is selected.
+Core also exposes a lightweight readable-preview transform for common display
+math tokens. The GUI shows that preview above the preserved source when it can
+improve readability; TUI output remains source-preserving.
 
 The first Mermaid implementation keeps diagram semantics in `paperview-core` by
 detecting `mermaid` fenced code blocks and exposing them as `Block::Diagram`.
