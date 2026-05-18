@@ -45,6 +45,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
 - [TUI TOC Scroll Sync](completed/tui-toc-scroll-sync.md) - Ratatui reader highlights the active TOC section while scrolling.
 - [TUI TOC Jump Mode](completed/tui-toc-jump-mode.md) - Ratatui TOC focus mode and jump-to-heading navigation.
+- [TUI Search Highlighting](completed/tui-search-highlighting.md) - highlighted TUI search result lines.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.
 - [Table Rendering](completed/table-rendering.md) - structured Markdown table parsing and first GUI/TUI rendering.
 - [Task List Rendering](completed/task-list-rendering.md) - read-only checked and unchecked Markdown task-list rendering.

@@ -18,6 +18,7 @@ Current TUI controls:
 - `n` jumps to the next match.
 - `N` jumps to the previous match.
 - `Esc` cancels search entry.
+- Matching TUI lines are highlighted, with the selected match emphasized.
 
 Search is case-insensitive and line-based. It searches the source document text and scrolls the TUI reader to the matching source line.
 
@@ -27,12 +28,13 @@ Search is case-insensitive and line-based. It searches the source document text 
 - `Document::search` exposes source search without requiring frontends to inspect document internals.
 - The GUI stores query, result list, and selected match state in `PaperView` and uses the active reader scroll operation to jump matches.
 - The TUI reader keeps search query, result list, and selected match state in `ReaderApp`.
+- TUI reader rendering styles matched lines and gives the selected match a stronger highlighted span.
 - Search results are refreshed after live reload so the selected result remains bounded to the reloaded document.
 
 ## Decisions And Gaps
 
 - Workspace search through `paperview search <query>` is still deferred and should use a separate ripgrep-backed feature.
-- Match highlighting is deferred; the current behavior jumps to the matching line and reports match position.
+- GUI match highlighting is deferred; the current GUI behavior jumps to the matching line and reports match position.
 - Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks, especially in the GUI.
 
 ## Verification Expectations

@@ -145,11 +145,14 @@ impl ReaderApp {
         }
 
         frame.render_widget(
-            Paragraph::new(Text::from(document_text(&self.document_lines)))
-                .block(Block::default().title("Reader").borders(Borders::ALL))
-                .style(Style::default().fg(Color::Gray))
-                .scroll((self.scroll, 0))
-                .wrap(Wrap { trim: false }),
+            Paragraph::new(Text::from(document_text(
+                &self.document_lines,
+                self.search_highlights(),
+            )))
+            .block(Block::default().title("Reader").borders(Borders::ALL))
+            .style(Style::default().fg(Color::Gray))
+            .scroll((self.scroll, 0))
+            .wrap(Wrap { trim: false }),
             reader,
         );
 
@@ -300,6 +303,14 @@ impl ReaderApp {
         }
 
         self.status.clone()
+    }
+
+    fn search_highlights(&self) -> SearchHighlights<'_> {
+        SearchHighlights {
+            query: &self.search_query,
+            matches: &self.search_matches,
+            selected_index: self.search_selected_index,
+        }
     }
 
     fn toggle_focus(&mut self) {
@@ -641,11 +652,55 @@ fn history_item(entry: &FileEntry) -> ListItem<'static> {
     ])
 }
 
-fn document_text(lines: &[String]) -> Vec<Line<'static>> {
-    lines.iter().map(|line| document_line(line)).collect()
+#[derive(Debug, Clone, Copy)]
+struct SearchHighlights<'a> {
+    query: &'a str,
+    matches: &'a [SearchMatch],
+    selected_index: Option<usize>,
 }
 
-fn document_line(line: &str) -> Line<'static> {
+impl SearchHighlights<'_> {
+    fn line_state(self, line_index: usize) -> SearchLineState {
+        if self
+            .selected_index
+            .and_then(|index| self.matches.get(index))
+            .is_some_and(|search_match| search_match.line_index == line_index)
+        {
+            return SearchLineState::Selected;
+        }
+
+        if self
+            .matches
+            .iter()
+            .any(|search_match| search_match.line_index == line_index)
+        {
+            SearchLineState::Matched
+        } else {
+            SearchLineState::None
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SearchLineState {
+    None,
+    Matched,
+    Selected,
+}
+
+fn document_text(lines: &[String], highlights: SearchHighlights<'_>) -> Vec<Line<'static>> {
+    lines
+        .iter()
+        .enumerate()
+        .map(|(index, line)| document_line(line, highlights.query, highlights.line_state(index)))
+        .collect()
+}
+
+fn document_line(line: &str, query: &str, search_state: SearchLineState) -> Line<'static> {
+    if search_state != SearchLineState::None {
+        return highlighted_document_line(line, query, search_state);
+    }
+
     if line.starts_with('#') {
         Line::from(Span::styled(
             line.to_owned(),
@@ -663,6 +718,50 @@ fn document_line(line: &str) -> Line<'static> {
     }
 }
 
+fn highlighted_document_line(
+    line: &str,
+    query: &str,
+    search_state: SearchLineState,
+) -> Line<'static> {
+    let base_style = match search_state {
+        SearchLineState::Selected => Style::default().fg(Color::Black).bg(Color::Yellow),
+        SearchLineState::Matched => Style::default().fg(Color::White).bg(Color::DarkGray),
+        SearchLineState::None => Style::default(),
+    };
+    let emphasis_style = match search_state {
+        SearchLineState::Selected => Style::default()
+            .fg(Color::Black)
+            .bg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+        SearchLineState::Matched => Style::default()
+            .fg(Color::White)
+            .bg(Color::Blue)
+            .add_modifier(Modifier::BOLD),
+        SearchLineState::None => Style::default(),
+    };
+    let Some((start, end)) = match_range(line, query) else {
+        return Line::from(Span::styled(line.to_owned(), base_style));
+    };
+
+    Line::from(vec![
+        Span::styled(line[..start].to_owned(), base_style),
+        Span::styled(line[start..end].to_owned(), emphasis_style),
+        Span::styled(line[end..].to_owned(), base_style),
+    ])
+}
+
+fn match_range(line: &str, query: &str) -> Option<(usize, usize)> {
+    let needle = query.trim();
+    if needle.is_empty() {
+        return None;
+    }
+
+    let lower_line = line.to_lowercase();
+    let lower_needle = needle.to_lowercase();
+    let start = lower_line.find(&lower_needle)?;
+    Some((start, start + lower_needle.len()))
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -671,11 +770,12 @@ mod tests {
     };
 
     use crossterm::event::KeyCode;
-    use paperview_core::{Document, FileEntry, HistoryStore};
+    use paperview_core::{Document, FileEntry, HistoryStore, SearchMatch};
+    use ratatui::style::{Color, Modifier};
 
     use super::{
-        DashboardApp, ReaderApp, ReaderFocus, SearchMode, clamp_search_selection,
-        clamp_toc_selection,
+        DashboardApp, ReaderApp, ReaderFocus, SearchHighlights, SearchMode, clamp_search_selection,
+        clamp_toc_selection, document_text,
     };
 
     #[test]
@@ -805,6 +905,64 @@ mod tests {
 
         app.select_previous_search_match();
         assert_eq!(app.search_selected_index, Some(1));
+    }
+
+    #[test]
+    fn document_text_highlights_selected_search_line() {
+        let lines = vec!["Needle one.".to_owned(), "Plain.".to_owned()];
+        let rendered = document_text(
+            &lines,
+            SearchHighlights {
+                query: "needle",
+                matches: &[SearchMatch {
+                    line_index: 0,
+                    column: 0,
+                    line: "Needle one.".to_owned(),
+                }],
+                selected_index: Some(0),
+            },
+        );
+        let highlighted = rendered[0]
+            .spans
+            .iter()
+            .find(|span| span.content.as_ref() == "Needle")
+            .expect("highlighted match span");
+
+        assert_eq!(highlighted.style.bg, Some(Color::Yellow));
+        assert!(highlighted.style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn document_text_highlights_unselected_search_lines() {
+        let lines = vec!["Needle one.".to_owned(), "Needle two.".to_owned()];
+        let matches = vec![
+            SearchMatch {
+                line_index: 0,
+                column: 0,
+                line: "Needle one.".to_owned(),
+            },
+            SearchMatch {
+                line_index: 1,
+                column: 0,
+                line: "Needle two.".to_owned(),
+            },
+        ];
+        let rendered = document_text(
+            &lines,
+            SearchHighlights {
+                query: "needle",
+                matches: &matches,
+                selected_index: Some(0),
+            },
+        );
+        let highlighted = rendered[1]
+            .spans
+            .iter()
+            .find(|span| span.content.as_ref() == "Needle")
+            .expect("highlighted match span");
+
+        assert_eq!(highlighted.style.bg, Some(Color::Blue));
+        assert!(highlighted.style.add_modifier.contains(Modifier::BOLD));
     }
 
     #[test]

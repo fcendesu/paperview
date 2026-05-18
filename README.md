@@ -98,7 +98,8 @@ Mermaid diagram source. Markdown tables render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports
-case-insensitive in-document search with match navigation.
+case-insensitive in-document search with match navigation and highlighted match
+lines.
 
 ## Development Checks
 
