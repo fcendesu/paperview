@@ -69,16 +69,41 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         [path] => {
-            let document = paperview_core::Document::open(PathBuf::from(path))
-                .map_err(|error| error.to_string())?;
+            let document = open_documents([path])?
+                .into_iter()
+                .next()
+                .expect("single document");
             app::run(document).map_err(|error| error.to_string())?;
             Ok(())
         }
+        paths if !paths.is_empty() && !is_reserved_command(&paths[0]) => {
+            let documents = open_documents(paths.iter())?;
+            app::run_documents(documents).map_err(|error| error.to_string())?;
+            Ok(())
+        }
         _ => Err(
-            "usage: paperview-tui [file]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
+            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
                 .to_owned(),
         ),
     }
+}
+
+fn is_reserved_command(value: &OsString) -> bool {
+    matches!(
+        value.to_string_lossy().as_ref(),
+        "search" | "stats" | "export" | "config"
+    )
+}
+
+fn open_documents<'a>(
+    paths: impl IntoIterator<Item = &'a OsString>,
+) -> Result<Vec<paperview_core::Document>, String> {
+    paths
+        .into_iter()
+        .map(|path| {
+            paperview_core::Document::open(PathBuf::from(path)).map_err(|error| error.to_string())
+        })
+        .collect()
 }
 
 fn config_path_text(store: &paperview_core::ConfigStore) -> String {
@@ -200,7 +225,10 @@ mod tests {
 
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
-    use super::{config_path_text, export_path, run, stats_text, workspace_search_text};
+    use super::{
+        config_path_text, export_path, is_reserved_command, open_documents, run, stats_text,
+        workspace_search_text,
+    };
 
     #[test]
     fn formats_stats_report() {
@@ -266,5 +294,37 @@ mod tests {
         fs::remove_file(path).expect("remove test document");
 
         assert_eq!(result, Err("PDF export is not available yet".to_owned()));
+    }
+
+    #[test]
+    fn opens_multiple_documents_for_tabs() {
+        let first = env::temp_dir().join(format!(
+            "paperview-tui-tabs-first-{}.md",
+            std::process::id()
+        ));
+        let second = env::temp_dir().join(format!(
+            "paperview-tui-tabs-second-{}.md",
+            std::process::id()
+        ));
+        fs::write(&first, "# First\n").expect("write first document");
+        fs::write(&second, "# Second\n").expect("write second document");
+        let args = [
+            first.clone().into_os_string(),
+            second.clone().into_os_string(),
+        ];
+
+        let documents = open_documents(args.iter()).expect("open documents");
+
+        assert_eq!(documents.len(), 2);
+        assert_eq!(documents[0].title(), "First");
+        assert_eq!(documents[1].title(), "Second");
+        fs::remove_file(first).expect("remove first document");
+        fs::remove_file(second).expect("remove second document");
+    }
+
+    #[test]
+    fn recognizes_reserved_commands() {
+        assert!(is_reserved_command(&OsString::from("search")));
+        assert!(!is_reserved_command(&OsString::from("docs/PRD.md")));
     }
 }

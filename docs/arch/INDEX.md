@@ -86,7 +86,12 @@ PaperView uses Iced `Subscription`s to handle non-blocking tasks:
 
 The first live-reload implementation keeps watcher ownership in `paperview-core` and exposes frontend-neutral `WatchEvent` values. The GUI adapts those events into Iced subscriptions for the active document path.
 
-The first tabs implementation keeps open-document ownership in `paperview-core::OpenDocuments`. Frontends can use the shared model to add, activate, and replace documents without duplicating path de-duplication rules.
+The first tabs implementation keeps open-document ownership in
+`paperview-core::OpenDocuments`. Frontends can use the shared model to add,
+activate, and replace documents without duplicating path de-duplication rules.
+The GUI uses this model for clickable tabs and close controls. The TUI uses the
+same model for multi-file launch and keyboard tab switching with `[` / `]`;
+its active tab drives rendered lines, TOC, search results, and file watching.
 
 The first LaTeX implementation keeps math semantics in `paperview-core` by
 preserving inline math text and exposing display math as `Block::Math`.

@@ -23,7 +23,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Inline Span Rendering** | ✅ | ✅ | ✅ |
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
 | **Live Reload (Watcher)** | ✅ | ✅ | ✅ |
-| **Tabbed Interface** | ✅ | ✅ | ⬜ |
+| **Tabbed Interface** | ✅ | ✅ | ✅ |
 | **Split View (Side-by-Side)** | ⬜ | ✅ | ⬜ |
 | **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
@@ -42,7 +42,7 @@ This document tracks the progress of features across the three workspace crates.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
 - Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
 - Zen Mode currently covers the GUI focused reader layout; TUI and persisted preferences are deferred.
-- Tabbed Interface currently covers shared open-document state plus GUI tab activation and close controls; reorder/TUI tabs are deferred.
+- Tabbed Interface currently covers shared open-document state, GUI tab activation and close controls, and TUI multi-file launch with `[` / `]` tab switching; reorder and TUI close controls are deferred.
 - Split View currently covers a GUI foundation for comparing the active tab with one other open tab, including a visible toggle, secondary tab selection, and keyboard resizing; drag resize, scroll sync, and TUI split are deferred.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
 - In-Document Search currently covers shared case-insensitive line search, GUI header query with previous/next controls, rendered-text highlighting with stronger selected-match emphasis, and TUI `/`, `n`, and `N` navigation with highlighted match lines; exact rendered-line geometry is deferred.

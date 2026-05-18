@@ -6,8 +6,8 @@ use std::{
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
-    Document, FileEntry, FileWatcher, History, HistoryStore, SearchMatch, WatchEvent,
-    parser::TocItem, watch_file,
+    Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments, SearchMatch,
+    WatchEvent, parser::TocItem, watch_file,
 };
 use ratatui::{
     DefaultTerminal, Frame,
@@ -20,8 +20,12 @@ use ratatui::{
 use crate::render;
 
 pub fn run(document: Document) -> io::Result<()> {
+    run_documents(vec![document])
+}
+
+pub fn run_documents(documents: Vec<Document>) -> io::Result<()> {
     let mut terminal = ratatui::try_init()?;
-    let result = ReaderApp::new(document).run(&mut terminal);
+    let result = ReaderApp::new_documents(documents).run(&mut terminal);
     ratatui::restore();
     result
 }
@@ -34,7 +38,7 @@ pub fn run_dashboard() -> io::Result<()> {
 }
 
 struct ReaderApp {
-    document: Document,
+    documents: OpenDocuments,
     document_lines: Vec<String>,
     block_line_starts: Vec<render::BlockLineStart>,
     toc: Vec<TocItem>,
@@ -64,12 +68,26 @@ enum SearchMode {
 
 impl ReaderApp {
     fn new(document: Document) -> Self {
-        let rendered = render::render_document_with_anchors(&document);
-        let toc = document.parsed().toc();
-        let (watcher, watch_receiver, status) = watch_document(&document);
+        Self::new_documents(vec![document])
+    }
+
+    fn new_documents(documents: Vec<Document>) -> Self {
+        let mut open_documents = OpenDocuments::new();
+        for document in documents {
+            open_documents.open_or_activate(document);
+        }
+        if open_documents.is_empty() {
+            open_documents.open_or_activate(Document::from_source("No document loaded."));
+        }
+        open_documents.select(0);
+
+        let active = open_documents.active().expect("active document");
+        let rendered = render::render_document_with_anchors(active);
+        let toc = active.parsed().toc();
+        let (watcher, watch_receiver, status) = watch_document(active);
 
         Self {
-            document,
+            documents: open_documents,
             document_lines: rendered.lines,
             block_line_starts: rendered.block_line_starts,
             toc_selected_index: initial_toc_selection(&toc),
@@ -105,6 +123,8 @@ impl ReaderApp {
                     KeyCode::Char('/') => self.start_search(),
                     KeyCode::Char('n') => self.select_next_search_match(),
                     KeyCode::Char('N') => self.select_previous_search_match(),
+                    KeyCode::Char(']') => self.select_next_tab(),
+                    KeyCode::Char('[') => self.select_previous_tab(),
                     KeyCode::Tab => self.toggle_focus(),
                     KeyCode::Char('j') | KeyCode::Down => self.move_down(),
                     KeyCode::Char('k') | KeyCode::Up => self.move_up(),
@@ -121,28 +141,16 @@ impl ReaderApp {
 
     fn draw(&self, frame: &mut Frame) {
         let [header, body] =
-            Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).areas(frame.area());
+            Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).areas(frame.area());
         let [reader, toc] =
             Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
 
-        let title = format!(" PaperView - {} ", self.document.title());
         frame.render_widget(
-            Paragraph::new(title)
+            Paragraph::new(self.header_lines())
                 .style(Style::default().fg(Color::White).bg(Color::Black))
                 .block(Block::default().borders(Borders::BOTTOM)),
             header,
         );
-
-        if let Some(status) = self.header_status() {
-            let status_area = header.inner(ratatui::layout::Margin {
-                vertical: 1,
-                horizontal: 2,
-            });
-            frame.render_widget(
-                Paragraph::new(status).style(Style::default().fg(Color::DarkGray)),
-                status_area,
-            );
-        }
 
         frame.render_widget(
             Paragraph::new(Text::from(document_text(
@@ -242,7 +250,7 @@ impl ReaderApp {
     }
 
     fn refresh_search_matches(&mut self) {
-        self.search_matches = self.document.search(&self.search_query);
+        self.search_matches = self.active_document().search(&self.search_query);
         self.search_selected_index =
             clamp_search_selection(self.search_selected_index, self.search_matches.len());
     }
@@ -310,6 +318,94 @@ impl ReaderApp {
             query: &self.search_query,
             matches: &self.search_matches,
             selected_index: self.search_selected_index,
+        }
+    }
+
+    fn active_document(&self) -> &Document {
+        self.documents.active().expect("active document")
+    }
+
+    fn header_lines(&self) -> Vec<Line<'static>> {
+        vec![
+            Line::from(Span::styled(
+                format!(" PaperView - {} ", self.active_document().title()),
+                Style::default().fg(Color::White).bg(Color::Black),
+            )),
+            tab_line(&self.documents),
+            Line::from(Span::styled(
+                self.header_status()
+                    .unwrap_or_else(|| "[/] search  [[/]] tabs  [Tab] toc  [q] quit".to_owned()),
+                Style::default().fg(Color::DarkGray).bg(Color::Black),
+            )),
+        ]
+    }
+
+    fn select_next_tab(&mut self) {
+        let Some(active) = self.documents.active_index() else {
+            return;
+        };
+
+        self.select_tab((active + 1) % self.documents.len());
+    }
+
+    fn select_previous_tab(&mut self) {
+        let Some(active) = self.documents.active_index() else {
+            return;
+        };
+        let previous = if active == 0 {
+            self.documents.len() - 1
+        } else {
+            active - 1
+        };
+
+        self.select_tab(previous);
+    }
+
+    fn select_tab(&mut self, index: usize) {
+        if self.documents.active_index() == Some(index) {
+            return;
+        }
+
+        self.documents.select(index);
+        self.load_active_document(true);
+        self.status = Some(format!(
+            "Tab {}/{}: {}",
+            index + 1,
+            self.documents.len(),
+            self.active_document().title()
+        ));
+    }
+
+    fn load_active_document(&mut self, reset_scroll: bool) {
+        let (rendered, toc, watcher, watch_receiver, watch_status) = {
+            let document = self.active_document();
+            let rendered = render::render_document_with_anchors(document);
+            let toc = document.parsed().toc();
+            let (watcher, watch_receiver, watch_status) = watch_document(document);
+            (rendered, toc, watcher, watch_receiver, watch_status)
+        };
+
+        self.document_lines = rendered.lines;
+        self.block_line_starts = rendered.block_line_starts;
+        self.toc = toc;
+        self.toc_selected_index = if reset_scroll {
+            initial_toc_selection(&self.toc)
+        } else {
+            clamp_toc_selection(self.toc_selected_index, self.toc.len())
+        };
+        self.refresh_search_matches();
+        if self.toc.is_empty() {
+            self.focus = ReaderFocus::Reader;
+        }
+        if reset_scroll {
+            self.scroll = 0;
+        }
+        self.scroll = self.scroll.min(self.max_scroll());
+
+        self._watcher = watcher;
+        self.watch_receiver = watch_receiver;
+        if let Some(status) = watch_status {
+            self.status = Some(status);
         }
     }
 
@@ -416,24 +512,14 @@ impl ReaderApp {
     }
 
     fn reload_path(&mut self, path: std::path::PathBuf) {
-        if self.document.path() != Some(&path) {
+        if self.active_document().path() != Some(&path) {
             return;
         }
 
         match Document::open(&path) {
             Ok(document) => {
-                let rendered = render::render_document_with_anchors(&document);
-                self.document_lines = rendered.lines;
-                self.block_line_starts = rendered.block_line_starts;
-                self.toc = document.parsed().toc();
-                self.toc_selected_index =
-                    clamp_toc_selection(self.toc_selected_index, self.toc.len());
-                self.refresh_search_matches();
-                if self.toc.is_empty() {
-                    self.focus = ReaderFocus::Reader;
-                }
-                self.scroll = self.scroll.min(self.max_scroll());
-                self.document = document;
+                self.documents.replace_active(document);
+                self.load_active_document(false);
                 self.status = Some(format!("Reloaded {}", path.display()));
             }
             Err(error) => {
@@ -461,6 +547,31 @@ fn clamp_search_selection(selection: Option<usize>, len: usize) -> Option<usize>
     } else {
         Some(selection.unwrap_or(0).min(len - 1))
     }
+}
+
+fn tab_line(documents: &OpenDocuments) -> Line<'static> {
+    let mut spans = Vec::new();
+
+    for (index, document) in documents.iter() {
+        if index > 0 {
+            spans.push(Span::styled(" ", Style::default().bg(Color::Black)));
+        }
+        let is_active = documents.active_index() == Some(index);
+        let style = if is_active {
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::DarkGray).bg(Color::Black)
+        };
+        spans.push(Span::styled(
+            format!(" {}:{} ", index + 1, document.title()),
+            style,
+        ));
+    }
+
+    Line::from(spans)
 }
 
 fn watch_document(
@@ -775,7 +886,7 @@ mod tests {
 
     use super::{
         DashboardApp, ReaderApp, ReaderFocus, SearchHighlights, SearchMode, clamp_search_selection,
-        clamp_toc_selection, document_text,
+        clamp_toc_selection, document_text, tab_line,
     };
 
     #[test]
@@ -858,6 +969,42 @@ mod tests {
 
         assert_eq!(app.scroll, app.block_line_start(2) as u16);
         assert_eq!(app.active_toc_block_index(), Some(2));
+    }
+
+    #[test]
+    fn tab_navigation_wraps_between_documents() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second\n\n## Two").with_path("second.md"),
+        ]);
+
+        assert_eq!(app.active_document().title(), "First");
+
+        app.select_next_tab();
+        assert_eq!(app.active_document().title(), "Second");
+        assert_eq!(app.documents.active_index(), Some(1));
+        assert_eq!(app.toc.len(), 2);
+        assert_eq!(app.scroll, 0);
+
+        app.select_next_tab();
+        assert_eq!(app.active_document().title(), "First");
+
+        app.select_previous_tab();
+        assert_eq!(app.active_document().title(), "Second");
+    }
+
+    #[test]
+    fn tab_line_marks_active_document() {
+        let app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+        ]);
+        let line = tab_line(&app.documents);
+
+        assert_eq!(line.spans[0].content.as_ref(), " 1:First ");
+        assert_eq!(line.spans[0].style.bg, Some(Color::Cyan));
+        assert_eq!(line.spans[2].content.as_ref(), " 2:Second ");
+        assert_eq!(line.spans[2].style.fg, Some(Color::DarkGray));
     }
 
     #[test]
@@ -997,7 +1144,7 @@ mod tests {
         fs::write(&path, "# After\n\nShort.").expect("rewrite test document");
         app.reload_path(path.clone());
 
-        assert_eq!(app.document.title(), "After");
+        assert_eq!(app.active_document().title(), "After");
         assert_eq!(app.scroll, app.max_scroll());
         assert!(
             app.status

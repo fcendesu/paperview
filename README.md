@@ -17,7 +17,8 @@ PaperView is in early MVP development. The workspace currently contains:
 - `paperview-gui`: an Iced desktop reader with history, table of contents,
   tabs, drag-and-drop, live reload, and Zen Mode.
 - `paperview-tui`: a Ratatui terminal reader with recent-file dashboard,
-  table of contents, active-section highlighting, scrolling, and live reload.
+  tabs, table of contents, active-section highlighting, scrolling, and live
+  reload.
 
 Supported input formats:
 
@@ -74,6 +75,12 @@ Open a file directly:
 cargo run -p paperview-tui -- docs/PRD.md
 ```
 
+Open multiple files as TUI tabs:
+
+```sh
+cargo run -p paperview-tui -- docs/PRD.md README.md
+```
+
 Open the recent-files dashboard:
 
 ```sh
@@ -114,6 +121,7 @@ TUI controls:
 - `k` / `Up`: scroll or move selection up.
 - `g`: jump to top in the reader.
 - `G`: jump to bottom in the reader.
+- `[` / `]`: switch to the previous or next tab.
 - `Tab`: switch focus between the reader and table of contents.
 - `Enter`: jump to the selected TOC heading when the TOC is focused.
 - `/`: search within the current document.
@@ -122,8 +130,9 @@ TUI controls:
 - `q` / `Esc`: quit the current TUI view.
 
 The TUI highlights the active table-of-contents section while you scroll, can
-jump through headings from the TOC, and preserves LaTeX display math plus
-Mermaid diagram source. Markdown tables render as aligned plain text, and
+jump through headings from the TOC, can switch between open document tabs, and
+preserves LaTeX display math plus Mermaid diagram source. Markdown tables
+render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports
