@@ -116,6 +116,7 @@ pub struct InlineSpan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListItem {
     pub checked: Option<bool>,
+    pub source_line: Option<usize>,
     pub content: Vec<InlineSpan>,
 }
 
@@ -186,9 +187,10 @@ pub fn parse_markdown(source: &str) -> ParsedDocument {
         builder.push(event);
     }
 
-    ParsedDocument {
-        blocks: builder.finish(),
-    }
+    let mut blocks = builder.finish();
+    assign_task_source_lines(&mut blocks, source);
+
+    ParsedDocument { blocks }
 }
 
 #[derive(Debug)]
@@ -328,6 +330,7 @@ impl DocumentBuilder {
                 if let Some(list) = &mut self.open_list {
                     list.current_item = Some(ListItem {
                         checked: None,
+                        source_line: None,
                         content: Vec::new(),
                     });
                 }
@@ -597,6 +600,59 @@ fn slugify(text: &str) -> String {
     }
 }
 
+fn assign_task_source_lines(blocks: &mut [Block], source: &str) {
+    let mut task_lines = source
+        .lines()
+        .enumerate()
+        .filter_map(|(index, line)| task_marker_range(line).map(|_| index));
+
+    for block in blocks {
+        if let Block::List { items, .. } = block {
+            for item in items {
+                if item.checked.is_some() {
+                    item.source_line = task_lines.next();
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn task_marker_range(line: &str) -> Option<(usize, bool)> {
+    let indent_len = line.len() - line.trim_start().len();
+    let bytes = line.as_bytes();
+    let mut index = indent_len;
+
+    match bytes.get(index).copied()? {
+        b'-' | b'+' | b'*' => {
+            index += 1;
+        }
+        b'0'..=b'9' => {
+            while matches!(bytes.get(index), Some(b'0'..=b'9')) {
+                index += 1;
+            }
+            if !matches!(bytes.get(index), Some(b'.' | b')')) {
+                return None;
+            }
+            index += 1;
+        }
+        _ => return None,
+    }
+
+    if !matches!(bytes.get(index), Some(b' ' | b'\t')) {
+        return None;
+    }
+    while matches!(bytes.get(index), Some(b' ' | b'\t')) {
+        index += 1;
+    }
+
+    let marker = bytes.get(index..index + 3)?;
+    match marker {
+        b"[ ]" => Some((index + 1, false)),
+        b"[x]" | b"[X]" => Some((index + 1, true)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -616,13 +672,15 @@ mod tests {
     fn list_item(content: Vec<InlineSpan>) -> ListItem {
         ListItem {
             checked: None,
+            source_line: None,
             content,
         }
     }
 
-    fn task_item(checked: bool, content: Vec<InlineSpan>) -> ListItem {
+    fn task_item_at_line(checked: bool, source_line: usize, content: Vec<InlineSpan>) -> ListItem {
         ListItem {
             checked: Some(checked),
+            source_line: Some(source_line),
             content,
         }
     }
@@ -840,11 +898,34 @@ mod tests {
             vec![Block::List {
                 ordered: false,
                 items: vec![
-                    task_item(true, vec![text_span("Done")]),
-                    task_item(false, vec![text_span("Todo")]),
+                    task_item_at_line(true, 0, vec![text_span("Done")]),
+                    task_item_at_line(false, 1, vec![text_span("Todo")]),
                     list_item(vec![text_span("Plain")])
                 ]
             }]
+        );
+    }
+
+    #[test]
+    fn preserves_task_list_source_lines() {
+        let parsed = parse_markdown("Intro\n\n- [ ] First\n- [x] Second\n\n1. [X] Ordered");
+
+        assert_eq!(
+            parsed.blocks,
+            vec![
+                Block::Paragraph(vec![text_span("Intro")]),
+                Block::List {
+                    ordered: false,
+                    items: vec![
+                        task_item_at_line(false, 2, vec![text_span("First")]),
+                        task_item_at_line(true, 3, vec![text_span("Second")])
+                    ]
+                },
+                Block::List {
+                    ordered: true,
+                    items: vec![task_item_at_line(true, 5, vec![text_span("Ordered")])]
+                }
+            ]
         );
     }
 

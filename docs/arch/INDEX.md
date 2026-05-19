@@ -112,9 +112,11 @@ from the shared alignments, header cells, and body rows instead of reparsing
 Markdown text.
 
 The first task-list implementation keeps checkbox state in `paperview-core` by
-storing list items as `ListItem` values with optional checked state and inline
-content. Frontends render checked and unchecked markers from that shared model
-without reparsing Markdown list text.
+storing list items as `ListItem` values with optional checked state, source line
+metadata, and inline content. Core owns source-line marker toggling through
+`toggle_task_line_source`. The GUI uses that helper for file-backed checkbox
+writeback and reloads the document after a successful write. The TUI continues
+to render read-only checked and unchecked markers from the shared model.
 
 The first image implementation keeps standalone image metadata in
 `paperview-core` by promoting image-only paragraphs into `Block::Image`. Inline

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ffi::OsString, path::PathBuf, process::Command, sync::mpsc};
+use std::{collections::HashMap, ffi::OsString, fs, path::PathBuf, process::Command, sync::mpsc};
 
 use iced::{
     Element, Event, Fill, Length, Subscription, Task,
@@ -14,7 +14,7 @@ use iced::{
 };
 use paperview_core::{
     Document, History, HistoryStore, OpenDocuments, SearchMatch, WatchEvent, parser::Block,
-    watch_file,
+    toggle_task_line_source, watch_file,
 };
 
 use crate::{history, navigation, reader, theme};
@@ -82,6 +82,7 @@ pub enum Message {
     SearchQueryChanged(String),
     SearchNext,
     SearchPrevious,
+    ToggleTask(usize),
     SelectSplitTab(usize),
     SelectTab(usize),
     CloseTab(usize),
@@ -267,6 +268,7 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         }
         Message::SearchNext => return state.select_next_search_match(),
         Message::SearchPrevious => return state.select_previous_search_match(),
+        Message::ToggleTask(line_index) => state.toggle_task(line_index),
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
         Message::CloseTab(index) => state.close_tab(index),
@@ -378,6 +380,27 @@ impl PaperView {
             self.split_document_index = Some(index);
             self.track_remote_images();
         }
+    }
+
+    fn toggle_task(&mut self, line_index: usize) {
+        let Some(path) = self.active_path() else {
+            self.status = Status::Error("task toggles require a file-backed document".to_owned());
+            return;
+        };
+        let Some(document) = self.documents.active() else {
+            return;
+        };
+        let Some(updated_source) = toggle_task_line_source(document.source(), line_index) else {
+            self.status = Status::Error("task checkbox source line was not found".to_owned());
+            return;
+        };
+
+        if let Err(error) = fs::write(&path, updated_source) {
+            self.status = Status::Error(format!("failed to update {}: {error}", path.display()));
+            return;
+        }
+
+        self.reload_path(path);
     }
 
     fn toggle_split(&mut self) {
@@ -929,6 +952,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
             Message::OpenLink,
             state.active_search_query(),
             state.active_search_line(),
+            Some(Message::ToggleTask),
             &state.remote_images,
         ),
         Some(document) => {
@@ -941,6 +965,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
                     Message::OpenLink,
                     state.active_search_query(),
                     state.active_search_line(),
+                    Some(Message::ToggleTask),
                     &state.remote_images,
                 )
             };
@@ -987,6 +1012,7 @@ fn split_reader<'a>(
                 Message::OpenLink,
                 state.active_search_query(),
                 state.active_search_line(),
+                Some(Message::ToggleTask),
                 &state.remote_images
             ))
             .width(Length::FillPortion(primary_width)),
@@ -994,6 +1020,7 @@ fn split_reader<'a>(
             container(reader::view_with_remote_images(
                 secondary,
                 Message::OpenLink,
+                None,
                 &state.remote_images
             ))
             .width(Length::FillPortion(secondary_width))
@@ -1293,7 +1320,10 @@ mod tests {
             key::{Code, Physical},
         },
     };
-    use paperview_core::{Document, HistoryStore, parser::parse_markdown};
+    use paperview_core::{
+        Document, HistoryStore,
+        parser::{Block, parse_markdown},
+    };
 
     use super::{
         Message, PaperView, SplitResize, is_split_divider_hit, open_link_target, reader,
@@ -1593,6 +1623,35 @@ mod tests {
         assert!(!state.remote_images.contains_key("assets/local.png"));
 
         fs::remove_file(path).expect("remove remote image document");
+    }
+
+    #[test]
+    fn toggling_task_updates_file_and_reloads_document() {
+        let path = temp_doc("task-toggle.md", "# Tasks\n\n- [ ] Todo\n- [x] Done");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("task-toggle.toml"),
+        );
+
+        apply(&mut state, Message::ToggleTask(2));
+
+        let updated = fs::read_to_string(&path).expect("read updated document");
+        assert_eq!(updated, "# Tasks\n\n- [x] Todo\n- [x] Done");
+        assert!(matches!(
+            state.documents.active().and_then(|document| {
+                document
+                    .parsed()
+                    .blocks
+                    .iter()
+                    .find_map(|block| match block {
+                        Block::List { items, .. } => items.first().and_then(|item| item.checked),
+                        _ => None,
+                    })
+            }),
+            Some(true)
+        ));
+
+        fs::remove_file(path).expect("remove task toggle document");
     }
 
     #[test]

@@ -6,8 +6,8 @@ use std::{
 use iced::{
     Background, ContentFit, Element, Fill, Font, Length, font,
     widget::{
-        Column, Row, column, container, image as image_widget, rich_text, rule, scrollable, span,
-        text,
+        Column, Row, button, column, container, image as image_widget, rich_text, rule, scrollable,
+        span, text,
     },
 };
 use paperview_core::{
@@ -35,9 +35,10 @@ pub enum RemoteImage {
     Failed(String),
 }
 
-pub fn view_with_remote_images<'a, Message: 'static>(
+pub fn view_with_remote_images<'a, Message: Clone + 'static>(
     document: &'a Document,
     on_link_click: fn(String) -> Message,
+    on_task_toggle: Option<fn(usize) -> Message>,
     remote_images: &'a HashMap<String, RemoteImage>,
 ) -> Element<'a, Message> {
     view_with_scroll_and_search(
@@ -46,16 +47,18 @@ pub fn view_with_remote_images<'a, Message: 'static>(
         on_link_click,
         None,
         None,
+        on_task_toggle,
         Some(remote_images),
     )
 }
 
-pub fn view_with_search_and_remote_images<'a, Message: 'static>(
+pub fn view_with_search_and_remote_images<'a, Message: Clone + 'static>(
     document: &'a Document,
     on_scroll: Option<impl Fn(f32) -> Message + 'a>,
     on_link_click: fn(String) -> Message,
     search_query: Option<&'a str>,
     active_search_line: Option<&'a str>,
+    on_task_toggle: Option<fn(usize) -> Message>,
     remote_images: &'a HashMap<String, RemoteImage>,
 ) -> Element<'a, Message> {
     view_with_scroll_and_search(
@@ -64,16 +67,18 @@ pub fn view_with_search_and_remote_images<'a, Message: 'static>(
         on_link_click,
         search_query,
         active_search_line,
+        on_task_toggle,
         Some(remote_images),
     )
 }
 
-fn view_with_scroll_and_search<'a, Message: 'static>(
+fn view_with_scroll_and_search<'a, Message: Clone + 'static>(
     document: &'a Document,
     on_scroll: Option<impl Fn(f32) -> Message + 'a>,
     on_link_click: fn(String) -> Message,
     search_query: Option<&'a str>,
     active_search_line: Option<&'a str>,
+    on_task_toggle: Option<fn(usize) -> Message>,
     remote_images: Option<&'a HashMap<String, RemoteImage>>,
 ) -> Element<'a, Message> {
     let mut content = column![].spacing(BLOCK_SPACING).width(Fill);
@@ -86,6 +91,7 @@ fn view_with_scroll_and_search<'a, Message: 'static>(
             document_path,
             on_link_click,
             render_search_context(block, search_context),
+            on_task_toggle,
             remote_images,
         ));
     }
@@ -248,11 +254,12 @@ fn normalized_progress(progress: f32) -> f32 {
     }
 }
 
-fn block_view<'a, Message: 'static>(
+fn block_view<'a, Message: Clone + 'static>(
     block: &'a Block,
     document_path: Option<&'a Path>,
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
+    on_task_toggle: Option<fn(usize) -> Message>,
     remote_images: Option<&'a HashMap<String, RemoteImage>>,
 ) -> Element<'a, Message> {
     match block {
@@ -264,7 +271,9 @@ fn block_view<'a, Message: 'static>(
         Block::Image { alt, url, title } => {
             image_block(alt, url, title, document_path, remote_images)
         }
-        Block::List { ordered, items } => list(*ordered, items, on_link_click, search),
+        Block::List { ordered, items } => {
+            list(*ordered, items, on_link_click, search, on_task_toggle)
+        }
         Block::Math { display, source } => math_block(*display, source),
         Block::Table {
             alignments,
@@ -275,7 +284,7 @@ fn block_view<'a, Message: 'static>(
     }
 }
 
-fn heading<'a, Message: 'static>(
+fn heading<'a, Message: Clone + 'static>(
     level: HeadingLevel,
     spans: &'a [InlineSpan],
     on_link_click: fn(String) -> Message,
@@ -291,7 +300,7 @@ fn heading<'a, Message: 'static>(
     inline_text(spans, size, theme::READER_TEXT, on_link_click, search)
 }
 
-fn paragraph<'a, Message: 'static>(
+fn paragraph<'a, Message: Clone + 'static>(
     spans: &'a [InlineSpan],
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
@@ -299,7 +308,7 @@ fn paragraph<'a, Message: 'static>(
     inline_text(spans, 16, theme::READER_TEXT, on_link_click, search)
 }
 
-fn inline_text<'a, Message: 'static>(
+fn inline_text<'a, Message: Clone + 'static>(
     spans: &'a [InlineSpan],
     size: u32,
     base_color: iced::Color,
@@ -380,7 +389,7 @@ fn rich_span_segment<'a>(
     output
 }
 
-fn blockquote<'a, Message: 'static>(
+fn blockquote<'a, Message: Clone + 'static>(
     spans: &'a [InlineSpan],
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
@@ -398,7 +407,7 @@ fn blockquote<'a, Message: 'static>(
     .into()
 }
 
-fn code_block<'a, Message: 'static>(
+fn code_block<'a, Message: Clone + 'static>(
     language: Option<&'a str>,
     code: &'a str,
 ) -> Element<'a, Message> {
@@ -417,7 +426,10 @@ fn code_block<'a, Message: 'static>(
     .into()
 }
 
-fn diagram_block<'a, Message: 'static>(language: &'a str, source: &'a str) -> Element<'a, Message> {
+fn diagram_block<'a, Message: Clone + 'static>(
+    language: &'a str,
+    source: &'a str,
+) -> Element<'a, Message> {
     let mut content = column![text(language).size(12).color(theme::SHELL_ACCENT)].spacing(12);
 
     if let Some(preview) = diagram::flowchart_preview(source) {
@@ -433,7 +445,7 @@ fn diagram_block<'a, Message: 'static>(language: &'a str, source: &'a str) -> El
         .into()
 }
 
-fn flowchart_preview<Message: 'static>(
+fn flowchart_preview<Message: Clone + 'static>(
     preview: diagram::FlowchartPreview,
 ) -> Element<'static, Message> {
     let direction = match preview.direction {
@@ -460,7 +472,9 @@ fn flowchart_preview<Message: 'static>(
         .into()
 }
 
-fn flowchart_edge<Message: 'static>(edge: diagram::FlowchartEdge) -> Element<'static, Message> {
+fn flowchart_edge<Message: Clone + 'static>(
+    edge: diagram::FlowchartEdge,
+) -> Element<'static, Message> {
     Row::new()
         .spacing(8)
         .push(flowchart_node(edge.from))
@@ -469,14 +483,14 @@ fn flowchart_edge<Message: 'static>(edge: diagram::FlowchartEdge) -> Element<'st
         .into()
 }
 
-fn flowchart_node<Message: 'static>(label: String) -> Element<'static, Message> {
+fn flowchart_node<Message: Clone + 'static>(label: String) -> Element<'static, Message> {
     container(text(label).size(13).color(theme::READER_TEXT))
         .padding([6, 10])
         .style(|_| theme::table_cell_container(false))
         .into()
 }
 
-fn image_block<'a, Message: 'static>(
+fn image_block<'a, Message: Clone + 'static>(
     alt: &'a str,
     url: &'a str,
     title: &'a str,
@@ -563,7 +577,7 @@ pub(crate) fn is_fetchable_remote_image_url(url: &str) -> bool {
     url.starts_with("https://") || url.starts_with("http://")
 }
 
-fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Message> {
+fn math_block<Message: Clone + 'static>(display: bool, source: &str) -> Element<'_, Message> {
     let label = if display {
         "display math"
     } else {
@@ -590,11 +604,12 @@ fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Mess
         .into()
 }
 
-fn list<'a, Message: 'static>(
+fn list<'a, Message: Clone + 'static>(
     ordered: bool,
     items: &'a [ListItem],
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
+    on_task_toggle: Option<fn(usize) -> Message>,
 ) -> Element<'a, Message> {
     let mut list = Column::new().spacing(8);
 
@@ -607,25 +622,31 @@ fn list<'a, Message: 'static>(
             None if ordered => format!("{}.", index + 1),
             None => "-".to_owned(),
         };
+        let marker_text = text(marker).size(16).color(theme::READER_TEXT);
+        let marker: Element<'a, Message> =
+            if let (Some(toggle), Some(line_index)) = (on_task_toggle, item.source_line) {
+                button(marker_text)
+                    .padding([1, 4])
+                    .style(|_, status| theme::task_checkbox_button(status))
+                    .on_press(toggle(line_index))
+                    .into()
+            } else {
+                marker_text.into()
+            };
 
-        list = list.push(
-            Row::new()
-                .spacing(4)
-                .push(text(marker).size(16).color(theme::READER_TEXT))
-                .push(inline_text(
-                    &item.content,
-                    16,
-                    theme::READER_TEXT,
-                    on_link_click,
-                    search,
-                )),
-        );
+        list = list.push(Row::new().spacing(4).push(marker).push(inline_text(
+            &item.content,
+            16,
+            theme::READER_TEXT,
+            on_link_click,
+            search,
+        )));
     }
 
     list.into()
 }
 
-fn table_block<'a, Message: 'static>(
+fn table_block<'a, Message: Clone + 'static>(
     alignments: &'a [TableAlignment],
     header: &'a TableRow,
     rows: &'a [TableRow],
@@ -648,7 +669,7 @@ fn table_block<'a, Message: 'static>(
         .into()
 }
 
-fn table_row<'a, Message: 'static>(
+fn table_row<'a, Message: Clone + 'static>(
     cells: &'a [TableCell],
     alignments: &'a [TableAlignment],
     is_header: bool,
@@ -673,7 +694,7 @@ fn table_row<'a, Message: 'static>(
     row.into()
 }
 
-fn table_cell<'a, Message: 'static>(
+fn table_cell<'a, Message: Clone + 'static>(
     value: &'a [InlineSpan],
     alignment: TableAlignment,
     is_header: bool,

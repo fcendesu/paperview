@@ -9,7 +9,7 @@ pub mod stats;
 pub mod watcher;
 
 pub use config::{Config, ConfigStore, ConfigStoreError};
-pub use document::{Document, DocumentError, SupportedFileType};
+pub use document::{Document, DocumentError, SupportedFileType, toggle_task_line_source};
 pub use export::{
     ExportArtifact, ExportError, ExportFormat, ExportFormatParseError, export_document, export_html,
 };

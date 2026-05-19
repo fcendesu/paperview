@@ -246,6 +246,24 @@ pub fn split_tab_button(is_selected: bool, status: button::Status) -> button::St
     }
 }
 
+pub fn task_checkbox_button(status: button::Status) -> button::Style {
+    let background = match status {
+        button::Status::Hovered | button::Status::Pressed => Color::from_rgb(0.922, 0.941, 0.961),
+        button::Status::Active | button::Status::Disabled => Color::TRANSPARENT,
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color: READER_TEXT,
+        border: Border {
+            color: background,
+            width: 1.0,
+            radius: border::radius(4),
+        },
+        ..button::Style::default()
+    }
+}
+
 pub fn tab_close_button(is_active: bool, status: button::Status) -> button::Style {
     let background = match status {
         button::Status::Hovered | button::Status::Pressed => SHELL_ACCENT,

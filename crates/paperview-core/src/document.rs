@@ -79,6 +79,41 @@ impl Document {
     }
 }
 
+#[must_use]
+pub fn toggle_task_line_source(source: &str, line_index: usize) -> Option<String> {
+    let mut output = String::with_capacity(source.len());
+    let mut changed = false;
+
+    for (index, line) in source.split_inclusive('\n').enumerate() {
+        if index == line_index {
+            let newline_len = usize::from(line.ends_with('\n'));
+            let content_len = line.len() - newline_len;
+            let (content, newline) = line.split_at(content_len);
+            let (marker_index, checked) = parser::task_marker_range(content)?;
+
+            output.push_str(&content[..marker_index]);
+            output.push(if checked { ' ' } else { 'x' });
+            output.push_str(&content[marker_index + 1..]);
+            output.push_str(newline);
+            changed = true;
+        } else {
+            output.push_str(line);
+        }
+    }
+
+    if !changed && line_index == source.lines().count().saturating_sub(1) {
+        let line = source.lines().last()?;
+        let (marker_index, checked) = parser::task_marker_range(line)?;
+
+        output.push_str(&line[..marker_index]);
+        output.push(if checked { ' ' } else { 'x' });
+        output.push_str(&line[marker_index + 1..]);
+        changed = true;
+    }
+
+    changed.then_some(output)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupportedFileType {
     Markdown,
@@ -137,7 +172,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use super::{Document, DocumentError, SupportedFileType};
+    use super::{Document, DocumentError, SupportedFileType, toggle_task_line_source};
 
     #[test]
     fn uses_first_h1_as_title() {
@@ -203,6 +238,21 @@ mod tests {
         assert_eq!(stats.word_count, 4);
         assert_eq!(stats.heading_count, 1);
         assert_eq!(stats.headings[0].depth, 1);
+    }
+
+    #[test]
+    fn toggles_task_line_source() {
+        let source = "- [ ] Todo\n- [x] Done\nPlain";
+
+        assert_eq!(
+            toggle_task_line_source(source, 0).as_deref(),
+            Some("- [x] Todo\n- [x] Done\nPlain")
+        );
+        assert_eq!(
+            toggle_task_line_source(source, 1).as_deref(),
+            Some("- [ ] Todo\n- [ ] Done\nPlain")
+        );
+        assert_eq!(toggle_task_line_source(source, 2), None);
     }
 
     #[test]
