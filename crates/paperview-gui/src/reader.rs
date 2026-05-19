@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use iced::{
     Background, ContentFit, Element, Fill, Font, Length, font,
@@ -25,25 +28,35 @@ const CODE_LINE_HEIGHT: f32 = 18.0;
 const BODY_LINE_HEIGHT: f32 = 24.0;
 const IMAGE_PREVIEW_HEIGHT: f32 = 360.0;
 
-pub fn view<Message: 'static>(
-    document: &Document,
+#[derive(Debug, Clone)]
+pub enum RemoteImage {
+    Loading,
+    Loaded(Vec<u8>),
+    Failed(String),
+}
+
+pub fn view_with_remote_images<'a, Message: 'static>(
+    document: &'a Document,
     on_link_click: fn(String) -> Message,
-) -> Element<'_, Message> {
+    remote_images: &'a HashMap<String, RemoteImage>,
+) -> Element<'a, Message> {
     view_with_scroll_and_search(
         document,
         None::<fn(f32) -> Message>,
         on_link_click,
         None,
         None,
+        Some(remote_images),
     )
 }
 
-pub fn view_with_search<'a, Message: 'static>(
+pub fn view_with_search_and_remote_images<'a, Message: 'static>(
     document: &'a Document,
     on_scroll: Option<impl Fn(f32) -> Message + 'a>,
     on_link_click: fn(String) -> Message,
     search_query: Option<&'a str>,
     active_search_line: Option<&'a str>,
+    remote_images: &'a HashMap<String, RemoteImage>,
 ) -> Element<'a, Message> {
     view_with_scroll_and_search(
         document,
@@ -51,6 +64,7 @@ pub fn view_with_search<'a, Message: 'static>(
         on_link_click,
         search_query,
         active_search_line,
+        Some(remote_images),
     )
 }
 
@@ -60,6 +74,7 @@ fn view_with_scroll_and_search<'a, Message: 'static>(
     on_link_click: fn(String) -> Message,
     search_query: Option<&'a str>,
     active_search_line: Option<&'a str>,
+    remote_images: Option<&'a HashMap<String, RemoteImage>>,
 ) -> Element<'a, Message> {
     let mut content = column![].spacing(BLOCK_SPACING).width(Fill);
     let document_path = document.path().map(PathBuf::as_path);
@@ -71,6 +86,7 @@ fn view_with_scroll_and_search<'a, Message: 'static>(
             document_path,
             on_link_click,
             render_search_context(block, search_context),
+            remote_images,
         ));
     }
 
@@ -237,6 +253,7 @@ fn block_view<'a, Message: 'static>(
     document_path: Option<&'a Path>,
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
+    remote_images: Option<&'a HashMap<String, RemoteImage>>,
 ) -> Element<'a, Message> {
     match block {
         Block::Heading { level, spans } => heading(*level, spans, on_link_click, search),
@@ -244,7 +261,9 @@ fn block_view<'a, Message: 'static>(
         Block::BlockQuote(spans) => blockquote(spans, on_link_click, search),
         Block::CodeBlock { language, code } => code_block(language.as_deref(), code),
         Block::Diagram { language, source } => diagram_block(language, source),
-        Block::Image { alt, url, title } => image_block(alt, url, title, document_path),
+        Block::Image { alt, url, title } => {
+            image_block(alt, url, title, document_path, remote_images)
+        }
         Block::List { ordered, items } => list(*ordered, items, on_link_click, search),
         Block::Math { display, source } => math_block(*display, source),
         Block::Table {
@@ -462,6 +481,7 @@ fn image_block<'a, Message: 'static>(
     url: &'a str,
     title: &'a str,
     document_path: Option<&'a Path>,
+    remote_images: Option<&'a HashMap<String, RemoteImage>>,
 ) -> Element<'a, Message> {
     let resolved_path = resolve_image_path(url, document_path);
     let display_path = resolved_path
@@ -492,6 +512,25 @@ fn image_block<'a, Message: 'static>(
                 .height(IMAGE_PREVIEW_HEIGHT)
                 .content_fit(ContentFit::Contain),
         );
+    } else if is_fetchable_remote_image_url(url) {
+        details = match remote_images.and_then(|images| images.get(url)) {
+            Some(RemoteImage::Loaded(bytes)) => details.push(
+                image_widget(image_widget::Handle::from_bytes(bytes.clone()))
+                    .width(Length::Fill)
+                    .height(IMAGE_PREVIEW_HEIGHT)
+                    .content_fit(ContentFit::Contain),
+            ),
+            Some(RemoteImage::Failed(error)) => details.push(
+                text(format!("Remote preview unavailable: {error}"))
+                    .size(13)
+                    .color(theme::READER_TEXT_MUTED),
+            ),
+            Some(RemoteImage::Loading) | None => details.push(
+                text("Loading remote preview...")
+                    .size(13)
+                    .color(theme::READER_TEXT_MUTED),
+            ),
+        };
     }
 
     container(details)
@@ -518,6 +557,10 @@ fn resolve_image_path(url: &str, document_path: Option<&Path>) -> Option<PathBuf
 
 fn is_remote_image_url(url: &str) -> bool {
     url.contains("://") || url.starts_with("data:")
+}
+
+pub(crate) fn is_fetchable_remote_image_url(url: &str) -> bool {
+    url.starts_with("https://") || url.starts_with("http://")
 }
 
 fn math_block<Message: 'static>(display: bool, source: &str) -> Element<'_, Message> {
@@ -830,7 +873,7 @@ mod tests {
     use super::{
         HighlightSegment, RenderSearch, SearchHighlight, active_heading_for_scroll,
         block_matches_active_search_line, heading_scroll_progress, highlight_segments,
-        resolve_image_path,
+        is_fetchable_remote_image_url, resolve_image_path,
     };
 
     #[test]
@@ -971,6 +1014,19 @@ mod tests {
             None
         );
         assert_eq!(resolve_image_path("data:image/png;base64,AAAA", None), None);
+    }
+
+    #[test]
+    fn only_http_urls_are_fetchable_remote_images() {
+        assert!(is_fetchable_remote_image_url(
+            "https://example.com/image.png"
+        ));
+        assert!(is_fetchable_remote_image_url(
+            "http://example.com/image.png"
+        ));
+        assert!(!is_fetchable_remote_image_url("data:image/png;base64,AAAA"));
+        assert!(!is_fetchable_remote_image_url("file:///tmp/image.png"));
+        assert!(!is_fetchable_remote_image_url("assets/image.png"));
     }
 
     fn temp_dir(name: &str) -> std::path::PathBuf {

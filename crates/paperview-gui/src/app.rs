@@ -1,4 +1,4 @@
-use std::{ffi::OsString, path::PathBuf, process::Command, sync::mpsc};
+use std::{collections::HashMap, ffi::OsString, path::PathBuf, process::Command, sync::mpsc};
 
 use iced::{
     Element, Event, Fill, Length, Subscription, Task,
@@ -13,7 +13,8 @@ use iced::{
     window,
 };
 use paperview_core::{
-    Document, History, HistoryStore, OpenDocuments, SearchMatch, WatchEvent, watch_file,
+    Document, History, HistoryStore, OpenDocuments, SearchMatch, WatchEvent, parser::Block,
+    watch_file,
 };
 
 use crate::{history, navigation, reader, theme};
@@ -23,6 +24,7 @@ const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
 const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
 const SPLIT_RESIZE_STEP: u16 = 10;
 const SPLIT_DIVIDER_HIT_ZONE: f32 = 16.0;
+const MAX_REMOTE_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct PaperView {
@@ -40,6 +42,7 @@ pub struct PaperView {
     search_query: String,
     search_matches: Vec<SearchMatch>,
     search_selected_index: Option<usize>,
+    remote_images: HashMap<String, reader::RemoteImage>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,13 +64,20 @@ pub enum Message {
     ToggleZen,
     ToggleSplit,
     ResizeSplit(SplitResize),
-    SplitDragMoved { x: f32, width: f32 },
+    SplitDragMoved {
+        x: f32,
+        width: f32,
+    },
     SplitDragStarted,
     SplitDragEnded,
     ReaderScrolled(f32),
     OpenLink(String),
     LinkOpened,
     LinkOpenFailed(String),
+    RemoteImageLoaded {
+        url: String,
+        result: Result<Vec<u8>, String>,
+    },
     TocSelected(usize),
     SearchQueryChanged(String),
     SearchNext,
@@ -91,6 +101,9 @@ struct SplitDragCursor {
 
 #[derive(Debug, Clone, Hash)]
 struct ActiveWatchPath(PathBuf);
+
+#[derive(Debug, Clone, Hash)]
+struct RemoteImageUrl(String);
 
 impl PaperView {
     #[must_use]
@@ -124,6 +137,7 @@ impl PaperView {
                     search_query: String::new(),
                     search_matches: Vec::new(),
                     search_selected_index: None,
+                    remote_images: HashMap::new(),
                 }
             }
             [path] => {
@@ -133,6 +147,7 @@ impl PaperView {
                 match Document::open(&path) {
                     Ok(document) => {
                         let active_toc_block_index = first_toc_block_index(document.parsed());
+                        let remote_images = remote_image_placeholders(Some(&document));
 
                         history.record_document(&document);
                         save_history(&history_store, &history);
@@ -152,6 +167,7 @@ impl PaperView {
                             search_query: String::new(),
                             search_matches: Vec::new(),
                             search_selected_index: None,
+                            remote_images,
                         }
                     }
                     Err(error) => Self {
@@ -169,6 +185,7 @@ impl PaperView {
                         search_query: String::new(),
                         search_matches: Vec::new(),
                         search_selected_index: None,
+                        remote_images: HashMap::new(),
                     },
                 }
             }
@@ -190,6 +207,7 @@ impl PaperView {
                     search_query: String::new(),
                     search_matches: Vec::new(),
                     search_selected_index: None,
+                    remote_images: HashMap::new(),
                 }
             }
         }
@@ -235,6 +253,11 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::LinkOpenFailed(error) => {
             state.status = Status::Error(error);
         }
+        Message::RemoteImageLoaded { url, result } => {
+            let image =
+                result.map_or_else(reader::RemoteImage::Failed, reader::RemoteImage::Loaded);
+            state.remote_images.insert(url, image);
+        }
         Message::TocSelected(block_index) => {
             state.active_toc_block_index = Some(block_index);
             return state.scroll_to_toc_block(block_index);
@@ -263,6 +286,7 @@ impl PaperView {
                 self.ensure_split_target();
                 self.sync_active_toc_to_top();
                 self.refresh_search_matches();
+                self.track_remote_images();
             }
             Err(error) => {
                 self.status = Status::Error(error.to_string());
@@ -283,6 +307,7 @@ impl PaperView {
                     self.ensure_split_target();
                     self.sync_active_toc_to_top();
                     self.refresh_search_matches();
+                    self.track_remote_images();
                 }
                 Err(error) => {
                     last_error = Some(error.to_string());
@@ -308,6 +333,7 @@ impl PaperView {
                 self.status = Status::Loaded(path);
                 self.sync_active_toc_to_top();
                 self.refresh_search_matches();
+                self.track_remote_images();
             }
             Err(error) => {
                 self.status = Status::Error(error.to_string());
@@ -332,6 +358,7 @@ impl PaperView {
         self.ensure_split_target();
         self.sync_active_toc_to_top();
         self.refresh_search_matches();
+        self.track_remote_images();
     }
 
     fn close_tab(&mut self, index: usize) {
@@ -340,6 +367,7 @@ impl PaperView {
         self.ensure_split_target();
         self.sync_active_toc_to_top();
         self.refresh_search_matches();
+        self.track_remote_images();
     }
 
     fn select_split_tab(&mut self, index: usize) {
@@ -348,6 +376,7 @@ impl PaperView {
             && index < self.documents.len()
         {
             self.split_document_index = Some(index);
+            self.track_remote_images();
         }
     }
 
@@ -358,6 +387,7 @@ impl PaperView {
             .then(|| self.first_secondary_index())
             .flatten();
         self.end_split_drag();
+        self.track_remote_images();
     }
 
     fn resize_split(&mut self, direction: SplitResize) {
@@ -435,6 +465,14 @@ impl PaperView {
             .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
 
         (primary, 100 - primary)
+    }
+
+    fn track_remote_images(&mut self) {
+        for url in visible_remote_image_urls(&self.documents, self.split_document_index) {
+            self.remote_images
+                .entry(url)
+                .or_insert(reader::RemoteImage::Loading);
+        }
     }
 
     fn sync_active_toc_to_top(&mut self) {
@@ -629,6 +667,65 @@ fn is_split_divider_hit(x: f32, width: f32, primary_width: u16) -> bool {
     (x - divider_x).abs() <= SPLIT_DIVIDER_HIT_ZONE
 }
 
+fn remote_image_placeholders(document: Option<&Document>) -> HashMap<String, reader::RemoteImage> {
+    let mut images = HashMap::new();
+
+    if let Some(document) = document {
+        track_document_remote_images(document, &mut images);
+    }
+
+    images
+}
+
+fn visible_remote_image_urls(
+    documents: &OpenDocuments,
+    split_document_index: Option<usize>,
+) -> Vec<String> {
+    let mut urls = Vec::new();
+
+    if let Some(document) = documents.active() {
+        collect_document_remote_image_urls(document, &mut urls);
+    }
+
+    if let Some(split_index) = split_document_index
+        && let Some((_, document)) = documents.iter().find(|(index, _)| *index == split_index)
+    {
+        collect_document_remote_image_urls(document, &mut urls);
+    }
+
+    urls
+}
+
+fn track_document_remote_images(
+    document: &Document,
+    images: &mut HashMap<String, reader::RemoteImage>,
+) {
+    for url in document_remote_image_urls(document) {
+        images.insert(url, reader::RemoteImage::Loading);
+    }
+}
+
+fn collect_document_remote_image_urls(document: &Document, urls: &mut Vec<String>) {
+    for url in document_remote_image_urls(document) {
+        if !urls.contains(&url) {
+            urls.push(url);
+        }
+    }
+}
+
+fn document_remote_image_urls(document: &Document) -> impl Iterator<Item = String> + '_ {
+    document
+        .parsed()
+        .blocks
+        .iter()
+        .filter_map(|block| match block {
+            Block::Image { url, .. } if reader::is_fetchable_remote_image_url(url) => {
+                Some(url.to_owned())
+            }
+            _ => None,
+        })
+}
+
 fn search_scroll_progress(document: &Document, line_index: usize) -> f32 {
     let line_count = document.source().lines().count();
 
@@ -644,8 +741,17 @@ pub fn subscription(state: &PaperView) -> Subscription<Message> {
     let file_watch = state.active_path().map_or_else(Subscription::none, |path| {
         Subscription::run_with(ActiveWatchPath(path), watch_active_document)
     });
+    let remote_images = state
+        .remote_images
+        .iter()
+        .filter(|(_, image)| matches!(image, reader::RemoteImage::Loading))
+        .map(|(url, _)| Subscription::run_with(RemoteImageUrl(url.clone()), watch_remote_image));
 
-    Subscription::batch([runtime_events, file_watch])
+    Subscription::batch(
+        [runtime_events, file_watch]
+            .into_iter()
+            .chain(remote_images),
+    )
 }
 
 fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Option<Message> {
@@ -741,6 +847,51 @@ fn watch_active_document(path: &ActiveWatchPath) -> BoxStream<'static, Message> 
     .boxed()
 }
 
+fn watch_remote_image(url: &RemoteImageUrl) -> BoxStream<'static, Message> {
+    let url = url.0.clone();
+
+    iced::stream::channel(1, async move |mut output| {
+        let result = fetch_remote_image(&url).await;
+        let _ = output
+            .send(Message::RemoteImageLoaded { url, result })
+            .await;
+    })
+    .boxed()
+}
+
+async fn fetch_remote_image(url: &str) -> Result<Vec<u8>, String> {
+    let response = reqwest::get(url)
+        .await
+        .map_err(|error| format!("request failed: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("server returned {}", response.status()));
+    }
+
+    if let Some(length) = response.content_length()
+        && length > MAX_REMOTE_IMAGE_BYTES as u64
+    {
+        return Err(format!(
+            "image is larger than {} MB",
+            MAX_REMOTE_IMAGE_BYTES / 1024 / 1024
+        ));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("read failed: {error}"))?;
+
+    if bytes.len() > MAX_REMOTE_IMAGE_BYTES {
+        return Err(format!(
+            "image is larger than {} MB",
+            MAX_REMOTE_IMAGE_BYTES / 1024 / 1024
+        ));
+    }
+
+    Ok(bytes.to_vec())
+}
+
 fn load_history(store: &HistoryStore) -> History {
     store.load().unwrap_or_else(|error| {
         eprintln!("{error}");
@@ -772,23 +923,25 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let body = match state.documents.active() {
-        Some(document) if state.is_zen => reader::view_with_search(
+        Some(document) if state.is_zen => reader::view_with_search_and_remote_images(
             document,
             Some(Message::ReaderScrolled),
             Message::OpenLink,
             state.active_search_query(),
             state.active_search_line(),
+            &state.remote_images,
         ),
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
                 split_reader(state, document, secondary)
             } else {
-                reader::view_with_search(
+                reader::view_with_search_and_remote_images(
                     document,
                     Some(Message::ReaderScrolled),
                     Message::OpenLink,
                     state.active_search_query(),
                     state.active_search_line(),
+                    &state.remote_images,
                 )
             };
 
@@ -828,17 +981,22 @@ fn split_reader<'a>(
         let is_divider_active = state.is_split_dragging || state.is_split_divider_hovered();
 
         let panes = row![
-            container(reader::view_with_search(
+            container(reader::view_with_search_and_remote_images(
                 document,
                 Some(Message::ReaderScrolled),
                 Message::OpenLink,
                 state.active_search_query(),
-                state.active_search_line()
+                state.active_search_line(),
+                &state.remote_images
             ))
             .width(Length::FillPortion(primary_width)),
             split_divider(is_divider_active),
-            container(reader::view(secondary, Message::OpenLink))
-                .width(Length::FillPortion(secondary_width))
+            container(reader::view_with_remote_images(
+                secondary,
+                Message::OpenLink,
+                &state.remote_images
+            ))
+            .width(Length::FillPortion(secondary_width))
         ]
         .spacing(0);
 
@@ -1139,7 +1297,7 @@ mod tests {
 
     use super::{
         Message, PaperView, SplitResize, is_split_divider_hit, open_link_target, reader,
-        resolve_link_target, runtime_event, search_scroll_progress,
+        remote_image_placeholders, resolve_link_target, runtime_event, search_scroll_progress,
         split_primary_width_from_cursor, title, update,
     };
 
@@ -1417,6 +1575,38 @@ mod tests {
 
         fs::remove_file(supported).expect("remove supported test document");
         fs::remove_file(unsupported).expect("remove unsupported test document");
+    }
+
+    #[test]
+    fn opening_document_tracks_remote_image_placeholders() {
+        let path = temp_doc(
+            "remote-image.md",
+            "# Remote\n\n![Remote](https://example.com/image.png)\n\n![Local](assets/local.png)",
+        );
+        let state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("remote.toml"));
+
+        assert!(matches!(
+            state.remote_images.get("https://example.com/image.png"),
+            Some(reader::RemoteImage::Loading)
+        ));
+        assert!(!state.remote_images.contains_key("assets/local.png"));
+
+        fs::remove_file(path).expect("remove remote image document");
+    }
+
+    #[test]
+    fn remote_image_placeholders_deduplicate_urls() {
+        let document = Document::from_source(
+            "# Remote\n\n![One](https://example.com/image.png)\n\n![Two](https://example.com/image.png)",
+        );
+        let images = remote_image_placeholders(Some(&document));
+
+        assert_eq!(images.len(), 1);
+        assert!(matches!(
+            images.get("https://example.com/image.png"),
+            Some(reader::RemoteImage::Loading)
+        ));
     }
 
     #[test]

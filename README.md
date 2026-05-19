@@ -31,9 +31,8 @@ paragraphs, lists, blockquotes, and table cells with basic inline styling, code
 blocks, tables, task-list markers, rules, LaTeX display math panels with
 readable previews, Mermaid diagram panels with simple flowchart previews, and
 image metadata panels are supported. Richer technical-document features such as
-full LaTeX typesetting, full Mermaid rendering, remote image fetching,
-interactive task toggles, advanced Split View controls, and PDF export are
-still on the roadmap.
+full LaTeX typesetting, full Mermaid rendering, interactive task toggles,
+advanced Split View controls, and PDF export are still on the roadmap.
 
 ## Run The GUI
 
@@ -54,7 +53,7 @@ GUI highlights:
   and clickable link styling.
 - Bordered Markdown tables with shaded headers.
 - Read-only checked and unchecked task-list markers.
-- Standalone local bitmap image previews with metadata fallback.
+- Standalone local and remote bitmap image previews with metadata fallback.
 - Source-preserving display math panels with readable previews.
 - Mermaid diagram panels with simple native flowchart previews.
 - Multiple document tabs with close controls.
@@ -205,7 +204,7 @@ Near-term MVP work includes:
 - Exact scroll geometry from rendered layout rectangles.
 - Full LaTeX typesetting and full Mermaid rendering.
 - PDF export.
-- Richer Markdown rendering for remote images and interactive task toggles.
+- Richer Markdown rendering for interactive task toggles.
 - Performance measurement against startup, scrolling, and memory targets.
 
 See [`docs/TASKS.md`](docs/TASKS.md) for the current implementation tracker.

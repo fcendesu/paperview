@@ -31,6 +31,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Clickable Links](completed/gui-clickable-links.md) - clickable GUI inline links through the platform opener.
 - [GUI Anchor Links](completed/gui-anchor-links.md) - clicked `#slug` links jump to matching headings.
 - [GUI Image Previews](completed/gui-image-previews.md) - local bitmap previews for standalone images.
+- [GUI Remote Image Previews](completed/gui-remote-image-previews.md) - async GUI previews for HTTP image URLs.
 - [GUI Search Foundation](completed/gui-search-foundation.md) - header in-document search with match navigation.
 - [GUI Search Highlighting](completed/gui-search-highlighting.md) - highlighted GUI search matches in rendered reader text.
 - [GUI Search Selected Highlight](completed/gui-search-selected-highlight.md) - stronger rendered highlight for the selected GUI search match.
