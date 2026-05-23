@@ -5,10 +5,9 @@ use paperview_core::{
         elements::inline,
     },
 };
-use ratatui::{
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
-};
+use ratatui::text::{Line, Span, Text};
+
+use crate::theme;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderedDocument {
@@ -272,7 +271,7 @@ pub fn render_toc_text(
     if toc.is_empty() {
         return Text::from(vec![Line::from(Span::styled(
             "No headings",
-            Style::default().fg(Color::DarkGray),
+            theme::toc_empty(),
         ))]);
     }
 
@@ -289,16 +288,11 @@ pub fn render_toc_text(
             (false, false) => "-",
         };
         let style = if is_focused && is_selected {
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::Blue)
-                .add_modifier(Modifier::BOLD)
+            theme::toc_selected()
         } else if is_active {
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
+            theme::toc_active()
         } else {
-            Style::default().fg(Color::DarkGray)
+            theme::toc_inactive()
         };
 
         lines.push(Line::from(Span::styled(

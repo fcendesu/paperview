@@ -14,12 +14,12 @@ use paperview_core::{
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
-    style::{Color, Modifier, Style},
+    style::Style,
     text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 
-use crate::render;
+use crate::{render, theme};
 
 const DEFAULT_SPLIT_PRIMARY_WIDTH: u16 = 50;
 const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
@@ -193,7 +193,7 @@ impl ReaderApp {
 
         frame.render_widget(
             Paragraph::new(self.header_lines())
-                .style(Style::default().fg(Color::White).bg(Color::Black))
+                .style(theme::shell())
                 .block(Block::default().borders(Borders::BOTTOM)),
             header,
         );
@@ -204,7 +204,7 @@ impl ReaderApp {
                 self.search_highlights(),
             )))
             .block(Block::default().title("Reader").borders(Borders::ALL))
-            .style(Style::default().fg(Color::Gray))
+            .style(theme::reader())
             .scroll((self.scroll, 0))
             .wrap(Wrap { trim: false }),
             reader_areas[0],
@@ -229,7 +229,7 @@ impl ReaderApp {
                         .title(format!("Side: {title}"))
                         .borders(Borders::ALL),
                 )
-                .style(Style::default().fg(Color::Gray))
+                .style(theme::reader())
                 .wrap(Wrap { trim: false }),
                 reader_areas[1],
             );
@@ -402,13 +402,10 @@ impl ReaderApp {
         vec![
             Line::from(Span::styled(
                 format!(" PaperView - {} ", self.active_document().title()),
-                Style::default().fg(Color::White).bg(Color::Black),
+                theme::shell(),
             )),
             if self.is_zen {
-                Line::from(Span::styled(
-                    " Zen Mode ".to_owned(),
-                    Style::default().fg(Color::Cyan).bg(Color::Black),
-                ))
+                Line::from(Span::styled(" Zen Mode ".to_owned(), theme::zen_badge()))
             } else {
                 tab_line(&self.documents)
             },
@@ -417,7 +414,7 @@ impl ReaderApp {
                     "[/] search  [Space] task  [z] zen  [\\] split  [</>] resize  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
                         .to_owned()
                 }),
-                Style::default().fg(Color::DarkGray).bg(Color::Black),
+                theme::shell_muted(),
             )),
         ]
     }
@@ -867,16 +864,13 @@ fn tab_line(documents: &OpenDocuments) -> Line<'static> {
 
     for (index, document) in documents.iter() {
         if index > 0 {
-            spans.push(Span::styled(" ", Style::default().bg(Color::Black)));
+            spans.push(Span::styled(" ", theme::shell()));
         }
         let is_active = documents.active_index() == Some(index);
         let style = if is_active {
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
+            theme::tab_active()
         } else {
-            Style::default().fg(Color::DarkGray).bg(Color::Black)
+            theme::tab_inactive()
         };
         spans.push(Span::styled(
             format!(" {}:{} ", index + 1, document.title()),
@@ -969,7 +963,7 @@ impl DashboardApp {
 
         frame.render_widget(
             Paragraph::new(" PaperView - Recent files ")
-                .style(Style::default().fg(Color::White).bg(Color::Black))
+                .style(theme::shell())
                 .block(Block::default().borders(Borders::BOTTOM)),
             header,
         );
@@ -978,7 +972,7 @@ impl DashboardApp {
             frame.render_widget(
                 Paragraph::new("No recent files yet.\n\nOpen a file with paperview-tui <file>.")
                     .block(Block::default().title("History").borders(Borders::ALL))
-                    .style(Style::default().fg(Color::Gray))
+                    .style(theme::reader())
                     .wrap(Wrap { trim: true }),
                 body,
             );
@@ -992,11 +986,7 @@ impl DashboardApp {
             let list = List::new(items)
                 .block(Block::default().title("History").borders(Borders::ALL))
                 .highlight_symbol("> ")
-                .highlight_style(
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                );
+                .highlight_style(theme::list_highlight());
 
             frame.render_stateful_widget(list, body, &mut self.list_state);
         }
@@ -1005,10 +995,7 @@ impl DashboardApp {
             .status
             .as_deref()
             .unwrap_or("Enter opens selected file - j/k move - q quits");
-        frame.render_widget(
-            Paragraph::new(status).style(Style::default().fg(Color::DarkGray)),
-            footer,
-        );
+        frame.render_widget(Paragraph::new(status).style(theme::status()), footer);
     }
 
     fn select_next(&mut self) {
@@ -1065,13 +1052,10 @@ impl DashboardApp {
 
 fn history_item(entry: &FileEntry) -> ListItem<'static> {
     ListItem::new(vec![
-        Line::from(Span::styled(
-            entry.title().to_owned(),
-            Style::default().fg(Color::White),
-        )),
+        Line::from(Span::styled(entry.title().to_owned(), theme::list_title())),
         Line::from(Span::styled(
             entry.path().display().to_string(),
-            Style::default().fg(Color::DarkGray),
+            theme::list_meta(),
         )),
     ])
 }
@@ -1126,17 +1110,9 @@ fn document_line(line: &str, query: &str, search_state: SearchLineState) -> Line
     }
 
     if line.starts_with('#') {
-        Line::from(Span::styled(
-            line.to_owned(),
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ))
+        Line::from(Span::styled(line.to_owned(), theme::reader_heading()))
     } else if line.starts_with("> ") {
-        Line::from(Span::styled(
-            line.to_owned(),
-            Style::default().fg(Color::Blue),
-        ))
+        Line::from(Span::styled(line.to_owned(), theme::reader_quote()))
     } else {
         Line::from(line.to_owned())
     }
@@ -1148,19 +1124,13 @@ fn highlighted_document_line(
     search_state: SearchLineState,
 ) -> Line<'static> {
     let base_style = match search_state {
-        SearchLineState::Selected => Style::default().fg(Color::Black).bg(Color::Yellow),
-        SearchLineState::Matched => Style::default().fg(Color::White).bg(Color::DarkGray),
+        SearchLineState::Selected => theme::search_selected(),
+        SearchLineState::Matched => theme::search_matched(),
         SearchLineState::None => Style::default(),
     };
     let emphasis_style = match search_state {
-        SearchLineState::Selected => Style::default()
-            .fg(Color::Black)
-            .bg(Color::Yellow)
-            .add_modifier(Modifier::BOLD),
-        SearchLineState::Matched => Style::default()
-            .fg(Color::White)
-            .bg(Color::Blue)
-            .add_modifier(Modifier::BOLD),
+        SearchLineState::Selected => theme::search_selected_emphasis(),
+        SearchLineState::Matched => theme::search_matched_emphasis(),
         SearchLineState::None => Style::default(),
     };
     let Some((start, end)) = match_range(line, query) else {
@@ -1195,12 +1165,13 @@ mod tests {
 
     use crossterm::event::KeyCode;
     use paperview_core::{Document, FileEntry, HistoryStore, SearchMatch};
-    use ratatui::style::{Color, Modifier};
+    use ratatui::style::Modifier;
 
     use super::{
         DashboardApp, ReaderApp, ReaderFocus, SearchHighlights, SearchMode, clamp_search_selection,
         clamp_toc_selection, document_text, tab_line,
     };
+    use crate::theme;
 
     #[test]
     fn scrolling_is_saturating() {
@@ -1539,9 +1510,9 @@ mod tests {
         let line = tab_line(&app.documents);
 
         assert_eq!(line.spans[0].content.as_ref(), " 1:First ");
-        assert_eq!(line.spans[0].style.bg, Some(Color::Cyan));
+        assert_eq!(line.spans[0].style, theme::tab_active());
         assert_eq!(line.spans[2].content.as_ref(), " 2:Second ");
-        assert_eq!(line.spans[2].style.fg, Some(Color::DarkGray));
+        assert_eq!(line.spans[2].style, theme::tab_inactive());
     }
 
     #[test]
@@ -1638,7 +1609,7 @@ mod tests {
             .find(|span| span.content.as_ref() == "Needle")
             .expect("highlighted match span");
 
-        assert_eq!(highlighted.style.bg, Some(Color::Yellow));
+        assert_eq!(highlighted.style, theme::search_selected_emphasis());
         assert!(highlighted.style.add_modifier.contains(Modifier::BOLD));
     }
 
@@ -1671,7 +1642,7 @@ mod tests {
             .find(|span| span.content.as_ref() == "Needle")
             .expect("highlighted match span");
 
-        assert_eq!(highlighted.style.bg, Some(Color::Blue));
+        assert_eq!(highlighted.style, theme::search_matched_emphasis());
         assert!(highlighted.style.add_modifier.contains(Modifier::BOLD));
     }
 

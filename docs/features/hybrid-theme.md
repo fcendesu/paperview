@@ -13,19 +13,29 @@ The current GUI theme includes:
 - Blue accent for active chrome and code labels.
 - Light code, quote, and paper borders.
 
-TUI theme work has not started. Core does not own theme behavior.
+The current TUI theme maps the same visual intent into Ratatui styles:
+
+- Dark shell/header and muted helper text.
+- Cream active reader and active tab styles where terminal color support allows.
+- Charcoal reader text with bold headings.
+- Blue accents for quotes, Zen badges, active TOC entries, and selected lists.
+- Distinct selected and matched search highlight styles.
+
+Core does not own theme behavior.
 
 ## Implementation Notes
 
 - GUI color and container styles live in `crates/paperview-gui/src/theme.rs`.
 - The Iced shell consumes theme styles from `app.rs` and `reader.rs`.
+- TUI color styles live in `crates/paperview-tui/src/theme.rs`.
+- The Ratatui app and render modules consume TUI theme helpers instead of
+  scattering inline style literals.
 - The active document tab is visual scaffolding for future tabbed interface work; it currently represents a single open document.
 - The initial theme follows the color values in `docs/design/INDEX.md`.
 
 ## Open Decisions
 
 - Font embedding is deferred until typography work can choose durable bundled fonts.
-- TUI color mapping should be implemented when the Ratatui shell becomes stateful.
 - Theme switching is out of scope for the first MVP theme.
 
 ## Verification Expectations

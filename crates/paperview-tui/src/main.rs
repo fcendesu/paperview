@@ -1,5 +1,6 @@
 mod app;
 mod render;
+mod theme;
 
 use std::{
     env,

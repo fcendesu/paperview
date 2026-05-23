@@ -19,6 +19,11 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 - **Table Borders:** `#D0D7DE`
 - **Table Header Shading:** `#F6F8FA`
 
+The TUI maps these tokens to Ratatui styles in
+`crates/paperview-tui/src/theme.rs`, using the dark shell, cream reader,
+charcoal text, muted metadata, and blue accent where terminal color support
+allows.
+
 ---
 
 ## 2. Layout & Components

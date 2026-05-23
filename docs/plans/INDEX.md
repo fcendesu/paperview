@@ -69,6 +69,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Task Toggle Writeback](completed/gui-task-toggle-writeback.md) - clickable GUI task checkboxes with Markdown writeback.
 - [TUI Task Toggle Writeback](completed/tui-task-toggle-writeback.md) - keyboard TUI task checkbox toggles with Markdown writeback.
 - [TUI History Dashboard](completed/tui-history-dashboard.md) - no-file Ratatui recent-files dashboard with selection and open.
+- [TUI Hybrid Theme](completed/tui-hybrid-theme.md) - Ratatui style tokens for the dark shell and cream reader theme.
 - [Workspace Search Command](completed/workspace-search-command.md) - headless ripgrep-backed workspace search report.
 
 Each plan should include:

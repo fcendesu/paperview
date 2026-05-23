@@ -16,9 +16,9 @@ PaperView is in early MVP development. The workspace currently contains:
   live-reload watching, in-document search, and shared open-document tab state.
 - `paperview-gui`: an Iced desktop reader with history, table of contents,
   tabs, drag-and-drop, live reload, and Zen Mode.
-- `paperview-tui`: a Ratatui terminal reader with recent-file dashboard,
-  tabs, table of contents, active-section highlighting, scrolling, and live
-  reload.
+- `paperview-tui`: a Ratatui terminal reader with hybrid theme styling,
+  recent-file dashboard, tabs, table of contents, active-section highlighting,
+  scrolling, and live reload.
 
 Supported input formats:
 

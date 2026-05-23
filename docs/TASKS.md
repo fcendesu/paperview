@@ -21,7 +21,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Task List Rendering** | ✅ | ✅ | ✅ |
 | **Image Rendering** | ✅ | ✅ | ✅ |
 | **Inline Span Rendering** | ✅ | ✅ | ✅ |
-| **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
+| **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ✅ |
 | **Live Reload (Watcher)** | ✅ | ✅ | ✅ |
 | **Tabbed Interface** | ✅ | ✅ | ✅ |
 | **Split View (Side-by-Side)** | ⬜ | ✅ | ✅ |
@@ -39,6 +39,7 @@ This document tracks the progress of features across the three workspace crates.
 ## MVP Notes
 
 - History Sidebar includes shared persistence, GUI click-to-open behavior, and the TUI recent-files dashboard.
+- Hybrid Theme covers GUI Iced styles and TUI Ratatui style tokens; core has no theme ownership.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
 - Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
 - Zen Mode currently covers the GUI focused reader layout and the TUI full-width active reader layout; persisted preferences are deferred.
