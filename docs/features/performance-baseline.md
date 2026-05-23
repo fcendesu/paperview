@@ -18,6 +18,7 @@ The report includes:
 - Rendered TUI line count
 - Estimated memory for source, parsed text payloads, and rendered TUI lines
 - Memory target status for the MVP 100MB target
+- Load target status for the MVP startup target
 - Read, parse/model, render, and total durations
 
 ## Implementation Notes
@@ -38,6 +39,8 @@ The report includes:
 - This is a baseline command, not a full benchmark harness.
 - GUI startup, GUI widget layout, OS RSS memory use, and scroll frame timing
   remain unmeasured.
+- The load target is reported from the headless read/parse/render path, not the
+  full interactive terminal or GUI startup path.
 - Historical baseline storage and threshold enforcement are deferred.
 
 ## Verification Expectations

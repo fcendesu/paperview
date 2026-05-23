@@ -72,7 +72,7 @@ This document tracks the progress of features across the three workspace crates.
 
 | Task | Status | Target |
 | :--- | :---: | :--- |
-| **Cold Startup Time** | 🏗️ | `paperview-tui perf <file>` records read/parse/render baseline; full startup timing still needed |
+| **Cold Startup Time** | 🏗️ | `paperview-tui perf <file>` records read/parse/render baseline and load target status; full interactive startup timing still needed |
 | **Scrolling 60 FPS** | ⬜ | Constant |
 | **Memory Footprint** | 🏗️ | `paperview-tui perf <file>` estimates source/model/rendered text payloads against < 100MB |
 | **Zero-Dependency Build**| ⬜ | Single Binary |

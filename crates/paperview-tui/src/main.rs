@@ -217,6 +217,7 @@ struct PerfReport {
     rendered_lines: usize,
     estimated_memory_bytes: usize,
     memory_target_bytes: usize,
+    load_target_duration: Duration,
     read_duration: Duration,
     parse_duration: Duration,
     render_duration: Duration,
@@ -258,6 +259,7 @@ fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
         rendered_lines: rendered.lines.len(),
         estimated_memory_bytes,
         memory_target_bytes: MEMORY_TARGET_BYTES,
+        load_target_duration: LOAD_TARGET_DURATION,
         read_duration,
         parse_duration,
         render_duration,
@@ -290,11 +292,21 @@ fn perf_text(report: &PerfReport) -> String {
         format!("Parse: {}", format_duration(report.parse_duration)),
         format!("Render: {}", format_duration(report.render_duration)),
         format!("Total: {}", format_duration(report.total_duration)),
+        format!(
+            "Load target: under {} ({})",
+            format_duration(report.load_target_duration),
+            if report.total_duration <= report.load_target_duration {
+                "ok"
+            } else {
+                "over"
+            }
+        ),
     ]
     .join("\n")
 }
 
 const MEMORY_TARGET_BYTES: usize = 100 * 1024 * 1024;
+const LOAD_TARGET_DURATION: Duration = Duration::from_millis(500);
 
 fn parsed_payload_bytes(blocks: &[Block]) -> usize {
     blocks.iter().map(block_payload_bytes).sum()
@@ -391,9 +403,9 @@ mod tests {
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
     use super::{
-        MEMORY_TARGET_BYTES, PerfReport, config_path_text, export_path, format_bytes,
-        format_duration, is_reserved_command, measure_perf, open_documents, perf_text, run,
-        stats_text, workspace_search_text,
+        LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, config_path_text, export_path,
+        format_bytes, format_duration, is_reserved_command, measure_perf, open_documents,
+        perf_text, run, stats_text, workspace_search_text,
     };
 
     #[test]
@@ -418,6 +430,7 @@ mod tests {
             rendered_lines: 9,
             estimated_memory_bytes: 2_048,
             memory_target_bytes: MEMORY_TARGET_BYTES,
+            load_target_duration: LOAD_TARGET_DURATION,
             read_duration: Duration::from_micros(250),
             parse_duration: Duration::from_micros(1_500),
             render_duration: Duration::from_micros(2_250),
@@ -433,6 +446,7 @@ mod tests {
         assert!(text.contains("Read: 250us"));
         assert!(text.contains("Parse: 1.50ms"));
         assert!(text.contains("Total: 4.00ms"));
+        assert!(text.contains("Load target: under 500.00ms (ok)"));
     }
 
     #[test]
@@ -556,6 +570,7 @@ mod tests {
         assert!(report.rendered_lines >= 2);
         assert!(report.estimated_memory_bytes >= report.bytes);
         assert_eq!(report.memory_target_bytes, MEMORY_TARGET_BYTES);
+        assert_eq!(report.load_target_duration, LOAD_TARGET_DURATION);
         fs::remove_file(path).expect("remove perf document");
     }
 }
