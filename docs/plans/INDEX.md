@@ -56,6 +56,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [PDF Export Text Backend](completed/pdf-export-text-backend.md) - dependency-light text-first PDF artifacts.
 - [Performance Baseline Command](completed/performance-baseline-command.md) - headless read, parse, and TUI render timing report.
 - [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
+- [TUI LaTeX Readable Preview](completed/tui-latex-readable-preview.md) - readable terminal previews for display math.
 - [TUI TOC Scroll Sync](completed/tui-toc-scroll-sync.md) - Ratatui reader highlights the active TOC section while scrolling.
 - [TUI TOC Jump Mode](completed/tui-toc-jump-mode.md) - Ratatui TOC focus mode and jump-to-heading navigation.
 - [TUI Search Highlighting](completed/tui-search-highlighting.md) - highlighted TUI search result lines.

@@ -9,7 +9,8 @@ PaperView preserves LaTeX math source emitted by `pulldown-cmark`.
   document block.
 - The GUI renders display math as a source-preserving math panel with a readable
   Unicode-ish preview for common symbols, fractions, roots, and numeric scripts.
-- The TUI renders display math with `$$` delimiters.
+- The TUI renders display math with `$$` delimiters and shows the same
+  Unicode-ish readable preview when it improves the source.
 
 This is still a foundation slice. PaperView does not yet fully typeset formulas,
 validate LaTeX syntax, or provide a dedicated inline math span model for rich
@@ -25,14 +26,14 @@ frontend styling.
   parsing.
 - `paperview-gui::reader` shows the readable preview above the original display
   math source when the helper can improve the source text.
+- `paperview-tui::render` shows the readable preview above the original display
+  math source when the helper can improve the source text.
 
 ## Open Decisions
 
 - Choose the full native formula rendering path for the GUI.
 - Decide whether inline math should become a structured inline span model once
   richer text rendering exists.
-- Decide whether the TUI should keep source rendering only or add Unicode-ish
-  preview affordances for simple formulas.
 
 ## Verification
 

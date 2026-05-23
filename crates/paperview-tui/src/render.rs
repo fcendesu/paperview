@@ -2,7 +2,7 @@ use paperview_core::{
     Document,
     parser::{
         Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow, TocItem,
-        elements::inline,
+        elements::{inline, math},
     },
 };
 use ratatui::text::{Line, Span, Text};
@@ -116,6 +116,11 @@ fn render_block(block: &Block, output: &mut String) {
             }
         }
         Block::Math { source, .. } => {
+            if let Some(preview) = math::readable_preview(source) {
+                output.push_str("= ");
+                output.push_str(&preview);
+                output.push('\n');
+            }
             output.push_str("$$\n");
             output.push_str(source);
             if !source.ends_with('\n') {
@@ -334,8 +339,20 @@ mod tests {
     #[test]
     fn renders_latex_math_blocks() {
         let document = Document::from_source("Before $x$.\n\n$$\nE = mc^2\n$$");
+        let rendered = render_document(&document);
 
-        assert!(render_document(&document).contains("Before $x$.\n\n$$\nE = mc^2\n$$\n"));
+        assert!(rendered.contains("Before $x$."));
+        assert!(rendered.contains("= E = mc²\n$$\nE = mc^2\n$$"));
+    }
+
+    #[test]
+    fn renders_latex_math_readable_preview_when_useful() {
+        let document = Document::from_source("$$\n\\frac{\\alpha_1}{x^2} + \\sqrt{y}\n$$");
+
+        assert!(
+            render_document(&document)
+                .contains("= (α₁) / (x²) + √(y)\n$$\n\\frac{\\alpha_1}{x^2} + \\sqrt{y}\n$$")
+        );
     }
 
     #[test]
