@@ -17,6 +17,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [History Sidebar Foundation](completed/history-sidebar-foundation.md) - shared recent-file model and first GUI history rail.
 - [History Persistence](completed/history-persistence.md) - TOML-backed recent-file storage loaded and saved by the GUI.
 - [HTML Export Command](completed/html-export-command.md) - headless HTML export from the parsed document model.
+- [HTML Export Styling](completed/html-export-styling.md) - standalone PaperView CSS and semantic export classes.
 - [HTML Export Heading Anchors](completed/html-export-heading-anchors.md) - TOC-compatible heading ids in exported HTML.
 - [Image Rendering](completed/image-rendering.md) - standalone image metadata blocks and first GUI/TUI rendering.
 - [In-Document Search Foundation](completed/in-document-search-foundation.md) - shared document search API and first TUI search workflow.

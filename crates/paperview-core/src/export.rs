@@ -118,7 +118,7 @@ pub fn export_html(document: &Document) -> String {
     output.push_str(&format!("  <title>{title}</title>\n"));
     output.push_str("  <style>\n");
     output.push_str(CSS);
-    output.push_str("  </style>\n</head>\n<body>\n<main>\n");
+    output.push_str("  </style>\n</head>\n<body>\n<main class=\"paper\">\n");
 
     let heading_slugs = document
         .parsed()
@@ -149,14 +149,18 @@ fn render_block(block: &Block, heading_slug: Option<&str>, output: &mut String) 
             output.push_str("</p>\n");
         }
         Block::BlockQuote(spans) => {
-            output.push_str("<blockquote>");
+            output.push_str("<blockquote class=\"callout\">");
             render_inline_spans(spans, output);
             output.push_str("</blockquote>\n");
         }
-        Block::CodeBlock { language, code } => render_code_block(language.as_deref(), code, output),
-        Block::Diagram { language, source } => render_code_block(Some(language), source, output),
+        Block::CodeBlock { language, code } => {
+            render_code_block(language.as_deref(), code, "source-panel code-panel", output)
+        }
+        Block::Diagram { language, source } => {
+            render_code_block(Some(language), source, "source-panel diagram-panel", output);
+        }
         Block::Image { alt, url, title } => {
-            output.push_str("<figure><img src=\"");
+            output.push_str("<figure class=\"media-block\"><img src=\"");
             output.push_str(&escape_attr(url));
             output.push_str("\" alt=\"");
             output.push_str(&escape_attr(alt));
@@ -210,8 +214,10 @@ fn render_heading(
     output.push_str(&format!("</h{depth}>\n"));
 }
 
-fn render_code_block(language: Option<&str>, code: &str, output: &mut String) {
-    output.push_str("<pre><code");
+fn render_code_block(language: Option<&str>, code: &str, block_class: &str, output: &mut String) {
+    output.push_str("<pre class=\"");
+    output.push_str(block_class);
+    output.push_str("\"><code");
     if let Some(language) = language
         && !language.trim().is_empty()
     {
@@ -230,7 +236,7 @@ fn render_table(
     rows: &[Vec<TableCell>],
     output: &mut String,
 ) {
-    output.push_str("<table>\n");
+    output.push_str("<table class=\"data-table\">\n");
     if !header.is_empty() {
         output.push_str("<thead><tr>");
         for (index, cell) in header.iter().enumerate() {
@@ -280,9 +286,19 @@ fn alignment_class(alignment: TableAlignment) -> Option<&'static str> {
 
 fn render_list(ordered: bool, items: &[ListItem], output: &mut String) {
     let tag = if ordered { "ol" } else { "ul" };
-    output.push_str(&format!("<{tag}>\n"));
+    let class = if items.iter().any(|item| item.checked.is_some()) {
+        " class=\"task-list\""
+    } else {
+        ""
+    };
+    output.push_str(&format!("<{tag}{class}>\n"));
     for item in items {
-        output.push_str("<li>");
+        let item_class = if item.checked.is_some() {
+            " class=\"task-item\""
+        } else {
+            ""
+        };
+        output.push_str(&format!("<li{item_class}>"));
         if let Some(checked) = item.checked {
             output.push_str("<input type=\"checkbox\" disabled");
             if checked {
@@ -629,63 +645,88 @@ fn escape_pdf_text(text: &str) -> String {
 
 const CSS: &str = r#"    :root {
       color-scheme: light;
+      --shell-bg: #111318;
+      --paper-bg: #fdf8ef;
+      --reader-text: #1f2328;
+      --muted-text: #525862;
+      --accent: #58a6ff;
+      --border: #d0d7de;
+      --panel-bg: #f6f8fa;
+      --math-accent: #d29922;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #111318;
-      color: #1f2328;
+      background: var(--shell-bg);
+      color: var(--reader-text);
     }
     body {
       margin: 0;
-      background: #111318;
+      background: var(--shell-bg);
     }
-    main {
+    .paper {
       box-sizing: border-box;
-      max-width: 860px;
+      max-width: 900px;
       min-height: 100vh;
       margin: 0 auto;
       padding: 56px;
-      background: #fdf8ef;
+      background: var(--paper-bg);
+      box-shadow: 0 0 0 1px rgba(208, 215, 222, 0.35), 0 24px 80px rgba(0, 0, 0, 0.32);
     }
     h1, h2, h3, h4, h5, h6 {
       line-height: 1.2;
-      margin: 1.2em 0 0.55em;
+      margin: 1.25em 0 0.55em;
+      letter-spacing: 0;
+    }
+    h1 {
+      margin-top: 0;
+      padding-bottom: 0.35em;
+      border-bottom: 1px solid var(--border);
     }
     p, blockquote, li {
-      line-height: 1.6;
+      line-height: 1.65;
     }
-    blockquote {
+    a {
+      color: #0969da;
+      text-decoration-thickness: 0.08em;
+      text-underline-offset: 0.18em;
+    }
+    .callout {
       margin: 1em 0;
-      padding: 0.5em 1em;
-      border-left: 4px solid #58a6ff;
-      color: #525862;
-      background: #f6f8fa;
+      padding: 0.65em 1em;
+      border-left: 4px solid var(--accent);
+      color: var(--muted-text);
+      background: var(--panel-bg);
     }
-    pre {
+    .source-panel {
       overflow: auto;
       padding: 1em;
-      border: 1px solid #d0d7de;
+      border: 1px solid var(--border);
       border-radius: 6px;
-      background: #f6f8fa;
+      background: var(--panel-bg);
+    }
+    .diagram-panel {
+      border-left: 4px solid var(--accent);
     }
     code {
       font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
     }
     :not(pre) > code {
       padding: 0.1em 0.3em;
       border-radius: 4px;
-      background: #f6f8fa;
+      background: var(--panel-bg);
     }
-    table {
+    .data-table {
       width: 100%;
       border-collapse: collapse;
       margin: 1em 0;
     }
     th, td {
       padding: 0.55em 0.7em;
-      border: 1px solid #d0d7de;
+      border: 1px solid var(--border);
       text-align: left;
+      vertical-align: top;
     }
     th {
-      background: #f6f8fa;
+      background: var(--panel-bg);
     }
     .align-center {
       text-align: center;
@@ -693,19 +734,33 @@ const CSS: &str = r#"    :root {
     .align-right {
       text-align: right;
     }
-    figure {
-      margin: 1em 0;
+    .media-block {
+      margin: 1.25em 0;
     }
     img {
       max-width: 100%;
+      border-radius: 6px;
     }
     figcaption {
       margin-top: 0.4em;
-      color: #525862;
+      color: var(--muted-text);
       font-size: 0.9em;
     }
+    .task-list {
+      list-style: none;
+      padding-left: 0;
+    }
+    .task-item input {
+      margin-right: 0.45em;
+      accent-color: var(--accent);
+    }
     .math {
-      border-left: 4px solid #d29922;
+      border-left: 4px solid var(--math-accent);
+    }
+    @media (max-width: 720px) {
+      .paper {
+        padding: 28px;
+      }
     }
 "#;
 
@@ -724,10 +779,30 @@ mod tests {
         let html = export_html(&document);
 
         assert!(html.contains("<title>PaperView</title>"));
+        assert!(html.contains("<main class=\"paper\">"));
         assert!(html.contains("<h1 id=\"paperview\">PaperView</h1>"));
         assert!(html.contains("<strong>native</strong>"));
         assert!(html.contains("<a href=\"docs/index.md\">reader</a>"));
+        assert!(html.contains("<ul class=\"task-list\">"));
+        assert!(html.contains("<li class=\"task-item\">"));
         assert!(html.contains("<input type=\"checkbox\" disabled checked> Done"));
+    }
+
+    #[test]
+    fn exports_paperview_html_theme_styles() {
+        let document = Document::from_source(
+            "# PaperView\n\n> Note\n\n```mermaid\ngraph TD\n  A-->B\n```\n\n$$ E = mc^2 $$",
+        );
+        let html = export_html(&document);
+
+        assert!(html.contains("--shell-bg: #111318;"));
+        assert!(html.contains("--paper-bg: #fdf8ef;"));
+        assert!(html.contains(".source-panel"));
+        assert!(html.contains("<blockquote class=\"callout\">"));
+        assert!(html.contains(
+            "<pre class=\"source-panel diagram-panel\"><code class=\"language-mermaid\">"
+        ));
+        assert!(html.contains("<pre class=\"math display\"><code>"));
     }
 
     #[test]

@@ -19,6 +19,9 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.html`.
 - The exporter escapes text and HTML attributes before writing user content.
 - Exported headings include duplicate-safe `id` attributes using the same
   slug policy as the shared table of contents.
+- Exported HTML includes a standalone PaperView CSS theme with dark shell,
+  cream paper surface, styled source panels, tables, task lists, media blocks,
+  blockquotes, math panels, and Mermaid/source panels.
 - Current output covers headings, paragraphs, blockquotes, code blocks,
   Mermaid/source diagram blocks, image blocks, tables, lists, task-list
   checkboxes, math blocks, and rules.
