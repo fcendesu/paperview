@@ -159,7 +159,8 @@ match navigation, and highlighted match lines.
 The headless stats command prints word, line, character, reading-time, and
 heading-structure metadata for a document.
 The headless perf command prints document size, parse shape, rendered TUI line
-count, and read/parse/render timings for local baseline checks.
+count, deterministic memory estimate, target status, and read/parse/render
+timings for local baseline checks.
 The config commands print or open PaperView's TOML config file, creating a
 default file before edit when needed.
 The workspace search command prints ripgrep-backed `path:line:column` results

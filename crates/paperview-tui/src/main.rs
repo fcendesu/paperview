@@ -2,6 +2,7 @@ mod app;
 mod render;
 mod theme;
 
+use paperview_core::parser::{Block, InlineSpan, ListItem, TableCell};
 use std::{
     env,
     ffi::OsString,
@@ -214,6 +215,8 @@ struct PerfReport {
     blocks: usize,
     headings: usize,
     rendered_lines: usize,
+    estimated_memory_bytes: usize,
+    memory_target_bytes: usize,
     read_duration: Duration,
     parse_duration: Duration,
     render_duration: Duration,
@@ -242,6 +245,9 @@ fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
     let render_started = Instant::now();
     let rendered = render::render_document_with_anchors(&document);
     let render_duration = render_started.elapsed();
+    let rendered_memory = rendered.lines.iter().map(String::len).sum::<usize>();
+    let estimated_memory_bytes =
+        bytes + parsed_payload_bytes(&document.parsed().blocks) + rendered_memory;
 
     Ok(PerfReport {
         path,
@@ -250,6 +256,8 @@ fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
         blocks,
         headings,
         rendered_lines: rendered.lines.len(),
+        estimated_memory_bytes,
+        memory_target_bytes: MEMORY_TARGET_BYTES,
         read_duration,
         parse_duration,
         render_duration,
@@ -265,12 +273,86 @@ fn perf_text(report: &PerfReport) -> String {
         format!("Parsed blocks: {}", report.blocks),
         format!("Headings: {}", report.headings),
         format!("Rendered TUI lines: {}", report.rendered_lines),
+        format!(
+            "Estimated memory: {}",
+            format_bytes(report.estimated_memory_bytes)
+        ),
+        format!(
+            "Memory target: under {} ({})",
+            format_bytes(report.memory_target_bytes),
+            if report.estimated_memory_bytes <= report.memory_target_bytes {
+                "ok"
+            } else {
+                "over"
+            }
+        ),
         format!("Read: {}", format_duration(report.read_duration)),
         format!("Parse: {}", format_duration(report.parse_duration)),
         format!("Render: {}", format_duration(report.render_duration)),
         format!("Total: {}", format_duration(report.total_duration)),
     ]
     .join("\n")
+}
+
+const MEMORY_TARGET_BYTES: usize = 100 * 1024 * 1024;
+
+fn parsed_payload_bytes(blocks: &[Block]) -> usize {
+    blocks.iter().map(block_payload_bytes).sum()
+}
+
+fn block_payload_bytes(block: &Block) -> usize {
+    match block {
+        Block::Heading { spans, .. } | Block::Paragraph(spans) | Block::BlockQuote(spans) => {
+            spans_payload_bytes(spans)
+        }
+        Block::CodeBlock { language, code } => {
+            language.as_ref().map_or(0, String::len) + code.len()
+        }
+        Block::Diagram { language, source } => language.len() + source.len(),
+        Block::Image { alt, url, title } => alt.len() + url.len() + title.len(),
+        Block::Table { header, rows, .. } => {
+            table_row_payload_bytes(header)
+                + rows
+                    .iter()
+                    .map(|row| row.iter().map(cell_payload_bytes).sum::<usize>())
+                    .sum::<usize>()
+        }
+        Block::List { items, .. } => items.iter().map(list_item_payload_bytes).sum(),
+        Block::Math { source, .. } => source.len(),
+        Block::Rule => 0,
+    }
+}
+
+fn table_row_payload_bytes(row: &[TableCell]) -> usize {
+    row.iter().map(cell_payload_bytes).sum()
+}
+
+fn cell_payload_bytes(cell: &TableCell) -> usize {
+    spans_payload_bytes(cell)
+}
+
+fn list_item_payload_bytes(item: &ListItem) -> usize {
+    spans_payload_bytes(&item.content)
+}
+
+fn spans_payload_bytes(spans: &[InlineSpan]) -> usize {
+    spans
+        .iter()
+        .map(|span| span.text.len() + span.link.as_ref().map_or(0, String::len))
+        .sum()
+}
+
+fn format_bytes(bytes: usize) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = 1024.0 * 1024.0;
+
+    if bytes < 1024 {
+        format!("{bytes}B")
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1}KiB", bytes as f64 / KIB)
+    } else {
+        format!("{:.1}MiB", bytes as f64 / MIB)
+    }
 }
 
 fn format_duration(duration: Duration) -> String {
@@ -309,8 +391,9 @@ mod tests {
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
     use super::{
-        PerfReport, config_path_text, export_path, format_duration, is_reserved_command,
-        measure_perf, open_documents, perf_text, run, stats_text, workspace_search_text,
+        MEMORY_TARGET_BYTES, PerfReport, config_path_text, export_path, format_bytes,
+        format_duration, is_reserved_command, measure_perf, open_documents, perf_text, run,
+        stats_text, workspace_search_text,
     };
 
     #[test]
@@ -333,6 +416,8 @@ mod tests {
             blocks: 4,
             headings: 2,
             rendered_lines: 9,
+            estimated_memory_bytes: 2_048,
+            memory_target_bytes: MEMORY_TARGET_BYTES,
             read_duration: Duration::from_micros(250),
             parse_duration: Duration::from_micros(1_500),
             render_duration: Duration::from_micros(2_250),
@@ -343,6 +428,8 @@ mod tests {
         assert!(text.contains("File: docs/PRD.md"));
         assert!(text.contains("Bytes: 128"));
         assert!(text.contains("Parsed blocks: 4"));
+        assert!(text.contains("Estimated memory: 2.0KiB"));
+        assert!(text.contains("Memory target: under 100.0MiB (ok)"));
         assert!(text.contains("Read: 250us"));
         assert!(text.contains("Parse: 1.50ms"));
         assert!(text.contains("Total: 4.00ms"));
@@ -352,6 +439,13 @@ mod tests {
     fn formats_duration_units() {
         assert_eq!(format_duration(Duration::from_micros(999)), "999us");
         assert_eq!(format_duration(Duration::from_micros(1_000)), "1.00ms");
+    }
+
+    #[test]
+    fn formats_memory_units() {
+        assert_eq!(format_bytes(999), "999B");
+        assert_eq!(format_bytes(2 * 1024), "2.0KiB");
+        assert_eq!(format_bytes(100 * 1024 * 1024), "100.0MiB");
     }
 
     #[test]
@@ -460,6 +554,8 @@ mod tests {
         assert_eq!(report.blocks, 2);
         assert_eq!(report.headings, 1);
         assert!(report.rendered_lines >= 2);
+        assert!(report.estimated_memory_bytes >= report.bytes);
+        assert_eq!(report.memory_target_bytes, MEMORY_TARGET_BYTES);
         fs::remove_file(path).expect("remove perf document");
     }
 }

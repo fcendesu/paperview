@@ -55,6 +55,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [PDF Export Foundation](completed/pdf-export-foundation.md) - shared export format contract with PDF unavailable-backend handling.
 - [PDF Export Text Backend](completed/pdf-export-text-backend.md) - dependency-light text-first PDF artifacts.
 - [Performance Baseline Command](completed/performance-baseline-command.md) - headless read, parse, and TUI render timing report.
+- [Performance Memory Estimate](completed/performance-memory-estimate.md) - deterministic perf memory estimate and target status.
 - [TUI Live Reload](completed/tui-live-reload.md) - Ratatui active-document reload using the core watcher.
 - [TUI LaTeX Readable Preview](completed/tui-latex-readable-preview.md) - readable terminal previews for display math.
 - [TUI Mermaid Flowchart Preview](completed/tui-mermaid-flowchart-preview.md) - compact terminal previews for simple Mermaid flowcharts.
