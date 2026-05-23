@@ -96,8 +96,17 @@ pub fn export_document(
             extension: format.extension(),
             contents: export_html(document).into_bytes(),
         }),
-        ExportFormat::Pdf => Err(ExportError::PdfUnavailable),
+        ExportFormat::Pdf => Ok(ExportArtifact {
+            extension: format.extension(),
+            contents: export_pdf(document),
+        }),
     }
+}
+
+#[must_use]
+pub fn export_pdf(document: &Document) -> Vec<u8> {
+    let lines = pdf_lines(document);
+    write_pdf(&lines)
 }
 
 #[must_use]
@@ -336,6 +345,288 @@ fn escape_attr(value: &str) -> String {
     escape_text(value).replace('"', "&quot;")
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct PdfLine {
+    text: String,
+    size: u16,
+}
+
+fn pdf_lines(document: &Document) -> Vec<PdfLine> {
+    let mut lines = vec![PdfLine {
+        text: document.title().to_owned(),
+        size: 22,
+    }];
+    lines.push(PdfLine {
+        text: String::new(),
+        size: 12,
+    });
+
+    for block in &document.parsed().blocks {
+        render_pdf_block(block, &mut lines);
+    }
+
+    lines
+}
+
+fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
+    match block {
+        Block::Heading { level, spans } => {
+            lines.push(PdfLine {
+                text: inline_plain_text(spans),
+                size: pdf_heading_size(*level),
+            });
+            lines.push(PdfLine {
+                text: String::new(),
+                size: 12,
+            });
+        }
+        Block::Paragraph(spans) => push_wrapped_pdf_lines(&inline_plain_text(spans), 12, lines),
+        Block::BlockQuote(spans) => {
+            push_wrapped_pdf_lines(&format!("> {}", inline_plain_text(spans)), 12, lines);
+        }
+        Block::CodeBlock { language, code } => {
+            if let Some(language) = language
+                && !language.trim().is_empty()
+            {
+                lines.push(PdfLine {
+                    text: format!("code: {language}"),
+                    size: 10,
+                });
+            }
+            push_preformatted_pdf_lines(code, lines);
+        }
+        Block::Diagram { language, source } => {
+            lines.push(PdfLine {
+                text: format!("diagram: {language}"),
+                size: 10,
+            });
+            push_preformatted_pdf_lines(source, lines);
+        }
+        Block::Image { alt, url, title } => {
+            let label = if alt.trim().is_empty() { "Image" } else { alt };
+            push_wrapped_pdf_lines(&format!("[image] {label}: {url}"), 11, lines);
+            if !title.trim().is_empty() {
+                push_wrapped_pdf_lines(title, 10, lines);
+            }
+        }
+        Block::Table { header, rows, .. } => {
+            if !header.is_empty() {
+                push_wrapped_pdf_lines(&pdf_table_row(header), 10, lines);
+            }
+            for row in rows {
+                push_wrapped_pdf_lines(&pdf_table_row(row), 10, lines);
+            }
+        }
+        Block::List { ordered, items } => {
+            for (index, item) in items.iter().enumerate() {
+                let marker = match item.checked {
+                    Some(true) if *ordered => format!("{}. [x]", index + 1),
+                    Some(false) if *ordered => format!("{}. [ ]", index + 1),
+                    Some(true) => "- [x]".to_owned(),
+                    Some(false) => "- [ ]".to_owned(),
+                    None if *ordered => format!("{}.", index + 1),
+                    None => "-".to_owned(),
+                };
+                push_wrapped_pdf_lines(
+                    &format!("{marker} {}", inline_plain_text(&item.content)),
+                    12,
+                    lines,
+                );
+            }
+        }
+        Block::Math { display, source } => {
+            let label = if *display {
+                "display math"
+            } else {
+                "inline math"
+            };
+            lines.push(PdfLine {
+                text: label.to_owned(),
+                size: 10,
+            });
+            push_preformatted_pdf_lines(source, lines);
+        }
+        Block::Rule => lines.push(PdfLine {
+            text: "------------------------------".to_owned(),
+            size: 10,
+        }),
+    }
+
+    lines.push(PdfLine {
+        text: String::new(),
+        size: 12,
+    });
+}
+
+fn pdf_heading_size(level: HeadingLevel) -> u16 {
+    match level {
+        HeadingLevel::H1 => 20,
+        HeadingLevel::H2 => 17,
+        HeadingLevel::H3 => 15,
+        HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => 13,
+    }
+}
+
+fn inline_plain_text(spans: &[InlineSpan]) -> String {
+    spans.iter().map(|span| span.text.as_str()).collect()
+}
+
+fn pdf_table_row(row: &[TableCell]) -> String {
+    row.iter()
+        .map(|cell| inline_plain_text(cell))
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+fn push_wrapped_pdf_lines(text: &str, size: u16, lines: &mut Vec<PdfLine>) {
+    for wrapped in wrap_pdf_text(text, 88) {
+        lines.push(PdfLine {
+            text: wrapped,
+            size,
+        });
+    }
+}
+
+fn push_preformatted_pdf_lines(text: &str, lines: &mut Vec<PdfLine>) {
+    for line in text.lines() {
+        push_wrapped_pdf_lines(line, 10, lines);
+    }
+}
+
+fn wrap_pdf_text(text: &str, max_chars: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+
+    for word in text.split_whitespace() {
+        let next_len =
+            current.chars().count() + usize::from(!current.is_empty()) + word.chars().count();
+        if next_len > max_chars && !current.is_empty() {
+            lines.push(current);
+            current = String::new();
+        }
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(word);
+    }
+
+    if current.is_empty() {
+        lines.push(String::new());
+    } else {
+        lines.push(current);
+    }
+
+    lines
+}
+
+fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
+    const PAGE_WIDTH: f32 = 612.0;
+    const PAGE_HEIGHT: f32 = 792.0;
+    const LEFT: f32 = 54.0;
+    const TOP: f32 = 740.0;
+    const BOTTOM: f32 = 54.0;
+    const LINE_HEIGHT: f32 = 16.0;
+
+    let lines_per_page = ((TOP - BOTTOM) / LINE_HEIGHT) as usize;
+    let pages = lines.chunks(lines_per_page.max(1)).collect::<Vec<_>>();
+    let page_count = pages.len().max(1);
+    let mut objects = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        String::new(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
+    ];
+    let first_page_object = 4;
+    let mut page_ids = Vec::new();
+
+    for (page_index, page_lines) in pages.iter().enumerate() {
+        let page_id = first_page_object + (page_index * 2);
+        let content_id = page_id + 1;
+        page_ids.push(page_id);
+        objects.push(format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_WIDTH:.0} {PAGE_HEIGHT:.0}] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>"
+        ));
+        let stream = pdf_page_stream(page_lines, LEFT, TOP, LINE_HEIGHT);
+        objects.push(format!(
+            "<< /Length {} >>\nstream\n{}endstream",
+            stream.len(),
+            stream
+        ));
+    }
+
+    if page_ids.is_empty() {
+        page_ids.push(first_page_object);
+        let stream = pdf_page_stream(&[], LEFT, TOP, LINE_HEIGHT);
+        objects.push(format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_WIDTH:.0} {PAGE_HEIGHT:.0}] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>"
+        ));
+        objects.push(format!(
+            "<< /Length {} >>\nstream\n{}endstream",
+            stream.len(),
+            stream
+        ));
+    }
+
+    objects[1] = format!(
+        "<< /Type /Pages /Kids [{}] /Count {page_count} >>",
+        page_ids
+            .iter()
+            .map(|id| format!("{id} 0 R"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+
+    let mut pdf = Vec::from(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".as_slice());
+    let mut offsets = vec![0usize];
+
+    for (index, object) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n{}\nendobj\n", index + 1, object).as_bytes());
+    }
+
+    let xref_offset = pdf.len();
+    pdf.extend_from_slice(format!("xref\n0 {}\n", objects.len() + 1).as_bytes());
+    pdf.extend_from_slice(b"0000000000 65535 f \n");
+    for offset in offsets.iter().skip(1) {
+        pdf.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+
+    pdf
+}
+
+fn pdf_page_stream(lines: &[PdfLine], left: f32, top: f32, line_height: f32) -> String {
+    let mut stream = String::new();
+
+    for (index, line) in lines.iter().enumerate() {
+        let y = top - (index as f32 * line_height);
+        stream.push_str(&format!(
+            "BT /F1 {} Tf 1 0 0 1 {left:.1} {y:.1} Tm ({}) Tj ET\n",
+            line.size,
+            escape_pdf_text(&line.text)
+        ));
+    }
+
+    stream
+}
+
+fn escape_pdf_text(text: &str) -> String {
+    text.chars()
+        .map(|character| match character {
+            '(' => "\\(".to_owned(),
+            ')' => "\\)".to_owned(),
+            '\\' => "\\\\".to_owned(),
+            character if character.is_ascii() && !character.is_control() => character.to_string(),
+            _ => "?".to_owned(),
+        })
+        .collect()
+}
+
 const CSS: &str = r#"    :root {
       color-scheme: light;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -422,7 +713,7 @@ const CSS: &str = r#"    :root {
 mod tests {
     use crate::{
         Document,
-        export::{ExportError, ExportFormat, export_document, export_html},
+        export::{ExportFormat, export_document, export_html, export_pdf},
     };
 
     #[test]
@@ -475,12 +766,25 @@ mod tests {
     }
 
     #[test]
-    fn reports_pdf_as_unavailable() {
+    fn exports_pdf_artifact() {
         let document = Document::from_source("# PaperView");
+        let artifact = export_document(&document, ExportFormat::Pdf).expect("pdf export");
 
-        assert_eq!(
-            export_document(&document, ExportFormat::Pdf),
-            Err(ExportError::PdfUnavailable)
-        );
+        assert_eq!(artifact.extension(), "pdf");
+        assert!(artifact.contents().starts_with(b"%PDF-1.4"));
+        assert!(artifact.contents().ends_with(b"%%EOF\n"));
+    }
+
+    #[test]
+    fn exports_pdf_text_content() {
+        let document =
+            Document::from_source("# PaperView\n\n- [x] Done\n\n```rust\nfn main() {}\n```");
+        let pdf = export_pdf(&document);
+        let pdf_text = String::from_utf8_lossy(&pdf);
+
+        assert!(pdf_text.contains("(PaperView) Tj"));
+        assert!(pdf_text.contains("(- [x] Done) Tj"));
+        assert!(pdf_text.contains("(code: rust) Tj"));
+        assert!(pdf_text.contains("(fn main\\(\\) {}) Tj"));
     }
 }

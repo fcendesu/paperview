@@ -2,34 +2,38 @@
 
 ## Product Behavior
 
-PaperView reserves the headless PDF export command shape:
+PaperView can export a Markdown document to a basic text-first PDF without
+launching a UI:
 
 ```sh
 cargo run -p paperview-tui -- export docs/PRD.md --to pdf
 ```
 
-The command currently returns a clear unavailable-backend error instead of
-silently ignoring PDF or treating it as an unknown format.
+The command writes a `.pdf` file beside the source document and prints the
+output path. For example, `docs/PRD.md` exports to `docs/PRD.pdf`.
 
 ## Implementation Notes
 
 - `paperview-core::ExportFormat` owns supported export format parsing for
   `html` and `pdf`.
-- `paperview-core::export_document` returns an `ExportArtifact` for completed
-  backends and an `ExportError` for unavailable ones.
+- `paperview-core::export_document` returns an `ExportArtifact` for HTML and
+  PDF.
 - HTML export is implemented through the shared export path.
-- PDF export is represented as `ExportError::PdfUnavailable`.
+- `paperview-core::export_pdf` writes a dependency-light PDF 1.4 document using
+  built-in Helvetica text.
+- The first PDF backend preserves headings, paragraphs, lists, tables,
+  code/math/diagram source blocks, rules, and image metadata text.
 - The TUI command parses `--to html|pdf`, asks core for an artifact, writes
   successful output beside the source document, and prints the output path.
 
 ## Decisions And Gaps
 
-- PDF generation is intentionally not implemented yet.
-- The first real backend should reuse the HTML export styling when possible so
-  HTML and PDF remain visually aligned.
-- Candidate future paths include a Rust-native PDF renderer or HTML-to-PDF
-  pipeline; dependency weight, offline behavior, and cross-platform packaging
-  should be decided before adding the backend.
+- The first PDF backend is text-first and does not perform rich typography,
+  bitmap image embedding, syntax highlighting, Mermaid layout, or LaTeX
+  typesetting.
+- Future PDF work can replace or augment this writer with a richer renderer if
+  dependency weight, offline behavior, and cross-platform packaging stay
+  acceptable.
 
 ## Verification Expectations
 
@@ -41,8 +45,8 @@ cargo test -p paperview-tui export
 cargo run -p paperview-tui -- export docs/PRD.md --to pdf
 ```
 
-The PDF smoke command should fail with `PDF export is not available yet` until a
-real backend lands.
+Remove generated smoke-test PDFs when they are not intended as repository
+artifacts.
 
 Run workspace checks before finishing export changes:
 

@@ -32,7 +32,7 @@ blocks, tables, task-list markers, rules, LaTeX display math panels with
 readable previews, Mermaid diagram panels with simple flowchart previews, and
 image metadata panels are supported. Richer technical-document features such as
 full LaTeX typesetting, full Mermaid rendering, advanced Split View controls,
-and PDF export are still on the roadmap.
+and richer PDF layout are still on the roadmap.
 
 ## Run The GUI
 
@@ -119,8 +119,11 @@ Export a document to HTML without launching the TUI:
 cargo run -p paperview-tui -- export docs/PRD.md --to html
 ```
 
-The export command also recognizes `--to pdf`, but PDF generation is not wired
-to a backend yet and returns a clear unavailable message.
+Use `--to pdf` to write a basic text-first PDF beside the source document:
+
+```sh
+cargo run -p paperview-tui -- export docs/PRD.md --to pdf
+```
 
 TUI controls:
 
@@ -155,9 +158,8 @@ The config commands print or open PaperView's TOML config file, creating a
 default file before edit when needed.
 The workspace search command prints ripgrep-backed `path:line:column` results
 without launching the TUI.
-The export command writes standalone HTML with heading anchors beside the source
-document and prints the generated path. PDF export is recognized by the CLI but
-remains backend-unavailable.
+The export command writes standalone HTML with heading anchors or a basic
+text-first PDF beside the source document and prints the generated path.
 
 ## Development Checks
 
@@ -203,7 +205,7 @@ Near-term MVP work includes:
 
 - Exact scroll geometry from rendered layout rectangles.
 - Full LaTeX typesetting and full Mermaid rendering.
-- PDF export.
+- Richer PDF layout and embedded image rendering.
 - Richer Markdown rendering for nested task-list structure.
 - Performance measurement against startup, scrolling, and memory targets.
 

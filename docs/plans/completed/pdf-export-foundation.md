@@ -34,6 +34,9 @@ PDF export is not available yet
 This keeps the command surface stable for the future PDF backend without adding
 a heavyweight dependency prematurely.
 
+Later update: the PDF command now writes a basic text-first PDF artifact through
+the completed PDF Export Text Backend slice.
+
 ## Verification
 
 ```sh

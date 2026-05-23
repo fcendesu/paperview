@@ -141,16 +141,15 @@ parsing in `paperview-core::search_workspace`. The TUI binary exposes it as a
 headless `search <query> [path]` command that prints path, line, column, and
 matched text without initializing Ratatui.
 
-The first export implementation keeps format parsing, artifact creation, and
-backend availability in `paperview-core`. `ExportFormat` recognizes HTML and
-PDF, `export_document` returns completed artifacts or explicit backend errors,
-and `export_html` renders the shared parsed document model while escaping user
-content before writing markup. HTML headings use the same duplicate-safe slug
-sequence as the shared table of contents for exported `id` anchors. The TUI
-binary exposes this as a headless `export <file> --to html|pdf` command that
-writes successful artifacts beside the source document without initializing
-Ratatui. PDF is currently represented as an unavailable backend until the
-renderer is selected.
+The export implementation keeps format parsing and artifact creation in
+`paperview-core`. `ExportFormat` recognizes HTML and PDF, `export_document`
+returns completed artifacts, and `export_html` renders the shared parsed
+document model while escaping user content before writing markup. HTML headings
+use the same duplicate-safe slug sequence as the shared table of contents for
+exported `id` anchors. `export_pdf` writes a dependency-light text-first PDF
+from the same parsed document model. The TUI binary exposes this as a headless
+`export <file> --to html|pdf` command that writes successful artifacts beside
+the source document without initializing Ratatui.
 
 The first document-stats implementation keeps metadata calculation in
 `paperview-core` through `Document::stats` and `DocumentStats`. The TUI binary

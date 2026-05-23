@@ -28,8 +28,8 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.html`.
 
 ## Decisions And Gaps
 
-- HTML is the first export backend; PDF export is recognized by the command
-  layer but remains backend-unavailable.
+- HTML is the richer export backend; PDF export currently provides a basic
+  text-first artifact.
 - Math and Mermaid export are source-preserving rather than fully rendered.
 - External asset bundling, syntax highlighting, and template customization are
   deferred.

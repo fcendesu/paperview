@@ -391,21 +391,27 @@ mod tests {
     }
 
     #[test]
-    fn reports_pdf_export_as_unavailable() {
+    fn writes_pdf_export_artifact() {
         let path = env::temp_dir().join(format!(
             "paperview-pdf-export-test-{}.md",
             std::process::id()
         ));
         fs::write(&path, "# PaperView\n").expect("write test document");
-        let result = run([
+
+        run([
             OsString::from("export"),
             path.clone().into_os_string(),
             OsString::from("--to"),
             OsString::from("pdf"),
-        ]);
-        fs::remove_file(path).expect("remove test document");
+        ])
+        .expect("export pdf");
 
-        assert_eq!(result, Err("PDF export is not available yet".to_owned()));
+        let output_path = path.with_extension("pdf");
+        let output = fs::read(&output_path).expect("read pdf export");
+        fs::remove_file(path).expect("remove test document");
+        fs::remove_file(output_path).expect("remove pdf export");
+
+        assert!(output.starts_with(b"%PDF-1.4"));
     }
 
     #[test]
