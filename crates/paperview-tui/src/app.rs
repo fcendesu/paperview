@@ -21,6 +21,11 @@ use ratatui::{
 
 use crate::render;
 
+const DEFAULT_SPLIT_PRIMARY_WIDTH: u16 = 50;
+const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
+const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
+const SPLIT_RESIZE_STEP: u16 = 10;
+
 pub fn run(document: Document) -> io::Result<()> {
     run_documents(vec![document])
 }
@@ -43,6 +48,7 @@ struct ReaderApp {
     documents: OpenDocuments,
     document_lines: Vec<String>,
     split_document_index: Option<usize>,
+    split_primary_width: u16,
     split_document_lines: Vec<String>,
     block_line_starts: Vec<render::BlockLineStart>,
     toc: Vec<TocItem>,
@@ -71,6 +77,12 @@ enum SearchMode {
     Editing,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SplitResize {
+    GrowPrimary,
+    ShrinkPrimary,
+}
+
 impl ReaderApp {
     fn new(document: Document) -> Self {
         Self::new_documents(vec![document])
@@ -95,6 +107,7 @@ impl ReaderApp {
             documents: open_documents,
             document_lines: rendered.lines,
             split_document_index: None,
+            split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
             split_document_lines: Vec::new(),
             block_line_starts: rendered.block_line_starts,
             toc_selected_index: initial_toc_selection(&toc),
@@ -135,6 +148,8 @@ impl ReaderApp {
                     KeyCode::Char('[') => self.select_previous_tab(),
                     KeyCode::Char('}') => self.select_next_split_tab(),
                     KeyCode::Char('{') => self.select_previous_split_tab(),
+                    KeyCode::Char('>') => self.grow_split_primary(),
+                    KeyCode::Char('<') => self.shrink_split_primary(),
                     KeyCode::Char('\\') => self.toggle_split(),
                     KeyCode::Char('z') => self.toggle_zen(),
                     KeyCode::Char(' ') => self.toggle_task_at_scroll(),
@@ -165,9 +180,13 @@ impl ReaderApp {
             (main, Some(toc))
         };
         let reader_areas = if self.split_document_index.is_some() && !self.is_zen {
-            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .areas::<2>(main)
-                .to_vec()
+            let (primary_width, secondary_width) = self.split_widths();
+            Layout::horizontal([
+                Constraint::Percentage(primary_width),
+                Constraint::Percentage(secondary_width),
+            ])
+            .areas::<2>(main)
+            .to_vec()
         } else {
             vec![main]
         };
@@ -395,7 +414,7 @@ impl ReaderApp {
             },
             Line::from(Span::styled(
                 self.header_status().unwrap_or_else(|| {
-                    "[/] search  [Space] task  [z] zen  [\\] split  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
+                    "[/] search  [Space] task  [z] zen  [\\] split  [</>] resize  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
                         .to_owned()
                 }),
                 Style::default().fg(Color::DarkGray).bg(Color::Black),
@@ -469,6 +488,41 @@ impl ReaderApp {
         } else {
             Some("Split View disabled".to_owned())
         };
+    }
+
+    fn grow_split_primary(&mut self) {
+        self.resize_split(SplitResize::GrowPrimary);
+    }
+
+    fn shrink_split_primary(&mut self) {
+        self.resize_split(SplitResize::ShrinkPrimary);
+    }
+
+    fn resize_split(&mut self, direction: SplitResize) {
+        if self.split_document_index.is_none() {
+            return;
+        }
+
+        self.split_primary_width = match direction {
+            SplitResize::GrowPrimary => self
+                .split_primary_width
+                .saturating_add(SPLIT_RESIZE_STEP)
+                .min(MAX_SPLIT_PRIMARY_WIDTH),
+            SplitResize::ShrinkPrimary => self
+                .split_primary_width
+                .saturating_sub(SPLIT_RESIZE_STEP)
+                .max(MIN_SPLIT_PRIMARY_WIDTH),
+        };
+        let (primary, secondary) = self.split_widths();
+        self.status = Some(format!("Split View {primary}/{secondary}"));
+    }
+
+    fn split_widths(&self) -> (u16, u16) {
+        let primary = self
+            .split_primary_width
+            .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
+
+        (primary, 100 - primary)
     }
 
     fn toggle_zen(&mut self) {
@@ -1420,6 +1474,45 @@ mod tests {
         app.select_next_split_tab();
         assert_eq!(app.split_document_index, None);
         assert!(app.split_document_lines.is_empty());
+    }
+
+    #[test]
+    fn split_resize_changes_primary_width_when_enabled() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+        ]);
+        app.toggle_split();
+
+        app.grow_split_primary();
+        assert_eq!(app.split_widths(), (60, 40));
+
+        app.shrink_split_primary();
+        app.shrink_split_primary();
+        assert_eq!(app.split_widths(), (40, 60));
+        assert_eq!(app.status.as_deref(), Some("Split View 40/60"));
+    }
+
+    #[test]
+    fn split_resize_is_bounded_and_requires_split() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+        ]);
+
+        app.grow_split_primary();
+        assert_eq!(app.split_widths(), (50, 50));
+
+        app.toggle_split();
+        for _ in 0..8 {
+            app.grow_split_primary();
+        }
+        assert_eq!(app.split_widths(), (70, 30));
+
+        for _ in 0..8 {
+            app.shrink_split_primary();
+        }
+        assert_eq!(app.split_widths(), (30, 70));
     }
 
     #[test]

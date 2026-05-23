@@ -134,6 +134,7 @@ TUI controls:
 - `Space`: toggle a task checkbox at the current reader line for file-backed documents.
 - `[` / `]`: switch to the previous or next tab.
 - `\`: toggle Split View when multiple tabs are open.
+- `<` / `>`: resize the Split View primary pane.
 - `{` / `}`: switch Split View's secondary pane.
 - `z`: toggle Zen Mode.
 - `x`: close the active tab.
