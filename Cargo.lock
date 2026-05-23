@@ -3355,6 +3355,7 @@ dependencies = [
  "crossterm",
  "paperview-core",
  "ratatui",
+ "serde_json",
 ]
 
 [[package]]

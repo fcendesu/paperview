@@ -92,6 +92,7 @@ Print document stats without launching the TUI:
 
 ```sh
 cargo run -p paperview-tui -- stats docs/PRD.md
+cargo run -p paperview-tui -- stats docs/PRD.md --json
 ```
 
 Print a local load/parse/render performance baseline:
@@ -159,7 +160,7 @@ file-backed task checkbox toggles, case-insensitive in-document search with
 match navigation, and highlighted match lines.
 
 The headless stats command prints word, line, character, reading-time, and
-heading-structure metadata for a document.
+heading-structure metadata for a document, with `--json` for automation.
 The headless perf command prints document size, parse shape, rendered TUI line
 count, deterministic memory estimate, memory/load target status, and
 read/parse/render timings for local baseline checks.

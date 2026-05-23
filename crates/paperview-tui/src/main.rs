@@ -30,6 +30,12 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             app::run_dashboard().map_err(|error| error.to_string())?;
             Ok(())
         }
+        [command, path, flag] if command == "stats" && flag == "--json" => {
+            let document = paperview_core::Document::open(PathBuf::from(path))
+                .map_err(|error| error.to_string())?;
+            println!("{}", stats_json_text(&document)?);
+            Ok(())
+        }
         [command, path] if command == "stats" => {
             let document = paperview_core::Document::open(PathBuf::from(path))
                 .map_err(|error| error.to_string())?;
@@ -105,7 +111,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         _ => Err(
-            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file>\n       paperview-tui perf <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
+            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
                 .to_owned(),
         ),
     }
@@ -220,6 +226,35 @@ fn stats_text(document: &paperview_core::Document) -> String {
     }
 
     output.join("\n")
+}
+
+fn stats_json_text(document: &paperview_core::Document) -> Result<String, String> {
+    let stats = document.stats();
+    let path = document
+        .path()
+        .map_or_else(|| "<memory>".to_owned(), |path| path.display().to_string());
+    let headings = stats
+        .headings
+        .into_iter()
+        .map(|heading| {
+            serde_json::json!({
+                "depth": heading.depth,
+                "title": heading.title,
+            })
+        })
+        .collect::<Vec<_>>();
+    let payload = serde_json::json!({
+        "file": path,
+        "title": document.title(),
+        "words": stats.word_count,
+        "lines": stats.line_count,
+        "characters": stats.character_count,
+        "headings": stats.heading_count,
+        "estimated_reading_minutes": stats.estimated_reading_minutes,
+        "heading_structure": headings,
+    });
+
+    serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -420,7 +455,7 @@ mod tests {
     use super::{
         LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, config_path_text, export_path,
         format_bytes, format_duration, is_reserved_command, measure_perf, open_documents,
-        perf_text, run, stats_text, workspace_search_text,
+        perf_text, run, stats_json_text, stats_text, workspace_search_text,
     };
 
     #[test]
@@ -432,6 +467,23 @@ mod tests {
         assert!(report.contains("Words: 4"));
         assert!(report.contains("Estimated reading time: 1 min"));
         assert!(report.contains("Heading structure:\n- PaperView"));
+    }
+
+    #[test]
+    fn formats_stats_json_report() {
+        let document = Document::from_source("# PaperView\n\nNative paper reader.");
+        let report = stats_json_text(&document).expect("stats json");
+        let json: serde_json::Value = serde_json::from_str(&report).expect("parse stats json");
+
+        assert_eq!(json["file"], "<memory>");
+        assert_eq!(json["title"], "PaperView");
+        assert_eq!(json["words"], 4);
+        assert_eq!(json["lines"], 3);
+        assert_eq!(json["characters"], 33);
+        assert_eq!(json["headings"], 1);
+        assert_eq!(json["estimated_reading_minutes"], 1);
+        assert_eq!(json["heading_structure"][0]["depth"], 1);
+        assert_eq!(json["heading_structure"][0]["title"], "PaperView");
     }
 
     #[test]

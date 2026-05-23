@@ -12,3 +12,4 @@ workspace = true
 crossterm = "0.29.0"
 paperview-core = { path = "../paperview-core" }
 ratatui = "0.30.0"
+serde_json = "1.0.145"
