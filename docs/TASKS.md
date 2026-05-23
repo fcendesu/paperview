@@ -24,7 +24,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Hybrid Theme (Dark/Cream)** | ⬜ | ✅ | ⬜ |
 | **Live Reload (Watcher)** | ✅ | ✅ | ✅ |
 | **Tabbed Interface** | ✅ | ✅ | ✅ |
-| **Split View (Side-by-Side)** | ⬜ | ✅ | ⬜ |
+| **Split View (Side-by-Side)** | ⬜ | ✅ | ✅ |
 | **History Sidebar** | ✅ | ✅ | ✅ |
 | **Table of Contents (TOC)** | ✅ | ✅ | ✅ |
 | **Scroll Synchronization** | ✅ | ✅ | ✅ |
@@ -43,7 +43,7 @@ This document tracks the progress of features across the three workspace crates.
 - Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
 - Zen Mode currently covers the GUI focused reader layout; TUI and persisted preferences are deferred.
 - Tabbed Interface currently covers shared open-document state, GUI tab activation and close controls, and TUI multi-file launch with `[` / `]` tab switching plus `x` tab close; reorder is deferred.
-- Split View currently covers a GUI foundation for comparing the active tab with one other open tab, including a visible toggle, secondary tab selection, keyboard resizing, and divider drag resizing; scroll sync and TUI split are deferred.
+- Split View currently covers GUI comparison of the active tab with one other open tab, including a visible toggle, secondary tab selection, keyboard resizing, and divider drag resizing, plus a TUI side-by-side foundation toggled with `\`; scroll sync, TUI secondary selection, and TUI resizing are deferred.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
 - In-Document Search currently covers shared case-insensitive line search, GUI header query with previous/next controls, rendered-text highlighting with stronger selected-match emphasis, and TUI `/`, `n`, and `N` navigation with highlighted match lines; exact rendered-line geometry is deferred.
 - LaTeX Support currently covers parser preservation for inline math, a dedicated display math block, GUI readable previews for common display math tokens, and TUI source-preserving display math; full formula typesetting and structured inline spans are deferred.

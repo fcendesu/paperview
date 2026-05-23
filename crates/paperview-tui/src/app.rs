@@ -40,6 +40,8 @@ pub fn run_dashboard() -> io::Result<()> {
 struct ReaderApp {
     documents: OpenDocuments,
     document_lines: Vec<String>,
+    split_document_index: Option<usize>,
+    split_document_lines: Vec<String>,
     block_line_starts: Vec<render::BlockLineStart>,
     toc: Vec<TocItem>,
     toc_selected_index: Option<usize>,
@@ -89,6 +91,8 @@ impl ReaderApp {
         Self {
             documents: open_documents,
             document_lines: rendered.lines,
+            split_document_index: None,
+            split_document_lines: Vec::new(),
             block_line_starts: rendered.block_line_starts,
             toc_selected_index: initial_toc_selection(&toc),
             toc,
@@ -125,6 +129,7 @@ impl ReaderApp {
                     KeyCode::Char('N') => self.select_previous_search_match(),
                     KeyCode::Char(']') => self.select_next_tab(),
                     KeyCode::Char('[') => self.select_previous_tab(),
+                    KeyCode::Char('\\') => self.toggle_split(),
                     KeyCode::Char('x') if self.close_active_tab() => return Ok(()),
                     KeyCode::Char('x') => {}
                     KeyCode::Tab => self.toggle_focus(),
@@ -144,8 +149,15 @@ impl ReaderApp {
     fn draw(&self, frame: &mut Frame) {
         let [header, body] =
             Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).areas(frame.area());
-        let [reader, toc] =
+        let [main, toc] =
             Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
+        let reader_areas = if self.split_document_index.is_some() {
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .areas::<2>(main)
+                .to_vec()
+        } else {
+            vec![main]
+        };
 
         frame.render_widget(
             Paragraph::new(self.header_lines())
@@ -163,8 +175,30 @@ impl ReaderApp {
             .style(Style::default().fg(Color::Gray))
             .scroll((self.scroll, 0))
             .wrap(Wrap { trim: false }),
-            reader,
+            reader_areas[0],
         );
+
+        if let Some(split_index) = self.split_document_index {
+            let title = self
+                .documents
+                .iter()
+                .find_map(|(index, document)| (index == split_index).then_some(document.title()))
+                .unwrap_or("Split");
+            frame.render_widget(
+                Paragraph::new(Text::from(document_text(
+                    &self.split_document_lines,
+                    SearchHighlights::default(),
+                )))
+                .block(
+                    Block::default()
+                        .title(format!("Side: {title}"))
+                        .borders(Borders::ALL),
+                )
+                .style(Style::default().fg(Color::Gray))
+                .wrap(Wrap { trim: false }),
+                reader_areas[1],
+            );
+        }
 
         frame.render_widget(
             Paragraph::new(render::render_toc_text(
@@ -336,7 +370,7 @@ impl ReaderApp {
             tab_line(&self.documents),
             Line::from(Span::styled(
                 self.header_status().unwrap_or_else(|| {
-                    "[/] search  [[/]] tabs  [x] close  [Tab] toc  [q] quit".to_owned()
+                    "[/] search  [\\] split  [[/]] tabs  [x] close  [Tab] toc  [q] quit".to_owned()
                 }),
                 Style::default().fg(Color::DarkGray).bg(Color::Black),
             )),
@@ -370,6 +404,7 @@ impl ReaderApp {
         }
 
         self.documents.select(index);
+        self.ensure_split_target();
         self.load_active_document(true);
         self.status = Some(format!(
             "Tab {}/{}: {}",
@@ -390,9 +425,55 @@ impl ReaderApp {
             return true;
         }
 
+        self.ensure_split_target();
         self.load_active_document(true);
         self.status = Some(format!("Closed {title}"));
         false
+    }
+
+    fn toggle_split(&mut self) {
+        self.split_document_index = self
+            .split_document_index
+            .is_none()
+            .then(|| self.first_secondary_index())
+            .flatten();
+        self.refresh_split_document();
+        self.status = if self.split_document_index.is_some() {
+            Some("Split View enabled".to_owned())
+        } else {
+            Some("Split View disabled".to_owned())
+        };
+    }
+
+    fn ensure_split_target(&mut self) {
+        if self.split_document_index.is_some_and(|index| {
+            Some(index) == self.documents.active_index() || index >= self.documents.len()
+        }) {
+            self.split_document_index = self.first_secondary_index();
+        }
+        self.refresh_split_document();
+    }
+
+    fn first_secondary_index(&self) -> Option<usize> {
+        let active = self.documents.active_index()?;
+
+        self.documents
+            .iter()
+            .map(|(index, _)| index)
+            .find(|index| *index != active)
+    }
+
+    fn refresh_split_document(&mut self) {
+        self.split_document_lines = self
+            .split_document_index
+            .and_then(|split_index| {
+                self.documents
+                    .iter()
+                    .find_map(|(index, document)| (index == split_index).then_some(document))
+            })
+            .map_or_else(Vec::new, |document| {
+                render::render_document_with_anchors(document).lines
+            });
     }
 
     fn load_active_document(&mut self, reset_scroll: bool) {
@@ -426,6 +507,7 @@ impl ReaderApp {
         if let Some(status) = watch_status {
             self.status = Some(status);
         }
+        self.ensure_split_target();
     }
 
     fn toggle_focus(&mut self) {
@@ -782,7 +864,7 @@ fn history_item(entry: &FileEntry) -> ListItem<'static> {
     ])
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 struct SearchHighlights<'a> {
     query: &'a str,
     matches: &'a [SearchMatch],
@@ -1010,6 +1092,73 @@ mod tests {
 
         app.select_previous_tab();
         assert_eq!(app.active_document().title(), "Second");
+    }
+
+    #[test]
+    fn split_toggle_targets_first_non_active_tab() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second\n\nSide").with_path("second.md"),
+        ]);
+
+        app.toggle_split();
+
+        assert_eq!(app.split_document_index, Some(1));
+        assert!(
+            app.split_document_lines
+                .iter()
+                .any(|line| line == "# Second")
+        );
+
+        app.toggle_split();
+
+        assert_eq!(app.split_document_index, None);
+        assert!(app.split_document_lines.is_empty());
+    }
+
+    #[test]
+    fn split_toggle_requires_secondary_tab() {
+        let mut app = ReaderApp::new(Document::from_source("# Only").with_path("only.md"));
+
+        app.toggle_split();
+
+        assert_eq!(app.split_document_index, None);
+        assert!(app.split_document_lines.is_empty());
+    }
+
+    #[test]
+    fn split_retargets_when_active_tab_changes() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+            Document::from_source("# Third").with_path("third.md"),
+        ]);
+        app.toggle_split();
+
+        app.select_next_tab();
+
+        assert_ne!(app.split_document_index, app.documents.active_index());
+        assert_eq!(app.split_document_index, Some(0));
+        assert!(
+            app.split_document_lines
+                .iter()
+                .any(|line| line == "# First")
+        );
+    }
+
+    #[test]
+    fn closing_split_tab_retargets_or_disables_split() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+        ]);
+        app.toggle_split();
+        app.select_next_tab();
+
+        assert!(!app.close_active_tab());
+
+        assert_eq!(app.split_document_index, None);
+        assert!(app.split_document_lines.is_empty());
     }
 
     #[test]

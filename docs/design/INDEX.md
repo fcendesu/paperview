@@ -37,6 +37,8 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
   Users can also drag the vertical divider between split panes.
 - **Secondary Pane Selector:** While Split View is on, non-active tabs expose a
   compact selector for choosing the right-side pane.
+- **TUI Split Toggle:** The TUI uses `\` to toggle a first side-by-side reader
+  layout when multiple tabs are open.
 
 ### 2.2 Left Sidebar: "History"
 - **Structure:**
@@ -49,6 +51,8 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 - **Single View:** Centered content with a max width of 720–860px.
 - **Split View:** The current GUI foundation divides the reader area vertically
   into two panes: active tab on the left, secondary open tab on the right.
+  The TUI also has a side-by-side foundation with active reader behavior on the
+  left and the secondary document on the right.
     - **Independent Scrolling:** Deferred.
     - **Secondary Selection:** Chosen from non-active tabs while Split View is on.
     - **Resize:** The primary pane ratio is bounded from 30% to 70%, defaults

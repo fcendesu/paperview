@@ -2,8 +2,8 @@
 
 ## Product Behavior
 
-Split View lets the GUI compare two open documents side by side. The active tab stays
-the primary reader; the secondary pane uses another already-open tab.
+Split View compares two open documents side by side. The active tab stays the
+primary reader; the secondary pane uses another already-open tab.
 
 Current GUI behavior:
 
@@ -23,9 +23,23 @@ Current GUI behavior:
   no secondary tab remains.
 - Zen Mode takes precedence and shows only the active reader.
 
+Current TUI behavior:
+
+- Toggle Split View with `\`.
+- Split View only activates when at least two tabs are open.
+- When enabled, the active document renders in the left pane and the secondary
+  open tab renders in the right pane.
+- The left active pane owns scrolling, search, and TOC highlighting.
+- Selecting the document currently used as the secondary pane retargets the
+  secondary pane to another open tab when one exists.
+- Closing the secondary tab retargets the split pane or disables Split View when
+  no secondary tab remains.
+
 ## Implementation Notes
 
 - `paperview-gui` stores the secondary pane as an optional open-document index.
+- `paperview-tui` stores the secondary pane as an optional open-document index
+  and renders a cached line buffer for the side pane.
 - `OpenDocuments` remains the shared tab/document model; no separate core split
   model exists yet.
 - The header owns the global Split View toggle.
@@ -42,7 +56,7 @@ Current GUI behavior:
 
 - Independent scroll persistence and scroll synchronization are deferred.
 - Split ratio persistence is deferred.
-- TUI Split View is deferred.
+- TUI secondary-pane selection controls and resizing are deferred.
 
 ## Verification
 
@@ -50,3 +64,4 @@ Current GUI behavior:
 - `cargo clippy --workspace -- -D warnings`
 - `cargo test --workspace`
 - GUI smoke test with two tabs open and Split View toggled.
+- TUI smoke test with two files open and Split View toggled.
