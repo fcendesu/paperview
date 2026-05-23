@@ -955,10 +955,14 @@ async fn fetch_remote_image(url: &str) -> Result<Vec<u8>, String> {
 }
 
 fn load_history(store: &HistoryStore) -> History {
-    store.load().unwrap_or_else(|error| {
+    let mut history = store.load().unwrap_or_else(|error| {
         eprintln!("{error}");
         History::new()
-    })
+    });
+    if history.prune_missing() > 0 {
+        save_history(store, &history);
+    }
+    history
 }
 
 fn load_config(store: &ConfigStore) -> Config {
@@ -1372,7 +1376,7 @@ mod tests {
         },
     };
     use paperview_core::{
-        Config, ConfigStore, Document, HistoryStore,
+        Config, ConfigStore, Document, History, HistoryStore,
         parser::{Block, parse_markdown},
     };
 
@@ -1413,6 +1417,28 @@ mod tests {
         assert!(
             matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
         );
+    }
+
+    #[test]
+    fn gui_prunes_missing_history_entries_on_load() {
+        let existing = temp_doc("history-existing.md", "# Existing");
+        let missing = existing.with_file_name("history-missing.md");
+        let store = temp_store("history-prune.toml");
+        let mut history = History::new();
+        history.record(paperview_core::FileEntry::new(&missing, "Missing"));
+        history.record(paperview_core::FileEntry::new(&existing, "Existing"));
+        store.save(&history).expect("save history");
+
+        let state = PaperView::from_args_with_store([], store.clone());
+
+        assert_eq!(state.history.entries().len(), 1);
+        assert_eq!(state.history.entries()[0].path(), existing.as_path());
+        assert_eq!(
+            store.load().expect("load pruned history").entries().len(),
+            1
+        );
+
+        fs::remove_file(existing).expect("remove existing history file");
     }
 
     #[test]

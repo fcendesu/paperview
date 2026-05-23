@@ -70,6 +70,12 @@ impl History {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    pub fn prune_missing(&mut self) -> usize {
+        let before = self.entries.len();
+        self.entries.retain(|entry| entry.path.exists());
+        before - self.entries.len()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -292,6 +298,25 @@ mod tests {
         assert_eq!(store.load().expect("load history"), history);
 
         fs::remove_file(path).expect("remove history file");
+    }
+
+    #[test]
+    fn prunes_missing_entries() {
+        let existing = temp_path("existing.md");
+        fs::create_dir_all(existing.parent().expect("existing parent"))
+            .expect("create existing parent");
+        fs::write(&existing, "# Existing").expect("write existing file");
+        let missing = existing.with_file_name("missing.md");
+        let mut history = History::new();
+        history.record(FileEntry::new(&missing, "Missing"));
+        history.record(FileEntry::new(&existing, "Existing"));
+
+        assert_eq!(history.prune_missing(), 1);
+
+        assert_eq!(history.entries().len(), 1);
+        assert_eq!(history.entries()[0].path(), existing.as_path());
+
+        fs::remove_file(existing).expect("remove existing file");
     }
 
     fn temp_path(name: &str) -> PathBuf {

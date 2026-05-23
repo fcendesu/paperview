@@ -38,7 +38,7 @@ This document tracks the progress of features across the three workspace crates.
 
 ## MVP Notes
 
-- History Sidebar includes shared persistence, GUI click-to-open behavior, and the TUI recent-files dashboard.
+- History Sidebar includes shared persistence, stale-entry pruning, GUI click-to-open behavior, and the TUI recent-files dashboard.
 - Hybrid Theme covers GUI Iced styles and TUI Ratatui style tokens; core has no theme ownership.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
 - Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.

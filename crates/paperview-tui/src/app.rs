@@ -1139,10 +1139,7 @@ struct DashboardApp {
 
 impl DashboardApp {
     fn new(store: HistoryStore) -> Self {
-        let history = store.load().unwrap_or_else(|error| {
-            eprintln!("{error}");
-            History::new()
-        });
+        let history = load_pruned_history(&store);
         let mut list_state = ListState::default();
 
         if !history.is_empty() {
@@ -1171,10 +1168,7 @@ impl DashboardApp {
                     KeyCode::Enter => {
                         if let Some(document) = self.open_selected() {
                             ReaderApp::new(document).run(terminal)?;
-                            self.history = self.store.load().unwrap_or_else(|error| {
-                                eprintln!("{error}");
-                                History::new()
-                            });
+                            self.history = load_pruned_history(&self.store);
                         }
                     }
                     _ => {}
@@ -1278,6 +1272,19 @@ impl DashboardApp {
             self.status = Some(error.to_string());
         }
     }
+}
+
+fn load_pruned_history(store: &HistoryStore) -> History {
+    let mut history = store.load().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        History::new()
+    });
+    if history.prune_missing() > 0
+        && let Err(error) = store.save(&history)
+    {
+        eprintln!("{error}");
+    }
+    history
 }
 
 fn history_item(entry: &FileEntry) -> ListItem<'static> {
@@ -2007,6 +2014,30 @@ mod tests {
         app.select_next();
         app.select_next();
         assert_eq!(app.list_state.selected(), Some(1));
+    }
+
+    #[test]
+    fn dashboard_prunes_missing_history_entries_on_load() {
+        let existing = temp_doc("tui-history-existing.md", "# Existing");
+        let missing = existing.with_file_name("tui-history-missing.md");
+        let history_path = existing.with_file_name("tui-history.toml");
+        let store = HistoryStore::new(&history_path);
+        let mut history = paperview_core::History::new();
+        history.record(FileEntry::new(&missing, "Missing"));
+        history.record(FileEntry::new(&existing, "Existing"));
+        store.save(&history).expect("save history");
+
+        let app = DashboardApp::new(store.clone());
+
+        assert_eq!(app.history.entries().len(), 1);
+        assert_eq!(app.history.entries()[0].path(), existing.as_path());
+        assert_eq!(
+            store.load().expect("load pruned history").entries().len(),
+            1
+        );
+
+        fs::remove_file(existing).expect("remove existing history file");
+        fs::remove_file(history_path).expect("remove history file");
     }
 
     #[test]
