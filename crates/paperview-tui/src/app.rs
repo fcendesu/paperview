@@ -6,8 +6,8 @@ use std::{
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
-    Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments, SearchMatch,
-    WatchEvent, WorkspaceSearchMatch,
+    Config, ConfigStore, Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments,
+    SearchMatch, WatchEvent, WorkspaceSearchMatch,
     parser::{Block as MarkdownBlock, TocItem},
     toggle_task_line_source, watch_file,
 };
@@ -21,7 +21,6 @@ use ratatui::{
 
 use crate::{render, theme};
 
-const DEFAULT_SPLIT_PRIMARY_WIDTH: u16 = 50;
 const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
 const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
 const SPLIT_RESIZE_STEP: u16 = 10;
@@ -57,6 +56,8 @@ pub fn run_workspace_search(
 }
 
 struct ReaderApp {
+    config: Config,
+    config_store: ConfigStore,
     documents: OpenDocuments,
     document_lines: Vec<String>,
     split_document_index: Option<usize>,
@@ -101,6 +102,11 @@ impl ReaderApp {
     }
 
     fn new_documents(documents: Vec<Document>) -> Self {
+        Self::new_documents_with_config(documents, ConfigStore::default())
+    }
+
+    fn new_documents_with_config(documents: Vec<Document>, config_store: ConfigStore) -> Self {
+        let (config, config_status) = load_config(&config_store);
         let mut open_documents = OpenDocuments::new();
         for document in documents {
             open_documents.open_or_activate(document);
@@ -113,19 +119,24 @@ impl ReaderApp {
         let active = open_documents.active().expect("active document");
         let rendered = render::render_document_with_anchors(active);
         let toc = active.parsed().toc();
-        let (watcher, watch_receiver, status) = watch_document(active);
+        let (watcher, watch_receiver, watch_status) = watch_document(active);
+        let status = config_status.or(watch_status);
 
         Self {
+            split_primary_width: config
+                .split_primary_width
+                .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH),
+            is_zen: config.zen_mode,
+            config,
+            config_store,
             documents: open_documents,
             document_lines: rendered.lines,
             split_document_index: None,
-            split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
             split_document_lines: Vec::new(),
             block_line_starts: rendered.block_line_starts,
             toc_selected_index: initial_toc_selection(&toc),
             toc,
             focus: ReaderFocus::Reader,
-            is_zen: false,
             scroll: 0,
             status,
             search_mode: SearchMode::Inactive,
@@ -532,6 +543,7 @@ impl ReaderApp {
         };
         let (primary, secondary) = self.split_widths();
         self.status = Some(format!("Split View {primary}/{secondary}"));
+        self.save_config();
     }
 
     fn split_widths(&self) -> (u16, u16) {
@@ -552,6 +564,7 @@ impl ReaderApp {
         } else {
             Some("Zen Mode disabled".to_owned())
         };
+        self.save_config();
     }
 
     fn toggle_task_at_scroll(&mut self) {
@@ -856,6 +869,21 @@ impl ReaderApp {
                 self.status = Some(error.to_string());
             }
         }
+    }
+
+    fn save_config(&mut self) {
+        self.config.zen_mode = self.is_zen;
+        self.config.split_primary_width = self.split_primary_width;
+        if let Err(error) = self.config_store.save(&self.config) {
+            self.status = Some(error.to_string());
+        }
+    }
+}
+
+fn load_config(store: &ConfigStore) -> (Config, Option<String>) {
+    match store.load() {
+        Ok(config) => (config, None),
+        Err(error) => (Config::default(), Some(error.to_string())),
     }
 }
 
@@ -1369,7 +1397,9 @@ mod tests {
     };
 
     use crossterm::event::KeyCode;
-    use paperview_core::{Document, FileEntry, HistoryStore, SearchMatch, WorkspaceSearchMatch};
+    use paperview_core::{
+        Config, ConfigStore, Document, FileEntry, HistoryStore, SearchMatch, WorkspaceSearchMatch,
+    };
     use ratatui::style::Modifier;
 
     use super::{
@@ -1453,6 +1483,53 @@ mod tests {
         assert!(!app.is_zen);
         app.toggle_focus();
         assert_eq!(app.focus, ReaderFocus::Toc);
+    }
+
+    #[test]
+    fn tui_loads_zen_and_split_width_from_config() {
+        let path = temp_doc("tui-config-load.toml", "");
+        let store = ConfigStore::new(&path);
+        store
+            .save(&Config {
+                schema_version: 1,
+                zen_mode: true,
+                split_primary_width: 65,
+            })
+            .expect("save config");
+
+        let app = ReaderApp::new_documents_with_config(
+            vec![Document::from_source("# First").with_path("first.md")],
+            store,
+        );
+
+        assert!(app.is_zen);
+        assert_eq!(app.split_widths(), (65, 35));
+
+        fs::remove_file(path).expect("remove config");
+    }
+
+    #[test]
+    fn tui_persists_zen_and_split_width_to_config() {
+        let path = temp_doc("tui-config-save.toml", "");
+        let store = ConfigStore::new(&path);
+        store.ensure_exists().expect("ensure config");
+        let mut app = ReaderApp::new_documents_with_config(
+            vec![
+                Document::from_source("# First").with_path("first.md"),
+                Document::from_source("# Second").with_path("second.md"),
+            ],
+            store.clone(),
+        );
+
+        app.toggle_split();
+        app.grow_split_primary();
+        app.toggle_zen();
+
+        let config = store.load().expect("load saved config");
+        assert!(config.zen_mode);
+        assert_eq!(config.split_primary_width, 60);
+
+        fs::remove_file(path).expect("remove config");
     }
 
     #[test]

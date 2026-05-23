@@ -31,6 +31,7 @@ Current TUI behavior:
   open tab renders in the right pane.
 - Cycle the secondary pane with `{` / `}` while Split View is on.
 - Resize the primary pane with `<` / `>` while Split View is on.
+- Loads the initial primary pane width from config and saves changes when resized.
 - The left active pane owns scrolling, search, and TOC highlighting.
 - Selecting the document currently used as the secondary pane retargets the
   secondary pane to another open tab when one exists.
@@ -44,7 +45,7 @@ Current TUI behavior:
   and renders a cached line buffer for the side pane.
 - TUI side-pane cycling walks non-active tabs only and wraps at either end.
 - The primary pane width is stored as a bounded 30/70 to 70/30 ratio in TUI
-  state; it defaults to 50/50 and is not persisted yet.
+  state; it defaults to 50/50 and is persisted through `paperview-core::ConfigStore`.
 - `OpenDocuments` remains the shared tab/document model; no separate core split
   model exists yet.
 - The header owns the global Split View toggle.
@@ -60,7 +61,7 @@ Current TUI behavior:
 ## Open Decisions
 
 - Independent scroll persistence and scroll synchronization are deferred.
-- Split ratio persistence is deferred.
+- GUI Split View ratio persistence is deferred.
 
 ## Verification
 

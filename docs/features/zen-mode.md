@@ -21,6 +21,7 @@ Current TUI behavior:
 - Keeps the active reader, scrolling, search, tab state, and Split View state
   intact.
 - Forces focus back to the reader while Zen Mode is on.
+- Loads the initial Zen Mode preference from config and saves changes when toggled.
 - Toggling again restores the normal TUI shell layout.
 
 Zen Mode requires an active document to feel useful, but the toggle state is allowed even when no document is open so later file opens can render in the focused layout.
@@ -30,6 +31,7 @@ Zen Mode requires an active document to feel useful, but the toggle state is all
 - GUI layout state lives in `crates/paperview-gui/src/app.rs` as `is_zen`.
 - TUI layout state lives in `crates/paperview-tui/src/app.rs` as `is_zen`.
 - `Message::ToggleZen` flips the layout state.
+- The TUI reader persists `zen_mode` through `paperview-core::ConfigStore`.
 - The GUI runtime event subscription maps the platform command shortcut to `ToggleZen`.
 - The normal layout renders History, reader, and Navigation sidebars; the Zen layout renders only header and reader.
 - The normal TUI layout renders header, reader, optional split pane, and TOC;
@@ -39,7 +41,7 @@ Zen Mode requires an active document to feel useful, but the toggle state is all
 
 - Header auto-hide is deferred until there is reader focus or scroll-state tracking.
 - A visible toolbar toggle is deferred until the header controls are designed.
-- Persisting the preference is deferred until configuration exists.
+- GUI Zen Mode preference persistence is deferred.
 
 ## Verification Expectations
 

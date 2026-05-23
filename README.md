@@ -164,7 +164,8 @@ The headless perf command prints document size, parse shape, rendered TUI line
 count, deterministic memory estimate, memory/load target status, and
 read/parse/render timings for local baseline checks.
 The config commands print or open PaperView's TOML config file, creating a
-default file before edit when needed.
+default file before edit when needed. The TUI currently persists Zen Mode and
+Split View width preferences in that config file.
 The workspace search command prints ripgrep-backed `path:line:column` results
 without launching the TUI, or opens a Ratatui result picker with `--interactive`.
 The export command writes standalone PaperView-styled HTML with heading anchors

@@ -7,13 +7,30 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_schema_version")]
     pub schema_version: u32,
+    #[serde(default)]
+    pub zen_mode: bool,
+    #[serde(default = "default_split_primary_width")]
+    pub split_primary_width: u16,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { schema_version: 1 }
+        Self {
+            schema_version: default_schema_version(),
+            zen_mode: false,
+            split_primary_width: default_split_primary_width(),
+        }
     }
+}
+
+fn default_schema_version() -> u32 {
+    1
+}
+
+fn default_split_primary_width() -> u16 {
+    50
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,11 +234,27 @@ mod tests {
     fn saves_and_loads_config_file() {
         let path = temp_path("nested/config.toml");
         let store = ConfigStore::new(&path);
-        let config = Config { schema_version: 7 };
+        let config = Config {
+            schema_version: 7,
+            zen_mode: true,
+            split_primary_width: 60,
+        };
 
         store.save(&config).expect("save config");
 
         assert_eq!(store.load().expect("load config"), config);
+
+        fs::remove_file(path).expect("remove config");
+    }
+
+    #[test]
+    fn loads_missing_settings_from_defaults() {
+        let path = temp_path("partial/config.toml");
+        let store = ConfigStore::new(&path);
+        fs::create_dir_all(path.parent().expect("config parent")).expect("create config parent");
+        fs::write(&path, "schema_version = 1\n").expect("write partial config");
+
+        assert_eq!(store.load().expect("load config"), Config::default());
 
         fs::remove_file(path).expect("remove config");
     }

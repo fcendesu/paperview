@@ -42,9 +42,9 @@ This document tracks the progress of features across the three workspace crates.
 - Hybrid Theme covers GUI Iced styles and TUI Ratatui style tokens; core has no theme ownership.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
 - Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
-- Zen Mode currently covers the GUI focused reader layout and the TUI full-width active reader layout; persisted preferences are deferred.
+- Zen Mode currently covers the GUI focused reader layout and the TUI full-width active reader layout; the TUI preference is persisted in config while GUI preference persistence is deferred.
 - Tabbed Interface currently covers shared open-document state, GUI tab activation and close controls, and TUI multi-file launch with `[` / `]` tab switching plus `x` tab close; reorder is deferred.
-- Split View currently covers GUI comparison of the active tab with one other open tab, including a visible toggle, secondary tab selection, keyboard resizing, and divider drag resizing, plus TUI side-by-side comparison toggled with `\`, secondary pane cycling with `{` / `}`, and keyboard resizing with `<` / `>`; scroll sync is deferred.
+- Split View currently covers GUI comparison of the active tab with one other open tab, including a visible toggle, secondary tab selection, keyboard resizing, and divider drag resizing, plus TUI side-by-side comparison toggled with `\`, secondary pane cycling with `{` / `}`, keyboard resizing with `<` / `>`, and persisted TUI split width; scroll sync is deferred.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
 - In-Document Search currently covers shared case-insensitive line search, GUI header query with previous/next controls, rendered-text highlighting with stronger selected-match emphasis, and TUI `/`, `n`, and `N` navigation with highlighted match lines; exact rendered-line geometry is deferred.
 - LaTeX Support currently covers parser preservation for inline math, a dedicated display math block, GUI and TUI readable previews for common display math tokens, and source-preserving display math; full formula typesetting and structured inline spans are deferred.
@@ -64,7 +64,7 @@ This document tracks the progress of features across the three workspace crates.
 | **paperview export** | 🏗️ | HTML export writes standalone styled `.html`; PDF export writes a text-first `.pdf` with basic layout |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, and heading structure |
 | **paperview perf** | ✅ | Prints shape, deterministic memory estimate, target status, and baseline timings |
-| **paperview config** | ✅ | Supports config path and edit with TOML file creation |
+| **paperview config** | ✅ | Supports config path/edit plus TUI Zen Mode and Split View width preferences |
 
 ---
 
