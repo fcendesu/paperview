@@ -40,7 +40,7 @@ Search is case-insensitive and line-based. It searches the source document text 
 
 ## Decisions And Gaps
 
-- Interactive workspace-search result selection is deferred; the current headless workspace command prints results.
+- Workspace search has a separate headless report and interactive TUI result picker; this feature remains scoped to searching within the active document.
 - GUI selected-match emphasis is source-line based, so complex Markdown can
   still drift from exact rendered geometry.
 - Source-line search can drift from rendered-line geometry for wrapped paragraphs and complex Markdown blocks.

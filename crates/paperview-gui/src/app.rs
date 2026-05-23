@@ -13,13 +13,12 @@ use iced::{
     window,
 };
 use paperview_core::{
-    Document, History, HistoryStore, OpenDocuments, SearchMatch, WatchEvent, parser::Block,
-    toggle_task_line_source, watch_file,
+    Config, ConfigStore, Document, History, HistoryStore, OpenDocuments, SearchMatch, WatchEvent,
+    parser::Block, toggle_task_line_source, watch_file,
 };
 
 use crate::{history, navigation, reader, theme};
 
-const DEFAULT_SPLIT_PRIMARY_WIDTH: u16 = 50;
 const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
 const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
 const SPLIT_RESIZE_STEP: u16 = 10;
@@ -28,6 +27,8 @@ const MAX_REMOTE_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct PaperView {
+    config: Config,
+    config_store: ConfigStore,
     documents: OpenDocuments,
     history: History,
     history_store: HistoryStore,
@@ -109,29 +110,47 @@ struct RemoteImageUrl(String);
 impl PaperView {
     #[must_use]
     pub fn from_args(args: impl IntoIterator<Item = OsString>) -> Self {
-        Self::from_args_with_store(args, HistoryStore::default())
+        Self::from_args_with_stores(args, HistoryStore::default(), ConfigStore::default())
     }
 
     #[must_use]
+    #[cfg(test)]
     fn from_args_with_store(
         args: impl IntoIterator<Item = OsString>,
         history_store: HistoryStore,
     ) -> Self {
+        let config_store = test_config_store(&history_store);
+        Self::from_args_with_stores(args, history_store, config_store)
+    }
+
+    #[must_use]
+    fn from_args_with_stores(
+        args: impl IntoIterator<Item = OsString>,
+        history_store: HistoryStore,
+        config_store: ConfigStore,
+    ) -> Self {
         let args = args.into_iter().collect::<Vec<_>>();
+        let config = load_config(&config_store);
+        let is_zen = config.zen_mode;
+        let split_primary_width = config
+            .split_primary_width
+            .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
 
         match args.as_slice() {
             [] => {
                 let history = load_history(&history_store);
 
                 Self {
+                    config: config.clone(),
+                    config_store: config_store.clone(),
                     documents: OpenDocuments::new(),
                     history,
                     history_store,
                     status: Status::Empty,
                     is_drag_hovered: false,
-                    is_zen: false,
+                    is_zen,
                     split_document_index: None,
-                    split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                    split_primary_width,
                     split_drag_cursor: None,
                     is_split_dragging: false,
                     active_toc_block_index: None,
@@ -154,14 +173,16 @@ impl PaperView {
                         save_history(&history_store, &history);
 
                         Self {
+                            config: config.clone(),
+                            config_store: config_store.clone(),
                             documents: OpenDocuments::from_document(document),
                             history,
                             history_store,
                             status: Status::Loaded(path),
                             is_drag_hovered: false,
-                            is_zen: false,
+                            is_zen,
                             split_document_index: None,
-                            split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                            split_primary_width,
                             split_drag_cursor: None,
                             is_split_dragging: false,
                             active_toc_block_index,
@@ -172,14 +193,16 @@ impl PaperView {
                         }
                     }
                     Err(error) => Self {
+                        config: config.clone(),
+                        config_store: config_store.clone(),
                         documents: OpenDocuments::new(),
                         history,
                         history_store,
                         status: Status::Error(error.to_string()),
                         is_drag_hovered: false,
-                        is_zen: false,
+                        is_zen,
                         split_document_index: None,
-                        split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                        split_primary_width,
                         split_drag_cursor: None,
                         is_split_dragging: false,
                         active_toc_block_index: None,
@@ -194,14 +217,16 @@ impl PaperView {
                 let history = load_history(&history_store);
 
                 Self {
+                    config: config.clone(),
+                    config_store: config_store.clone(),
                     documents: OpenDocuments::new(),
                     history,
                     history_store,
                     status: Status::Error("usage: paperview-gui [file]".to_owned()),
                     is_drag_hovered: false,
-                    is_zen: false,
+                    is_zen,
                     split_document_index: None,
-                    split_primary_width: DEFAULT_SPLIT_PRIMARY_WIDTH,
+                    split_primary_width,
                     split_drag_cursor: None,
                     is_split_dragging: false,
                     active_toc_block_index: None,
@@ -242,6 +267,7 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         }
         Message::ToggleZen => {
             state.is_zen = !state.is_zen;
+            state.save_config();
         }
         Message::ToggleSplit => state.toggle_split(),
         Message::ResizeSplit(direction) => state.resize_split(direction),
@@ -428,6 +454,7 @@ impl PaperView {
                 .saturating_sub(SPLIT_RESIZE_STEP)
                 .max(MIN_SPLIT_PRIMARY_WIDTH),
         };
+        self.save_config();
     }
 
     fn move_split_drag(&mut self, x: f32, width: f32) {
@@ -448,7 +475,11 @@ impl PaperView {
     }
 
     fn end_split_drag(&mut self) {
+        let was_dragging = self.is_split_dragging;
         self.is_split_dragging = false;
+        if was_dragging {
+            self.save_config();
+        }
     }
 
     fn is_split_divider_hovered(&self) -> bool {
@@ -654,6 +685,14 @@ impl PaperView {
         self.search_selected_index
             .and_then(|index| self.search_matches.get(index))
             .map(|search_match| search_match.line.as_str())
+    }
+
+    fn save_config(&mut self) {
+        self.config.zen_mode = self.is_zen;
+        self.config.split_primary_width = self.split_primary_width;
+        if let Err(error) = self.config_store.save(&self.config) {
+            self.status = Status::Error(error.to_string());
+        }
     }
 }
 
@@ -920,6 +959,18 @@ fn load_history(store: &HistoryStore) -> History {
         eprintln!("{error}");
         History::new()
     })
+}
+
+fn load_config(store: &ConfigStore) -> Config {
+    store.load().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        Config::default()
+    })
+}
+
+#[cfg(test)]
+fn test_config_store(history_store: &HistoryStore) -> ConfigStore {
+    ConfigStore::new(history_store.path().with_extension("config.toml"))
 }
 
 fn save_history(store: &HistoryStore, history: &History) {
@@ -1321,7 +1372,7 @@ mod tests {
         },
     };
     use paperview_core::{
-        Document, HistoryStore,
+        Config, ConfigStore, Document, HistoryStore,
         parser::{Block, parse_markdown},
     };
 
@@ -1793,6 +1844,55 @@ mod tests {
     }
 
     #[test]
+    fn gui_loads_zen_and_split_width_from_config() {
+        let history_store = temp_store("gui-config-load-history.toml");
+        let config_path = temp_doc("gui-config-load.toml", "");
+        let config_store = ConfigStore::new(&config_path);
+        config_store
+            .save(&Config {
+                schema_version: 1,
+                zen_mode: true,
+                split_primary_width: 65,
+            })
+            .expect("save config");
+
+        let state = PaperView::from_args_with_stores([], history_store, config_store);
+
+        assert!(state.is_zen);
+        assert_eq!(state.split_widths(), (65, 35));
+
+        fs::remove_file(config_path).expect("remove config");
+    }
+
+    #[test]
+    fn gui_persists_zen_and_keyboard_split_width() {
+        let first = temp_doc("gui-config-first.md", "# First\n\nOne.");
+        let second = temp_doc("gui-config-second.md", "# Second\n\nTwo.");
+        let history_store = temp_store("gui-config-save-history.toml");
+        let config_path = temp_doc("gui-config-save.toml", "");
+        let config_store = ConfigStore::new(&config_path);
+        config_store.ensure_exists().expect("ensure config");
+        let mut state = PaperView::from_args_with_stores(
+            [OsString::from(&first)],
+            history_store,
+            config_store.clone(),
+        );
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::ToggleSplit);
+
+        apply(&mut state, Message::ResizeSplit(SplitResize::GrowPrimary));
+        apply(&mut state, Message::ToggleZen);
+
+        let config = config_store.load().expect("load saved config");
+        assert!(config.zen_mode);
+        assert_eq!(config.split_primary_width, 60);
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+        fs::remove_file(config_path).expect("remove config");
+    }
+
+    #[test]
     fn split_resize_is_bounded_and_requires_enabled_split() {
         let first = temp_doc("split-bounds-first.md", "# First\n\nOne.");
         let second = temp_doc("split-bounds-second.md", "# Second\n\nTwo.");
@@ -1870,6 +1970,45 @@ mod tests {
 
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn gui_persists_dragged_split_width() {
+        let first = temp_doc("gui-config-drag-first.md", "# First\n\nOne.");
+        let second = temp_doc("gui-config-drag-second.md", "# Second\n\nTwo.");
+        let history_store = temp_store("gui-config-drag-history.toml");
+        let config_path = temp_doc("gui-config-drag.toml", "");
+        let config_store = ConfigStore::new(&config_path);
+        config_store.ensure_exists().expect("ensure config");
+        let mut state = PaperView::from_args_with_stores(
+            [OsString::from(&first)],
+            history_store,
+            config_store.clone(),
+        );
+        apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
+        apply(&mut state, Message::ToggleSplit);
+
+        apply(&mut state, Message::SplitDragStarted);
+        apply(
+            &mut state,
+            Message::SplitDragMoved {
+                x: 650.0,
+                width: 1000.0,
+            },
+        );
+        apply(&mut state, Message::SplitDragEnded);
+
+        assert_eq!(
+            config_store
+                .load()
+                .expect("load saved config")
+                .split_primary_width,
+            65
+        );
+
+        fs::remove_file(first).expect("remove first test document");
+        fs::remove_file(second).expect("remove second test document");
+        fs::remove_file(config_path).expect("remove config");
     }
 
     #[test]

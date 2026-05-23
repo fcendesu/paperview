@@ -102,7 +102,7 @@ impl ReaderApp {
     }
 
     fn new_documents(documents: Vec<Document>) -> Self {
-        Self::new_documents_with_config(documents, ConfigStore::default())
+        Self::new_documents_with_config(documents, default_config_store())
     }
 
     fn new_documents_with_config(documents: Vec<Document>, config_store: ConfigStore) -> Self {
@@ -885,6 +885,21 @@ fn load_config(store: &ConfigStore) -> (Config, Option<String>) {
         Ok(config) => (config, None),
         Err(error) => (Config::default(), Some(error.to_string())),
     }
+}
+
+#[cfg(not(test))]
+fn default_config_store() -> ConfigStore {
+    ConfigStore::default()
+}
+
+#[cfg(test)]
+fn default_config_store() -> ConfigStore {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock after Unix epoch")
+        .as_nanos();
+
+    ConfigStore::new(std::env::temp_dir().join(format!("paperview-tui-{nanos}-config.toml")))
 }
 
 #[derive(Debug)]

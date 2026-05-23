@@ -14,8 +14,8 @@ cargo run -p paperview-tui -- config edit
 The config file currently stores:
 
 - `schema_version = 1`
-- `zen_mode`, used by the TUI reader at startup and saved when toggled.
-- `split_primary_width`, used by the TUI Split View at startup and saved when resized.
+- `zen_mode`, used by the GUI and TUI readers at startup and saved when toggled.
+- `split_primary_width`, used by GUI and TUI Split View at startup and saved when resized.
 
 ## Implementation Notes
 
@@ -23,12 +23,12 @@ The config file currently stores:
 - `PAPERVIEW_CONFIG_PATH` overrides the default config location.
 - The default config stores `schema_version = 1`, `zen_mode = false`, and `split_primary_width = 50`.
 - The TUI binary handles config commands without initializing Ratatui.
-- The TUI reader loads config at startup, falls back to defaults if loading fails, and persists Zen Mode plus Split View width changes.
+- The GUI and TUI readers load config at startup, fall back to defaults if loading fails, and persist Zen Mode plus Split View width changes.
 - Missing config fields deserialize from defaults for compatibility with older config files.
 
 ## Decisions And Gaps
 
-- GUI preferences are still deferred.
+- Theme choice and richer user-facing settings are still deferred.
 - `config edit` delegates to the platform opener rather than embedding an editor.
 - Config and history still use separate store types because their files have different schemas and override environment variables.
 
