@@ -46,6 +46,7 @@ struct ReaderApp {
     toc: Vec<TocItem>,
     toc_selected_index: Option<usize>,
     focus: ReaderFocus,
+    is_zen: bool,
     scroll: u16,
     status: Option<String>,
     search_mode: SearchMode,
@@ -97,6 +98,7 @@ impl ReaderApp {
             toc_selected_index: initial_toc_selection(&toc),
             toc,
             focus: ReaderFocus::Reader,
+            is_zen: false,
             scroll: 0,
             status,
             search_mode: SearchMode::Inactive,
@@ -132,6 +134,7 @@ impl ReaderApp {
                     KeyCode::Char('}') => self.select_next_split_tab(),
                     KeyCode::Char('{') => self.select_previous_split_tab(),
                     KeyCode::Char('\\') => self.toggle_split(),
+                    KeyCode::Char('z') => self.toggle_zen(),
                     KeyCode::Char('x') if self.close_active_tab() => return Ok(()),
                     KeyCode::Char('x') => {}
                     KeyCode::Tab => self.toggle_focus(),
@@ -151,9 +154,14 @@ impl ReaderApp {
     fn draw(&self, frame: &mut Frame) {
         let [header, body] =
             Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).areas(frame.area());
-        let [main, toc] =
-            Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
-        let reader_areas = if self.split_document_index.is_some() {
+        let (main, toc) = if self.is_zen {
+            (body, None)
+        } else {
+            let [main, toc] =
+                Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
+            (main, Some(toc))
+        };
+        let reader_areas = if self.split_document_index.is_some() && !self.is_zen {
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas::<2>(main)
                 .to_vec()
@@ -181,6 +189,9 @@ impl ReaderApp {
         );
 
         if let Some(split_index) = self.split_document_index {
+            if self.is_zen {
+                return;
+            }
             let title = self
                 .documents
                 .iter()
@@ -202,25 +213,27 @@ impl ReaderApp {
             );
         }
 
-        frame.render_widget(
-            Paragraph::new(render::render_toc_text(
-                &self.toc,
-                self.active_toc_block_index(),
-                self.toc_selected_index,
-                self.focus == ReaderFocus::Toc,
-            ))
-            .block(
-                Block::default()
-                    .title(if self.focus == ReaderFocus::Toc {
-                        "On this page [active]"
-                    } else {
-                        "On this page"
-                    })
-                    .borders(Borders::ALL),
-            )
-            .wrap(Wrap { trim: true }),
-            toc,
-        );
+        if let Some(toc) = toc {
+            frame.render_widget(
+                Paragraph::new(render::render_toc_text(
+                    &self.toc,
+                    self.active_toc_block_index(),
+                    self.toc_selected_index,
+                    self.focus == ReaderFocus::Toc,
+                ))
+                .block(
+                    Block::default()
+                        .title(if self.focus == ReaderFocus::Toc {
+                            "On this page [active]"
+                        } else {
+                            "On this page"
+                        })
+                        .borders(Borders::ALL),
+                )
+                .wrap(Wrap { trim: true }),
+                toc,
+            );
+        }
     }
 
     fn move_down(&mut self) {
@@ -369,10 +382,17 @@ impl ReaderApp {
                 format!(" PaperView - {} ", self.active_document().title()),
                 Style::default().fg(Color::White).bg(Color::Black),
             )),
-            tab_line(&self.documents),
+            if self.is_zen {
+                Line::from(Span::styled(
+                    " Zen Mode ".to_owned(),
+                    Style::default().fg(Color::Cyan).bg(Color::Black),
+                ))
+            } else {
+                tab_line(&self.documents)
+            },
             Line::from(Span::styled(
                 self.header_status().unwrap_or_else(|| {
-                    "[/] search  [\\] split  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
+                    "[/] search  [z] zen  [\\] split  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
                         .to_owned()
                 }),
                 Style::default().fg(Color::DarkGray).bg(Color::Black),
@@ -445,6 +465,18 @@ impl ReaderApp {
             Some("Split View enabled".to_owned())
         } else {
             Some("Split View disabled".to_owned())
+        };
+    }
+
+    fn toggle_zen(&mut self) {
+        self.is_zen = !self.is_zen;
+        if self.is_zen {
+            self.focus = ReaderFocus::Reader;
+        }
+        self.status = if self.is_zen {
+            Some("Zen Mode enabled".to_owned())
+        } else {
+            Some("Zen Mode disabled".to_owned())
         };
     }
 
@@ -566,6 +598,11 @@ impl ReaderApp {
     }
 
     fn toggle_focus(&mut self) {
+        if self.is_zen {
+            self.focus = ReaderFocus::Reader;
+            return;
+        }
+
         if self.toc.is_empty() {
             self.focus = ReaderFocus::Reader;
             self.toc_selected_index = None;
@@ -1101,6 +1138,42 @@ mod tests {
         empty.toggle_focus();
         assert_eq!(empty.focus, ReaderFocus::Reader);
         assert_eq!(empty.toc_selected_index, None);
+    }
+
+    #[test]
+    fn zen_toggle_forces_reader_focus_and_blocks_toc_focus() {
+        let mut app = ReaderApp::new(Document::from_source("# First\n\nBody."));
+        app.toggle_focus();
+        assert_eq!(app.focus, ReaderFocus::Toc);
+
+        app.toggle_zen();
+        assert!(app.is_zen);
+        assert_eq!(app.focus, ReaderFocus::Reader);
+
+        app.toggle_focus();
+        assert_eq!(app.focus, ReaderFocus::Reader);
+
+        app.toggle_zen();
+        assert!(!app.is_zen);
+        app.toggle_focus();
+        assert_eq!(app.focus, ReaderFocus::Toc);
+    }
+
+    #[test]
+    fn zen_header_replaces_tab_line() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+        ]);
+
+        assert!(app.header_lines()[1].spans[0].content.contains("1:First"));
+
+        app.toggle_zen();
+
+        assert_eq!(
+            app.header_lines()[1].spans[0].content.as_ref(),
+            " Zen Mode "
+        );
     }
 
     #[test]

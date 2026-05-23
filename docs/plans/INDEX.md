@@ -37,6 +37,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [GUI Search Selected Highlight](completed/gui-search-selected-highlight.md) - stronger rendered highlight for the selected GUI search match.
 - [GUI Drag And Drop](completed/gui-drag-and-drop.md) - native GUI file-drop opening.
 - [GUI Zen Mode](completed/gui-zen-mode.md) - focused GUI reader layout.
+- [TUI Zen Mode](completed/tui-zen-mode.md) - focused terminal reader layout.
 - [GUI Tabs Foundation](completed/gui-tabs-foundation.md) - shared open-document model and GUI tab activation.
 - [GUI Tab Close](completed/gui-tab-close.md) - close controls and active-tab fallback behavior.
 - [GUI Multi-File Drop](completed/gui-multi-file-drop.md) - multi-file drops open supported files into tabs.

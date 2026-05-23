@@ -134,6 +134,7 @@ TUI controls:
 - `[` / `]`: switch to the previous or next tab.
 - `\`: toggle Split View when multiple tabs are open.
 - `{` / `}`: switch Split View's secondary pane.
+- `z`: toggle Zen Mode.
 - `x`: close the active tab.
 - `Tab`: switch focus between the reader and table of contents.
 - `Enter`: jump to the selected TOC heading when the TOC is focused.
@@ -144,8 +145,9 @@ TUI controls:
 
 The TUI highlights the active table-of-contents section while you scroll, can
 jump through headings from the TOC, can switch between open document tabs, can
-compare two tabs in Split View, and close the active tab. It preserves LaTeX
-display math plus Mermaid diagram source. Markdown tables render as aligned plain text, and
+compare two tabs in Split View, toggle a focused Zen Mode, and close the active
+tab. It preserves LaTeX display math plus Mermaid diagram source. Markdown
+tables render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports

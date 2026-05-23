@@ -127,6 +127,8 @@ in the TUI.
 - **Concept:** Ultimate distraction-free reading.
 - **Visuals:** Hides the left sidebar, right sidebar, and tab bar. The current implementation keeps the Header visible and lets the Main Reader fill the remaining space.
 - **Trigger:** Platform command shortcut: `Cmd + Shift + F` on macOS and `Ctrl + Shift + F` elsewhere.
+- **TUI:** Uses `z`, hides the tab line, TOC pane, and split side pane, and
+  keeps the active reader full-width below the header.
 
 ### 5.2 Edit Mode (Phase 2)
 - **Editor Background:** Matches the Sidebar (`#111318`) or a slightly lighter grey to distinguish from the "Paper" preview.
