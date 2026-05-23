@@ -131,6 +131,7 @@ TUI controls:
 - `k` / `Up`: scroll or move selection up.
 - `g`: jump to top in the reader.
 - `G`: jump to bottom in the reader.
+- `Space`: toggle a task checkbox at the current reader line for file-backed documents.
 - `[` / `]`: switch to the previous or next tab.
 - `\`: toggle Split View when multiple tabs are open.
 - `{` / `}`: switch Split View's secondary pane.
@@ -151,8 +152,8 @@ tables render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports
-case-insensitive in-document search with match navigation and highlighted match
-lines.
+file-backed task checkbox toggles, case-insensitive in-document search with
+match navigation, and highlighted match lines.
 
 The headless stats command prints word, line, character, reading-time, and
 heading-structure metadata for a document.

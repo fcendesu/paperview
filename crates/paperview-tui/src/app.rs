@@ -1,5 +1,5 @@
 use std::{
-    io,
+    fs, io,
     sync::mpsc::{self, Receiver},
     time::Duration,
 };
@@ -7,7 +7,9 @@ use std::{
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
     Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments, SearchMatch,
-    WatchEvent, parser::TocItem, watch_file,
+    WatchEvent,
+    parser::{Block as MarkdownBlock, TocItem},
+    toggle_task_line_source, watch_file,
 };
 use ratatui::{
     DefaultTerminal, Frame,
@@ -135,6 +137,7 @@ impl ReaderApp {
                     KeyCode::Char('{') => self.select_previous_split_tab(),
                     KeyCode::Char('\\') => self.toggle_split(),
                     KeyCode::Char('z') => self.toggle_zen(),
+                    KeyCode::Char(' ') => self.toggle_task_at_scroll(),
                     KeyCode::Char('x') if self.close_active_tab() => return Ok(()),
                     KeyCode::Char('x') => {}
                     KeyCode::Tab => self.toggle_focus(),
@@ -392,7 +395,7 @@ impl ReaderApp {
             },
             Line::from(Span::styled(
                 self.header_status().unwrap_or_else(|| {
-                    "[/] search  [z] zen  [\\] split  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
+                    "[/] search  [Space] task  [z] zen  [\\] split  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
                         .to_owned()
                 }),
                 Style::default().fg(Color::DarkGray).bg(Color::Black),
@@ -478,6 +481,69 @@ impl ReaderApp {
         } else {
             Some("Zen Mode disabled".to_owned())
         };
+    }
+
+    fn toggle_task_at_scroll(&mut self) {
+        let Some(path) = self.active_path() else {
+            self.status = Some("Task toggles require a file-backed document".to_owned());
+            return;
+        };
+        let Some(line_index) = self.task_source_line_at_scroll() else {
+            self.status = Some("No task checkbox at the reader line".to_owned());
+            return;
+        };
+        let Some(updated_source) =
+            toggle_task_line_source(self.active_document().source(), line_index)
+        else {
+            self.status = Some("Task checkbox source line was not found".to_owned());
+            return;
+        };
+
+        if let Err(error) = fs::write(&path, updated_source) {
+            self.status = Some(format!("Failed to update {}: {error}", path.display()));
+            return;
+        }
+
+        self.reload_path(path);
+        self.status = Some("Toggled task checkbox".to_owned());
+    }
+
+    fn task_source_line_at_scroll(&self) -> Option<usize> {
+        let rendered_line = usize::from(self.scroll);
+        let anchor_index = self
+            .block_line_starts
+            .iter()
+            .rposition(|anchor| anchor.line <= rendered_line)?;
+        let anchor = self.block_line_starts.get(anchor_index)?;
+        let next_line = self
+            .block_line_starts
+            .get(anchor_index + 1)
+            .map_or(self.document_lines.len(), |next| next.line);
+        if rendered_line >= next_line {
+            return None;
+        }
+
+        let MarkdownBlock::List { items, .. } = self
+            .active_document()
+            .parsed()
+            .blocks
+            .get(anchor.block_index)?
+        else {
+            return None;
+        };
+        let item_index = rendered_line.saturating_sub(anchor.line);
+
+        items
+            .get(item_index)
+            .filter(|item| item.checked.is_some())
+            .and_then(|item| item.source_line)
+    }
+
+    fn active_path(&self) -> Option<std::path::PathBuf> {
+        self.documents
+            .active()
+            .and_then(Document::path)
+            .map(std::path::PathBuf::from)
     }
 
     fn select_next_split_tab(&mut self) {
@@ -1174,6 +1240,52 @@ mod tests {
             app.header_lines()[1].spans[0].content.as_ref(),
             " Zen Mode "
         );
+    }
+
+    #[test]
+    fn task_toggle_updates_file_backed_active_document() {
+        let path = temp_doc("tui-task-toggle.md", "# Tasks\n\n- [ ] Todo\n- [x] Done");
+        let document = Document::open(&path).expect("open task document");
+        let mut app = ReaderApp::new(document);
+
+        app.scroll = 2;
+        assert_eq!(app.task_source_line_at_scroll(), Some(2));
+
+        app.toggle_task_at_scroll();
+
+        let updated = fs::read_to_string(&path).expect("read updated task document");
+        assert_eq!(updated, "# Tasks\n\n- [x] Todo\n- [x] Done");
+        assert!(app.document_lines.iter().any(|line| line == "- [x] Todo"));
+        assert_eq!(app.status.as_deref(), Some("Toggled task checkbox"));
+
+        fs::remove_file(path).expect("remove task document");
+    }
+
+    #[test]
+    fn task_toggle_requires_file_backed_task_line() {
+        let mut app = ReaderApp::new(Document::from_source("# Tasks\n\n- [ ] Todo"));
+        app.scroll = 2;
+
+        app.toggle_task_at_scroll();
+
+        assert_eq!(
+            app.status.as_deref(),
+            Some("Task toggles require a file-backed document")
+        );
+
+        let path = temp_doc("tui-task-no-checkbox.md", "# Tasks\n\nBody");
+        let document = Document::open(&path).expect("open non-task document");
+        let mut app = ReaderApp::new(document);
+        app.scroll = 2;
+
+        app.toggle_task_at_scroll();
+
+        assert_eq!(
+            app.status.as_deref(),
+            Some("No task checkbox at the reader line")
+        );
+
+        fs::remove_file(path).expect("remove non-task document");
     }
 
     #[test]

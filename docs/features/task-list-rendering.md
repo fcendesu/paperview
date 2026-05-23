@@ -8,9 +8,9 @@ PaperView renders Markdown task-list items in both reader frontends:
 - Unchecked items such as `- [ ] Todo`
 - Mixed normal list items and task-list items in the same Markdown list
 
-The GUI can toggle task checkboxes for file-backed documents and writes the
-updated marker back to the original Markdown line. The TUI remains read-only and
-renders Markdown-shaped task markers.
+The GUI and TUI can toggle task checkboxes for file-backed documents and write
+the updated marker back to the original Markdown line. The TUI toggles the task
+checkbox at the current reader line with `Space`.
 
 ## Implementation Notes
 
@@ -24,11 +24,12 @@ renders Markdown-shaped task markers.
 - The GUI renders file-backed task items with clickable checkbox glyphs next to
   rich inline text.
 - The TUI renders task items as Markdown-shaped `- [x]` and `- [ ]` lines.
+- The TUI maps the current rendered list line back to the parsed task item's
+  source line before using the shared toggle helper.
 
 ## Decisions And Gaps
 
-- GUI task toggles are intentionally scoped to file-backed documents.
-- TUI task toggles remain deferred.
+- Task toggles are intentionally scoped to file-backed documents.
 - Nested list structure is still flattened by the current basic list model.
 
 ## Verification Expectations
