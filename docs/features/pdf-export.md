@@ -23,12 +23,14 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.pdf`.
   built-in Helvetica text.
 - The first PDF backend preserves headings, paragraphs, lists, tables,
   code/math/diagram source blocks, rules, and image metadata text.
+- PDF output uses a larger title treatment, heading sizes and spacing, indented
+  lists/source blocks, wrapped text, and vertical-space page breaks.
 - The TUI command parses `--to html|pdf`, asks core for an artifact, writes
   successful output beside the source document, and prints the output path.
 
 ## Decisions And Gaps
 
-- The first PDF backend is text-first and does not perform rich typography,
+- The PDF backend is still text-first and does not perform rich typography,
   bitmap image embedding, syntax highlighting, Mermaid layout, or LaTeX
   typesetting.
 - Future PDF work can replace or augment this writer with a richer renderer if

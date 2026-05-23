@@ -53,6 +53,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [Mermaid Foundation](completed/mermaid-foundation.md) - source-preserving Mermaid diagram blocks across core, GUI, and TUI.
 - [Mermaid Flowchart Preview](completed/mermaid-flowchart-preview.md) - native GUI preview for simple Mermaid flowcharts.
 - [PDF Export Foundation](completed/pdf-export-foundation.md) - shared export format contract with PDF unavailable-backend handling.
+- [PDF Export Layout Polish](completed/pdf-export-layout-polish.md) - title treatment, indentation, spacing, and page-break improvements.
 - [PDF Export Text Backend](completed/pdf-export-text-backend.md) - dependency-light text-first PDF artifacts.
 - [Performance Baseline Command](completed/performance-baseline-command.md) - headless read, parse, and TUI render timing report.
 - [Performance Load Target](completed/performance-load-target.md) - headless perf startup/load target status.

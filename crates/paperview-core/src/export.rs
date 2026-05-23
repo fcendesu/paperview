@@ -365,17 +365,16 @@ fn escape_attr(value: &str) -> String {
 struct PdfLine {
     text: String,
     size: u16,
+    indent: u16,
+    gap_after: u16,
 }
 
 fn pdf_lines(document: &Document) -> Vec<PdfLine> {
-    let mut lines = vec![PdfLine {
-        text: document.title().to_owned(),
-        size: 22,
-    }];
-    lines.push(PdfLine {
-        text: String::new(),
-        size: 12,
-    });
+    let mut lines = vec![
+        pdf_line(document.title().to_owned(), 24)
+            .with_indent(0)
+            .with_gap_after(10),
+    ];
 
     for block in &document.parsed().blocks {
         render_pdf_block(block, &mut lines);
@@ -387,35 +386,31 @@ fn pdf_lines(document: &Document) -> Vec<PdfLine> {
 fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
     match block {
         Block::Heading { level, spans } => {
-            lines.push(PdfLine {
-                text: inline_plain_text(spans),
-                size: pdf_heading_size(*level),
-            });
-            lines.push(PdfLine {
-                text: String::new(),
-                size: 12,
-            });
+            lines.push(
+                pdf_line(inline_plain_text(spans), pdf_heading_size(*level))
+                    .with_gap_after(pdf_heading_gap(*level)),
+            );
         }
         Block::Paragraph(spans) => push_wrapped_pdf_lines(&inline_plain_text(spans), 12, lines),
         Block::BlockQuote(spans) => {
-            push_wrapped_pdf_lines(&format!("> {}", inline_plain_text(spans)), 12, lines);
+            push_wrapped_pdf_lines_with_indent(
+                &inline_plain_text(spans),
+                12,
+                18,
+                PDF_BODY_WRAP_CHARS.saturating_sub(4),
+                lines,
+            );
         }
         Block::CodeBlock { language, code } => {
             if let Some(language) = language
                 && !language.trim().is_empty()
             {
-                lines.push(PdfLine {
-                    text: format!("code: {language}"),
-                    size: 10,
-                });
+                lines.push(pdf_line(format!("code: {language}"), 10).with_gap_after(2));
             }
             push_preformatted_pdf_lines(code, lines);
         }
         Block::Diagram { language, source } => {
-            lines.push(PdfLine {
-                text: format!("diagram: {language}"),
-                size: 10,
-            });
+            lines.push(pdf_line(format!("diagram: {language}"), 10).with_gap_after(2));
             push_preformatted_pdf_lines(source, lines);
         }
         Block::Image { alt, url, title } => {
@@ -443,9 +438,11 @@ fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
                     None if *ordered => format!("{}.", index + 1),
                     None => "-".to_owned(),
                 };
-                push_wrapped_pdf_lines(
+                push_wrapped_pdf_lines_with_indent(
                     &format!("{marker} {}", inline_plain_text(&item.content)),
                     12,
+                    14,
+                    PDF_BODY_WRAP_CHARS.saturating_sub(4),
                     lines,
                 );
             }
@@ -456,22 +453,15 @@ fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
             } else {
                 "inline math"
             };
-            lines.push(PdfLine {
-                text: label.to_owned(),
-                size: 10,
-            });
+            lines.push(pdf_line(label.to_owned(), 10).with_gap_after(2));
             push_preformatted_pdf_lines(source, lines);
         }
-        Block::Rule => lines.push(PdfLine {
-            text: "------------------------------".to_owned(),
-            size: 10,
-        }),
+        Block::Rule => lines.push(pdf_line("------------------------------".to_owned(), 10)),
     }
 
-    lines.push(PdfLine {
-        text: String::new(),
-        size: 12,
-    });
+    if let Some(line) = lines.last_mut() {
+        line.gap_after = line.gap_after.max(8);
+    }
 }
 
 fn pdf_heading_size(level: HeadingLevel) -> u16 {
@@ -480,6 +470,38 @@ fn pdf_heading_size(level: HeadingLevel) -> u16 {
         HeadingLevel::H2 => 17,
         HeadingLevel::H3 => 15,
         HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => 13,
+    }
+}
+
+fn pdf_heading_gap(level: HeadingLevel) -> u16 {
+    match level {
+        HeadingLevel::H1 => 10,
+        HeadingLevel::H2 => 8,
+        HeadingLevel::H3 => 7,
+        HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => 6,
+    }
+}
+
+const PDF_BODY_WRAP_CHARS: usize = 84;
+
+impl PdfLine {
+    fn with_indent(mut self, indent: u16) -> Self {
+        self.indent = indent;
+        self
+    }
+
+    fn with_gap_after(mut self, gap_after: u16) -> Self {
+        self.gap_after = gap_after;
+        self
+    }
+}
+
+fn pdf_line(text: String, size: u16) -> PdfLine {
+    PdfLine {
+        text,
+        size,
+        indent: 0,
+        gap_after: 3,
     }
 }
 
@@ -495,17 +517,30 @@ fn pdf_table_row(row: &[TableCell]) -> String {
 }
 
 fn push_wrapped_pdf_lines(text: &str, size: u16, lines: &mut Vec<PdfLine>) {
-    for wrapped in wrap_pdf_text(text, 88) {
-        lines.push(PdfLine {
-            text: wrapped,
-            size,
-        });
+    push_wrapped_pdf_lines_with_indent(text, size, 0, PDF_BODY_WRAP_CHARS, lines);
+}
+
+fn push_wrapped_pdf_lines_with_indent(
+    text: &str,
+    size: u16,
+    indent: u16,
+    max_chars: usize,
+    lines: &mut Vec<PdfLine>,
+) {
+    for wrapped in wrap_pdf_text(text, max_chars) {
+        lines.push(pdf_line(wrapped, size).with_indent(indent));
     }
 }
 
 fn push_preformatted_pdf_lines(text: &str, lines: &mut Vec<PdfLine>) {
     for line in text.lines() {
-        push_wrapped_pdf_lines(line, 10, lines);
+        push_wrapped_pdf_lines_with_indent(
+            line,
+            10,
+            14,
+            PDF_BODY_WRAP_CHARS.saturating_sub(4),
+            lines,
+        );
     }
 }
 
@@ -541,10 +576,8 @@ fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
     const LEFT: f32 = 54.0;
     const TOP: f32 = 740.0;
     const BOTTOM: f32 = 54.0;
-    const LINE_HEIGHT: f32 = 16.0;
 
-    let lines_per_page = ((TOP - BOTTOM) / LINE_HEIGHT) as usize;
-    let pages = lines.chunks(lines_per_page.max(1)).collect::<Vec<_>>();
+    let pages = paginate_pdf_lines(lines, TOP - BOTTOM);
     let page_count = pages.len().max(1);
     let mut objects = vec![
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
@@ -561,7 +594,7 @@ fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
         objects.push(format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_WIDTH:.0} {PAGE_HEIGHT:.0}] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>"
         ));
-        let stream = pdf_page_stream(page_lines, LEFT, TOP, LINE_HEIGHT);
+        let stream = pdf_page_stream(page_lines, LEFT, TOP);
         objects.push(format!(
             "<< /Length {} >>\nstream\n{}endstream",
             stream.len(),
@@ -571,7 +604,7 @@ fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
 
     if page_ids.is_empty() {
         page_ids.push(first_page_object);
-        let stream = pdf_page_stream(&[], LEFT, TOP, LINE_HEIGHT);
+        let stream = pdf_page_stream(&[], LEFT, TOP);
         objects.push(format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_WIDTH:.0} {PAGE_HEIGHT:.0}] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>"
         ));
@@ -616,16 +649,45 @@ fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
     pdf
 }
 
-fn pdf_page_stream(lines: &[PdfLine], left: f32, top: f32, line_height: f32) -> String {
-    let mut stream = String::new();
+fn paginate_pdf_lines(lines: &[PdfLine], available_height: f32) -> Vec<&[PdfLine]> {
+    if lines.is_empty() {
+        return Vec::new();
+    }
+
+    let mut pages = Vec::new();
+    let mut start = 0;
+    let mut used = 0.0;
 
     for (index, line) in lines.iter().enumerate() {
-        let y = top - (index as f32 * line_height);
+        let advance = pdf_line_advance(line);
+        if index > start && used + advance > available_height {
+            pages.push(&lines[start..index]);
+            start = index;
+            used = 0.0;
+        }
+        used += advance;
+    }
+
+    pages.push(&lines[start..]);
+    pages
+}
+
+fn pdf_line_advance(line: &PdfLine) -> f32 {
+    (f32::from(line.size) * 1.25) + f32::from(line.gap_after)
+}
+
+fn pdf_page_stream(lines: &[PdfLine], left: f32, top: f32) -> String {
+    let mut stream = String::new();
+    let mut y = top;
+
+    for line in lines {
+        let x = left + f32::from(line.indent);
         stream.push_str(&format!(
-            "BT /F1 {} Tf 1 0 0 1 {left:.1} {y:.1} Tm ({}) Tj ET\n",
+            "BT /F1 {} Tf 1 0 0 1 {x:.1} {y:.1} Tm ({}) Tj ET\n",
             line.size,
             escape_pdf_text(&line.text)
         ));
+        y -= pdf_line_advance(line);
     }
 
     stream
@@ -857,9 +919,26 @@ mod tests {
         let pdf = export_pdf(&document);
         let pdf_text = String::from_utf8_lossy(&pdf);
 
+        assert!(pdf_text.contains("BT /F1 24 Tf"));
         assert!(pdf_text.contains("(PaperView) Tj"));
+        assert!(pdf_text.contains("1 0 0 1 68.0"));
         assert!(pdf_text.contains("(- [x] Done) Tj"));
         assert!(pdf_text.contains("(code: rust) Tj"));
         assert!(pdf_text.contains("(fn main\\(\\) {}) Tj"));
+    }
+
+    #[test]
+    fn exports_pdf_with_multiple_pages_for_long_documents() {
+        let source = format!(
+            "# Long\n\n{}",
+            (0..90)
+                .map(|index| format!("Paragraph {index} with enough text to render."))
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        );
+        let pdf = export_pdf(&Document::from_source(source));
+        let pdf_text = String::from_utf8_lossy(&pdf);
+
+        assert!(pdf_text.contains("/Count 3") || pdf_text.contains("/Count 4"));
     }
 }

@@ -166,8 +166,8 @@ default file before edit when needed.
 The workspace search command prints ripgrep-backed `path:line:column` results
 without launching the TUI.
 The export command writes standalone PaperView-styled HTML with heading anchors
-or a basic text-first PDF beside the source document and prints the generated
-path.
+or a text-first PDF with basic layout beside the source document and prints the
+generated path.
 
 ## Development Checks
 
