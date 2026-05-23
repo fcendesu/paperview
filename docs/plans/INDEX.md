@@ -58,6 +58,7 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 - [TUI TOC Jump Mode](completed/tui-toc-jump-mode.md) - Ratatui TOC focus mode and jump-to-heading navigation.
 - [TUI Search Highlighting](completed/tui-search-highlighting.md) - highlighted TUI search result lines.
 - [TUI Split View Foundation](completed/tui-split-view-foundation.md) - side-by-side terminal reader panes for two open tabs.
+- [TUI Split View Controls](completed/tui-split-view-controls.md) - secondary-pane cycling controls for terminal split view.
 - [TUI Tab Close](completed/tui-tab-close.md) - close the active Ratatui tab with keyboard fallback behavior.
 - [TUI Tabs Foundation](completed/tui-tabs-foundation.md) - multi-file TUI tabs with keyboard switching.
 - [Ratatui Shell](completed/ratatui-shell.md) - first interactive terminal reader shell.

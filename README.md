@@ -133,6 +133,7 @@ TUI controls:
 - `G`: jump to bottom in the reader.
 - `[` / `]`: switch to the previous or next tab.
 - `\`: toggle Split View when multiple tabs are open.
+- `{` / `}`: switch Split View's secondary pane.
 - `x`: close the active tab.
 - `Tab`: switch focus between the reader and table of contents.
 - `Enter`: jump to the selected TOC heading when the TOC is focused.

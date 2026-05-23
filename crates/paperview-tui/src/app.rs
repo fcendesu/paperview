@@ -129,6 +129,8 @@ impl ReaderApp {
                     KeyCode::Char('N') => self.select_previous_search_match(),
                     KeyCode::Char(']') => self.select_next_tab(),
                     KeyCode::Char('[') => self.select_previous_tab(),
+                    KeyCode::Char('}') => self.select_next_split_tab(),
+                    KeyCode::Char('{') => self.select_previous_split_tab(),
                     KeyCode::Char('\\') => self.toggle_split(),
                     KeyCode::Char('x') if self.close_active_tab() => return Ok(()),
                     KeyCode::Char('x') => {}
@@ -370,7 +372,8 @@ impl ReaderApp {
             tab_line(&self.documents),
             Line::from(Span::styled(
                 self.header_status().unwrap_or_else(|| {
-                    "[/] search  [\\] split  [[/]] tabs  [x] close  [Tab] toc  [q] quit".to_owned()
+                    "[/] search  [\\] split  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
+                        .to_owned()
                 }),
                 Style::default().fg(Color::DarkGray).bg(Color::Black),
             )),
@@ -443,6 +446,58 @@ impl ReaderApp {
         } else {
             Some("Split View disabled".to_owned())
         };
+    }
+
+    fn select_next_split_tab(&mut self) {
+        self.select_split_tab_offset(1);
+    }
+
+    fn select_previous_split_tab(&mut self) {
+        self.select_split_tab_offset(-1);
+    }
+
+    fn select_split_tab_offset(&mut self, offset: isize) {
+        if self.split_document_index.is_none() {
+            return;
+        }
+
+        let Some(active) = self.documents.active_index() else {
+            return;
+        };
+
+        let candidates = self
+            .documents
+            .iter()
+            .map(|(index, _)| index)
+            .filter(|index| *index != active)
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
+            self.split_document_index = None;
+            self.split_document_lines.clear();
+            self.status = Some("Split View disabled".to_owned());
+            return;
+        }
+
+        let current_position = self
+            .split_document_index
+            .and_then(|current| candidates.iter().position(|index| *index == current))
+            .unwrap_or(0);
+        let next_position =
+            (current_position as isize + offset).rem_euclid(candidates.len() as isize) as usize;
+        let next_index = candidates[next_position];
+
+        self.split_document_index = Some(next_index);
+        self.refresh_split_document();
+        let title = self
+            .documents
+            .iter()
+            .find_map(|(index, document)| (index == next_index).then_some(document.title()))
+            .unwrap_or("Split");
+        self.status = Some(format!(
+            "Side {}/{}: {title}",
+            next_index + 1,
+            self.documents.len()
+        ));
     }
 
     fn ensure_split_target(&mut self) {
@@ -1144,6 +1199,42 @@ mod tests {
                 .iter()
                 .any(|line| line == "# First")
         );
+    }
+
+    #[test]
+    fn split_side_navigation_wraps_through_non_active_tabs() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+            Document::from_source("# Third").with_path("third.md"),
+        ]);
+        app.toggle_split();
+
+        app.select_next_split_tab();
+        assert_eq!(app.split_document_index, Some(2));
+        assert!(
+            app.split_document_lines
+                .iter()
+                .any(|line| line == "# Third")
+        );
+
+        app.select_next_split_tab();
+        assert_eq!(app.split_document_index, Some(1));
+
+        app.select_previous_split_tab();
+        assert_eq!(app.split_document_index, Some(2));
+    }
+
+    #[test]
+    fn split_side_navigation_requires_enabled_split() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First").with_path("first.md"),
+            Document::from_source("# Second").with_path("second.md"),
+        ]);
+
+        app.select_next_split_tab();
+        assert_eq!(app.split_document_index, None);
+        assert!(app.split_document_lines.is_empty());
     }
 
     #[test]

@@ -38,7 +38,8 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 - **Secondary Pane Selector:** While Split View is on, non-active tabs expose a
   compact selector for choosing the right-side pane.
 - **TUI Split Toggle:** The TUI uses `\` to toggle a first side-by-side reader
-  layout when multiple tabs are open.
+  layout when multiple tabs are open. It uses `{` / `}` to cycle the secondary
+  pane through non-active tabs.
 
 ### 2.2 Left Sidebar: "History"
 - **Structure:**
@@ -52,9 +53,11 @@ The design follows a "Paper-on-Desktop" metaphor: dark, functional sidebars anch
 - **Split View:** The current GUI foundation divides the reader area vertically
   into two panes: active tab on the left, secondary open tab on the right.
   The TUI also has a side-by-side foundation with active reader behavior on the
-  left and the secondary document on the right.
+  left and the secondary document on the right, with keyboard cycling for the
+  side pane.
     - **Independent Scrolling:** Deferred.
     - **Secondary Selection:** Chosen from non-active tabs while Split View is on.
+      In the TUI, `{` / `}` cycles the side pane.
     - **Resize:** The primary pane ratio is bounded from 30% to 70%, defaults
       to 50%, and can be changed by keyboard shortcuts or divider drag.
     - **Comparison Mode:** Highlighting a section on one side can sync the other side (optional toggle; deferred).

@@ -29,6 +29,7 @@ Current TUI behavior:
 - Split View only activates when at least two tabs are open.
 - When enabled, the active document renders in the left pane and the secondary
   open tab renders in the right pane.
+- Cycle the secondary pane with `{` / `}` while Split View is on.
 - The left active pane owns scrolling, search, and TOC highlighting.
 - Selecting the document currently used as the secondary pane retargets the
   secondary pane to another open tab when one exists.
@@ -40,6 +41,7 @@ Current TUI behavior:
 - `paperview-gui` stores the secondary pane as an optional open-document index.
 - `paperview-tui` stores the secondary pane as an optional open-document index
   and renders a cached line buffer for the side pane.
+- TUI side-pane cycling walks non-active tabs only and wraps at either end.
 - `OpenDocuments` remains the shared tab/document model; no separate core split
   model exists yet.
 - The header owns the global Split View toggle.
@@ -56,7 +58,7 @@ Current TUI behavior:
 
 - Independent scroll persistence and scroll synchronization are deferred.
 - Split ratio persistence is deferred.
-- TUI secondary-pane selection controls and resizing are deferred.
+- TUI split resizing is deferred.
 
 ## Verification
 
