@@ -111,6 +111,7 @@ Search a workspace or folder:
 
 ```sh
 cargo run -p paperview-tui -- search PaperView docs
+cargo run -p paperview-tui -- search PaperView docs --interactive
 ```
 
 Export a document to HTML without launching the TUI:
@@ -143,6 +144,7 @@ TUI controls:
 - `/`: search within the current document.
 - `n` / `N`: jump to the next or previous search match.
 - In the dashboard, `Enter`: open the selected recent file.
+- In interactive workspace search, `Enter`: open the selected match near its line.
 - `q` / `Esc`: quit the current TUI view.
 
 The TUI highlights the active table-of-contents section while you scroll, can
@@ -164,7 +166,7 @@ read/parse/render timings for local baseline checks.
 The config commands print or open PaperView's TOML config file, creating a
 default file before edit when needed.
 The workspace search command prints ripgrep-backed `path:line:column` results
-without launching the TUI.
+without launching the TUI, or opens a Ratatui result picker with `--interactive`.
 The export command writes standalone PaperView-styled HTML with heading anchors
 or a text-first PDF with basic layout beside the source document and prints the
 generated path.

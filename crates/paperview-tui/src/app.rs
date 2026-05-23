@@ -7,7 +7,7 @@ use std::{
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
     Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments, SearchMatch,
-    WatchEvent,
+    WatchEvent, WorkspaceSearchMatch,
     parser::{Block as MarkdownBlock, TocItem},
     toggle_task_line_source, watch_file,
 };
@@ -40,6 +40,18 @@ pub fn run_documents(documents: Vec<Document>) -> io::Result<()> {
 pub fn run_dashboard() -> io::Result<()> {
     let mut terminal = ratatui::try_init()?;
     let result = DashboardApp::new(HistoryStore::default()).run(&mut terminal);
+    ratatui::restore();
+    result
+}
+
+pub fn run_workspace_search(
+    query: String,
+    root: std::path::PathBuf,
+    matches: Vec<WorkspaceSearchMatch>,
+) -> io::Result<()> {
+    let mut terminal = ratatui::try_init()?;
+    let result =
+        WorkspaceSearchApp::new(query, root, matches, HistoryStore::default()).run(&mut terminal);
     ratatui::restore();
     result
 }
@@ -123,6 +135,14 @@ impl ReaderApp {
             _watcher: watcher,
             watch_receiver,
         }
+    }
+
+    fn new_at_source_line(document: Document, line_number: usize) -> Self {
+        let mut app = Self::new(document);
+        app.scroll = line_number.saturating_sub(1) as u16;
+        app.scroll = app.scroll.min(app.max_scroll());
+        app.status = Some(format!("Opened search result at line {line_number}"));
+        app
     }
 
     fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -839,6 +859,173 @@ impl ReaderApp {
     }
 }
 
+#[derive(Debug)]
+struct WorkspaceSearchApp {
+    query: String,
+    root: std::path::PathBuf,
+    matches: Vec<WorkspaceSearchMatch>,
+    list_state: ListState,
+    store: HistoryStore,
+    status: Option<String>,
+}
+
+impl WorkspaceSearchApp {
+    fn new(
+        query: String,
+        root: std::path::PathBuf,
+        matches: Vec<WorkspaceSearchMatch>,
+        store: HistoryStore,
+    ) -> Self {
+        let mut list_state = ListState::default();
+        if !matches.is_empty() {
+            list_state.select(Some(0));
+        }
+
+        Self {
+            query,
+            root,
+            matches,
+            list_state,
+            store,
+            status: None,
+        }
+    }
+
+    fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        loop {
+            terminal.draw(|frame| self.draw(frame))?;
+
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                    KeyCode::Char('j') | KeyCode::Down => self.select_next(),
+                    KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
+                    KeyCode::Enter => {
+                        if let Some((document, line_number)) = self.open_selected() {
+                            ReaderApp::new_at_source_line(document, line_number).run(terminal)?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        let [header, body, footer] = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(2),
+        ])
+        .areas(frame.area());
+
+        frame.render_widget(
+            Paragraph::new(format!(
+                " PaperView - Search '{}' in {} ",
+                self.query,
+                self.root.display()
+            ))
+            .style(theme::shell())
+            .block(Block::default().borders(Borders::BOTTOM)),
+            header,
+        );
+
+        if self.matches.is_empty() {
+            frame.render_widget(
+                Paragraph::new("No matches.")
+                    .block(
+                        Block::default()
+                            .title("Workspace Search")
+                            .borders(Borders::ALL),
+                    )
+                    .style(theme::reader())
+                    .wrap(Wrap { trim: true }),
+                body,
+            );
+        } else {
+            let items = self
+                .matches
+                .iter()
+                .map(workspace_search_item)
+                .collect::<Vec<_>>();
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .title("Workspace Search")
+                        .borders(Borders::ALL),
+                )
+                .highlight_symbol("> ")
+                .highlight_style(theme::list_highlight());
+
+            frame.render_stateful_widget(list, body, &mut self.list_state);
+        }
+
+        let status = self
+            .status
+            .as_deref()
+            .unwrap_or("Enter opens selected match - j/k move - q quits");
+        frame.render_widget(Paragraph::new(status).style(theme::status()), footer);
+    }
+
+    fn select_next(&mut self) {
+        let len = self.matches.len();
+        if len == 0 {
+            return;
+        }
+
+        let next = self
+            .list_state
+            .selected()
+            .map_or(0, |index| (index + 1).min(len - 1));
+        self.list_state.select(Some(next));
+    }
+
+    fn select_previous(&mut self) {
+        let len = self.matches.len();
+        if len == 0 {
+            return;
+        }
+
+        let previous = self
+            .list_state
+            .selected()
+            .map_or(0, |index| index.saturating_sub(1));
+        self.list_state.select(Some(previous));
+    }
+
+    fn open_selected(&mut self) -> Option<(Document, usize)> {
+        let index = self.list_state.selected()?;
+        let search_match = self.matches.get(index)?;
+        let path = search_match.path.clone();
+        let line_number = search_match.line_number;
+
+        match Document::open(&path) {
+            Ok(document) => {
+                self.record_opened_document(&document);
+                self.status = None;
+                Some((document, line_number))
+            }
+            Err(error) => {
+                self.status = Some(error.to_string());
+                None
+            }
+        }
+    }
+
+    fn record_opened_document(&mut self, document: &Document) {
+        let mut history = self.store.load().unwrap_or_else(|error| {
+            self.status = Some(error.to_string());
+            History::new()
+        });
+        history.record_document(document);
+        if let Err(error) = self.store.save(&history) {
+            self.status = Some(error.to_string());
+        }
+    }
+}
+
 fn initial_toc_selection(toc: &[TocItem]) -> Option<usize> {
     (!toc.is_empty()).then_some(0)
 }
@@ -1060,6 +1247,24 @@ fn history_item(entry: &FileEntry) -> ListItem<'static> {
     ])
 }
 
+fn workspace_search_item(search_match: &WorkspaceSearchMatch) -> ListItem<'static> {
+    ListItem::new(vec![
+        Line::from(Span::styled(
+            format!(
+                "{}:{}:{}",
+                search_match.path.display(),
+                search_match.line_number,
+                search_match.column
+            ),
+            theme::list_title(),
+        )),
+        Line::from(Span::styled(
+            search_match.line.trim().to_owned(),
+            theme::list_meta(),
+        )),
+    ])
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct SearchHighlights<'a> {
     query: &'a str,
@@ -1164,12 +1369,12 @@ mod tests {
     };
 
     use crossterm::event::KeyCode;
-    use paperview_core::{Document, FileEntry, HistoryStore, SearchMatch};
+    use paperview_core::{Document, FileEntry, HistoryStore, SearchMatch, WorkspaceSearchMatch};
     use ratatui::style::Modifier;
 
     use super::{
-        DashboardApp, ReaderApp, ReaderFocus, SearchHighlights, SearchMode, clamp_search_selection,
-        clamp_toc_selection, document_text, tab_line,
+        DashboardApp, ReaderApp, ReaderFocus, SearchHighlights, SearchMode, WorkspaceSearchApp,
+        clamp_search_selection, clamp_toc_selection, document_text, tab_line,
     };
     use crate::theme;
 
@@ -1651,6 +1856,50 @@ mod tests {
         assert_eq!(clamp_search_selection(Some(3), 2), Some(1));
         assert_eq!(clamp_search_selection(Some(0), 0), None);
         assert_eq!(clamp_search_selection(None, 2), Some(0));
+    }
+
+    #[test]
+    fn reader_can_open_near_workspace_search_line() {
+        let app = ReaderApp::new_at_source_line(
+            Document::from_source("# Title\n\nOne.\n\nNeedle.\n\nTail."),
+            5,
+        );
+
+        assert_eq!(app.scroll, 4);
+        assert_eq!(
+            app.status.as_deref(),
+            Some("Opened search result at line 5")
+        );
+    }
+
+    #[test]
+    fn workspace_search_selection_is_bounded() {
+        let mut app = WorkspaceSearchApp::new(
+            "needle".to_owned(),
+            ".".into(),
+            vec![
+                WorkspaceSearchMatch {
+                    path: "one.md".into(),
+                    line_number: 1,
+                    column: 1,
+                    line: "Needle one".to_owned(),
+                },
+                WorkspaceSearchMatch {
+                    path: "two.md".into(),
+                    line_number: 2,
+                    column: 3,
+                    line: "Needle two".to_owned(),
+                },
+            ],
+            HistoryStore::new("missing-history.toml"),
+        );
+
+        app.select_previous();
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        app.select_next();
+        app.select_next();
+        assert_eq!(app.list_state.selected(), Some(1));
     }
 
     #[test]

@@ -62,10 +62,17 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             open_path(store.path())?;
             Ok(())
         }
-        [command, query] if command == "search" => {
+        [command, query, flag] if command == "search" && flag == "--interactive" => {
+            let root = PathBuf::from(".");
+            let query = query.to_string_lossy().to_string();
             let matches =
-                paperview_core::search_workspace(&query.to_string_lossy(), ".")
-                    .map_err(|error| error.to_string())?;
+                paperview_core::search_workspace(&query, &root).map_err(|error| error.to_string())?;
+            app::run_workspace_search(query, root, matches).map_err(|error| error.to_string())?;
+            Ok(())
+        }
+        [command, query] if command == "search" => {
+            let matches = paperview_core::search_workspace(&query.to_string_lossy(), ".")
+                .map_err(|error| error.to_string())?;
             println!("{}", workspace_search_text(&matches));
             Ok(())
         }
@@ -74,6 +81,14 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
                 paperview_core::search_workspace(&query.to_string_lossy(), PathBuf::from(root))
                     .map_err(|error| error.to_string())?;
             println!("{}", workspace_search_text(&matches));
+            Ok(())
+        }
+        [command, query, root, flag] if command == "search" && flag == "--interactive" => {
+            let root = PathBuf::from(root);
+            let query = query.to_string_lossy().to_string();
+            let matches =
+                paperview_core::search_workspace(&query, &root).map_err(|error| error.to_string())?;
+            app::run_workspace_search(query, root, matches).map_err(|error| error.to_string())?;
             Ok(())
         }
         [path] => {
@@ -90,7 +105,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         _ => Err(
-            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path]\n       paperview-tui stats <file>\n       paperview-tui perf <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
+            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file>\n       paperview-tui perf <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
                 .to_owned(),
         ),
     }
