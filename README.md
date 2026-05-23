@@ -148,8 +148,8 @@ TUI controls:
 The TUI highlights the active table-of-contents section while you scroll, can
 jump through headings from the TOC, can switch between open document tabs, can
 compare two tabs in Split View, toggle a focused Zen Mode, and close the active
-tab. It preserves LaTeX display math with readable previews plus Mermaid diagram source. Markdown
-tables render as aligned plain text, and
+tab. It preserves LaTeX display math with readable previews plus Mermaid
+diagram source with simple flowchart previews. Markdown tables render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports

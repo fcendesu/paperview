@@ -2,7 +2,7 @@ use paperview_core::{
     Document,
     parser::{
         Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow, TocItem,
-        elements::{inline, math},
+        elements::{diagram, inline, math},
     },
 };
 use ratatui::text::{Line, Span, Text};
@@ -80,6 +80,9 @@ fn render_block(block: &Block, output: &mut String) {
             output.push_str("```\n");
         }
         Block::Diagram { language, source } => {
+            if let Some(preview) = diagram::flowchart_preview(source) {
+                render_flowchart_preview(preview, output);
+            }
             output.push_str("```");
             output.push_str(language);
             output.push('\n');
@@ -134,6 +137,31 @@ fn render_block(block: &Block, output: &mut String) {
             rows,
         } => render_table(alignments, header, rows, output),
         Block::Rule => output.push_str("---\n"),
+    }
+}
+
+fn render_flowchart_preview(preview: diagram::FlowchartPreview, output: &mut String) {
+    let direction = match preview.direction {
+        diagram::FlowchartDirection::TopDown => "top down",
+        diagram::FlowchartDirection::BottomTop => "bottom to top",
+        diagram::FlowchartDirection::LeftRight => "left to right",
+        diagram::FlowchartDirection::RightLeft => "right to left",
+    };
+
+    output.push_str("flowchart preview - ");
+    output.push_str(direction);
+    output.push('\n');
+
+    for edge in preview.edges {
+        output.push_str("  ");
+        output.push_str(&edge.from);
+        output.push_str(" -> ");
+        output.push_str(&edge.to);
+        if let Some(label) = edge.label {
+            output.push_str(" : ");
+            output.push_str(&label);
+        }
+        output.push('\n');
     }
 }
 
@@ -359,7 +387,17 @@ mod tests {
     fn renders_mermaid_diagram_blocks() {
         let document = Document::from_source("```mermaid\ngraph TD\n  A-->B\n```");
 
+        assert!(render_document(&document).contains("flowchart preview - top down\n  A -> B\n"));
         assert!(render_document(&document).contains("```mermaid\ngraph TD\n  A-->B\n```\n"));
+    }
+
+    #[test]
+    fn renders_unsupported_mermaid_as_source_only() {
+        let document = Document::from_source("```mermaid\nsequenceDiagram\nA->>B: Hello\n```");
+        let rendered = render_document(&document);
+
+        assert!(!rendered.contains("flowchart preview"));
+        assert!(rendered.contains("```mermaid\nsequenceDiagram\nA->>B: Hello\n```\n"));
     }
 
     #[test]
