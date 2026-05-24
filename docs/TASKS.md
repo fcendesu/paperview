@@ -32,7 +32,7 @@ This document tracks the progress of features across the three workspace crates.
 | **LaTeX Support** | ✅ | 🏗️ | 🏗️ |
 | **Mermaid Support** | ✅ | 🏗️ | 🏗️ |
 | **Zen Mode** | ✅ | ✅ | ✅ |
-| **Drag & Drop** | ✅ | ✅ | ⬜ |
+| **Drag & Drop** | ✅ | ✅ | ✅ |
 
 ---
 
@@ -41,7 +41,7 @@ This document tracks the progress of features across the three workspace crates.
 - History Sidebar includes shared persistence, stale-entry pruning, GUI click-to-open behavior, and the TUI recent-files dashboard.
 - Hybrid Theme covers a shared config theme preference, GUI Iced styles, and TUI Ratatui style tokens.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
-- Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
+- Drag & Drop currently covers native GUI single-file and multi-file drops into tabs, plus a terminal-friendly TUI open-path prompt (`o`) for pasted or typed file paths.
 - Zen Mode currently covers shared core state, the GUI focused reader layout, and the TUI full-width active reader layout; GUI and TUI preferences are persisted in config.
 - Tabbed Interface currently covers shared open-document state, GUI tab activation and close controls, and TUI multi-file launch with `[` / `]` tab switching plus `x` tab close; reorder is deferred.
 - Split View currently covers shared core split state, GUI comparison of the active tab with one other open tab, including a visible toggle, secondary tab selection, keyboard resizing, divider drag resizing, and persisted split width, plus TUI side-by-side comparison toggled with `\`, secondary pane cycling with `{` / `}`, keyboard resizing with `<` / `>`, and persisted split width; scroll sync is deferred.

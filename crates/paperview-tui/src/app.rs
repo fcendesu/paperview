@@ -1,5 +1,6 @@
 use std::{
     fs, io,
+    path::PathBuf,
     sync::mpsc::{self, Receiver},
     time::Duration,
 };
@@ -54,6 +55,7 @@ pub fn run_workspace_search(
 struct ReaderApp {
     config: Config,
     config_store: ConfigStore,
+    history_store: HistoryStore,
     documents: OpenDocuments,
     document_lines: Vec<String>,
     split_view: SplitViewState,
@@ -69,6 +71,8 @@ struct ReaderApp {
     search_query: String,
     search_matches: Vec<SearchMatch>,
     search_selected_index: Option<usize>,
+    open_path_mode: OpenPathMode,
+    open_path_input: String,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
 }
@@ -81,6 +85,12 @@ enum ReaderFocus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SearchMode {
+    Inactive,
+    Editing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OpenPathMode {
     Inactive,
     Editing,
 }
@@ -116,6 +126,7 @@ impl ReaderApp {
             zen_mode: ZenModeState::new(config.zen_mode),
             config,
             config_store,
+            history_store: default_history_store(),
             documents: open_documents,
             document_lines: rendered.lines,
             split_document_lines: Vec::new(),
@@ -129,6 +140,8 @@ impl ReaderApp {
             search_query: String::new(),
             search_matches: Vec::new(),
             search_selected_index: None,
+            open_path_mode: OpenPathMode::Inactive,
+            open_path_input: String::new(),
             _watcher: watcher,
             watch_receiver,
         }
@@ -155,10 +168,15 @@ impl ReaderApp {
                     self.handle_search_key(key.code);
                     continue;
                 }
+                if self.open_path_mode == OpenPathMode::Editing {
+                    self.handle_open_path_key(key.code);
+                    continue;
+                }
 
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                     KeyCode::Char('/') => self.start_search(),
+                    KeyCode::Char('o') => self.start_open_path(),
                     KeyCode::Char('n') => self.select_next_search_match(),
                     KeyCode::Char('N') => self.select_previous_search_match(),
                     KeyCode::Char(']') => self.select_next_tab(),
@@ -324,6 +342,71 @@ impl ReaderApp {
         }
     }
 
+    fn start_open_path(&mut self) {
+        self.open_path_mode = OpenPathMode::Editing;
+        self.open_path_input.clear();
+        self.status = Some("Open: paste or type a file path, Enter opens, Esc cancels".to_owned());
+    }
+
+    fn handle_open_path_key(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.open_path_mode = OpenPathMode::Inactive;
+                self.status = None;
+            }
+            KeyCode::Enter => self.submit_open_path(),
+            KeyCode::Backspace => {
+                self.open_path_input.pop();
+            }
+            KeyCode::Char(character) => {
+                self.open_path_input.push(character);
+            }
+            _ => {}
+        }
+    }
+
+    fn submit_open_path(&mut self) {
+        self.open_path_mode = OpenPathMode::Inactive;
+        let path = self.open_path_input.trim().to_owned();
+        if path.is_empty() {
+            self.status = Some("Open path is empty".to_owned());
+            return;
+        }
+
+        self.open_path(PathBuf::from(path));
+    }
+
+    fn open_path(&mut self, path: PathBuf) {
+        match Document::open(&path) {
+            Ok(document) => {
+                self.record_opened_document(&document);
+                let index = self.documents.open_or_activate(document);
+                self.ensure_split_target();
+                self.load_active_document(true);
+                self.status = Some(format!(
+                    "Opened tab {}/{}: {}",
+                    index + 1,
+                    self.documents.len(),
+                    self.active_document().title()
+                ));
+            }
+            Err(error) => {
+                self.status = Some(error.to_string());
+            }
+        }
+    }
+
+    fn record_opened_document(&mut self, document: &Document) {
+        let mut history = self.history_store.load().unwrap_or_else(|error| {
+            self.status = Some(error.to_string());
+            History::new()
+        });
+        history.record_document(document);
+        if let Err(error) = self.history_store.save(&history) {
+            self.status = Some(error.to_string());
+        }
+    }
+
     fn submit_search(&mut self) {
         self.search_mode = SearchMode::Inactive;
         self.refresh_search_matches();
@@ -399,6 +482,9 @@ impl ReaderApp {
         if self.search_mode == SearchMode::Editing {
             return Some(format!("/{}", self.search_query));
         }
+        if self.open_path_mode == OpenPathMode::Editing {
+            return Some(format!("Open: {}", self.open_path_input));
+        }
 
         self.status.clone()
     }
@@ -428,7 +514,7 @@ impl ReaderApp {
             },
             Line::from(Span::styled(
                 self.header_status().unwrap_or_else(|| {
-                    "[/] search  [Space] task  [z] zen  [\\] split  [</>] resize  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
+                    "[o] open  [/] search  [Space] task  [z] zen  [\\] split  [</>] resize  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
                         .to_owned()
                 }),
                 theme::shell_muted(),
@@ -847,6 +933,21 @@ fn default_config_store() -> ConfigStore {
         .as_nanos();
 
     ConfigStore::new(std::env::temp_dir().join(format!("paperview-tui-{nanos}-config.toml")))
+}
+
+#[cfg(not(test))]
+fn default_history_store() -> HistoryStore {
+    HistoryStore::default()
+}
+
+#[cfg(test)]
+fn default_history_store() -> HistoryStore {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock after Unix epoch")
+        .as_nanos();
+
+    HistoryStore::new(std::env::temp_dir().join(format!("paperview-tui-{nanos}-history.json")))
 }
 
 #[derive(Debug)]
@@ -1373,8 +1474,8 @@ mod tests {
     use ratatui::style::Modifier;
 
     use super::{
-        DashboardApp, ReaderApp, ReaderFocus, SearchHighlights, SearchMode, WorkspaceSearchApp,
-        clamp_search_selection, clamp_toc_selection, document_text, tab_line,
+        DashboardApp, OpenPathMode, ReaderApp, ReaderFocus, SearchHighlights, SearchMode,
+        WorkspaceSearchApp, clamp_search_selection, clamp_toc_selection, document_text, tab_line,
     };
     use crate::theme;
 
@@ -1611,6 +1712,59 @@ mod tests {
 
         app.select_previous_tab();
         assert_eq!(app.active_document().title(), "Second");
+    }
+
+    #[test]
+    fn open_path_prompt_opens_file_as_active_tab() {
+        let path = temp_doc("tui-open-path.md", "# Opened\n\nFrom prompt.");
+        let mut app = ReaderApp::new(Document::from_source("# First").with_path("first.md"));
+
+        app.start_open_path();
+        for character in path.display().to_string().chars() {
+            app.handle_open_path_key(KeyCode::Char(character));
+        }
+        app.handle_open_path_key(KeyCode::Enter);
+
+        assert_eq!(app.open_path_mode, OpenPathMode::Inactive);
+        assert_eq!(app.documents.len(), 2);
+        assert_eq!(app.active_document().title(), "Opened");
+        assert_eq!(app.scroll, 0);
+        assert!(
+            app.status
+                .as_deref()
+                .is_some_and(|status| status.starts_with("Opened tab 2/2: Opened"))
+        );
+        assert!(app.document_lines.iter().any(|line| line == "# Opened"));
+
+        fs::remove_file(path).expect("remove opened document");
+    }
+
+    #[test]
+    fn open_path_prompt_reports_empty_and_invalid_paths() {
+        let mut app = ReaderApp::new(Document::from_source("# First").with_path("first.md"));
+
+        app.start_open_path();
+        app.handle_open_path_key(KeyCode::Enter);
+
+        assert_eq!(app.open_path_mode, OpenPathMode::Inactive);
+        assert_eq!(app.status.as_deref(), Some("Open path is empty"));
+        assert_eq!(app.documents.len(), 1);
+
+        let unsupported_path = temp_doc("tui-open-path.png", "not markdown");
+        app.start_open_path();
+        for character in unsupported_path.display().to_string().chars() {
+            app.handle_open_path_key(KeyCode::Char(character));
+        }
+        app.handle_open_path_key(KeyCode::Enter);
+
+        assert_eq!(app.documents.len(), 1);
+        assert!(
+            app.status
+                .as_deref()
+                .is_some_and(|status| status.contains("unsupported document type"))
+        );
+
+        fs::remove_file(unsupported_path).expect("remove unsupported document");
     }
 
     #[test]

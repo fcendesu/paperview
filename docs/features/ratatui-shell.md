@@ -15,6 +15,7 @@ The first shell supports:
   - `k` or Up scrolls up.
   - `g` jumps to the top.
   - `G` jumps to the bottom.
+  - `o` opens a prompt for a pasted or typed file path and opens the document as a tab.
 
 Launching without a file opens a recent-files dashboard backed by persisted history.
 
@@ -25,6 +26,8 @@ Launching without a file opens a recent-files dashboard backed by persisted hist
 - The TUI uses `ratatui` with the Crossterm backend and `crossterm` for keyboard events.
 - The app restores the terminal after the run loop exits.
 - The dashboard shares the same terminal setup and opens selected recent files into the reader shell.
+- The reader shell supports an open-path input mode for terminal-friendly file opening when native
+  drag-and-drop events are unavailable.
 
 ## Open Decisions
 
