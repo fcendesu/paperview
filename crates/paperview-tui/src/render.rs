@@ -200,16 +200,22 @@ fn table_widths(header: &TableRow, rows: &[TableRow]) -> Vec<usize> {
     let mut widths = vec![3; column_count];
 
     for (index, cell) in header.iter().enumerate() {
-        widths[index] = widths[index].max(inline::plain_text(cell).chars().count());
+        widths[index] = widths[index].max(capped_table_width(&inline::markdown_text(cell)));
     }
 
     for row in rows {
         for (index, cell) in row.iter().enumerate() {
-            widths[index] = widths[index].max(inline::plain_text(cell).chars().count());
+            widths[index] = widths[index].max(capped_table_width(&inline::markdown_text(cell)));
         }
     }
 
     widths
+}
+
+const MAX_TUI_TABLE_COLUMN_WIDTH: usize = 32;
+
+fn capped_table_width(text: &str) -> usize {
+    text.chars().count().min(MAX_TUI_TABLE_COLUMN_WIDTH)
 }
 
 fn render_table_row(
@@ -218,30 +224,103 @@ fn render_table_row(
     alignments: &[TableAlignment],
     output: &mut String,
 ) {
-    output.push('|');
-    for (index, width) in widths.iter().enumerate() {
-        let plain_cell;
-        let markdown_cell;
-        let (plain, markdown) = if let Some(cell) = cells.get(index) {
-            plain_cell = inline::plain_text(cell);
-            markdown_cell = inline::markdown_text(cell);
-            (plain_cell.as_str(), markdown_cell.as_str())
-        } else {
-            ("", "")
-        };
-        output.push(' ');
-        output.push_str(&aligned_cell(
-            markdown,
-            plain,
-            *width,
-            alignments
+    let wrapped_cells = widths
+        .iter()
+        .enumerate()
+        .map(|(index, width)| {
+            if let Some(cell) = cells.get(index) {
+                wrap_table_cell(&inline::markdown_text(cell), *width)
+            } else {
+                vec![String::new()]
+            }
+        })
+        .collect::<Vec<_>>();
+    let line_count = wrapped_cells.iter().map(Vec::len).max().unwrap_or(1);
+
+    for line_index in 0..line_count {
+        output.push('|');
+        for (index, width) in widths.iter().enumerate() {
+            let display = wrapped_cells
                 .get(index)
-                .copied()
-                .unwrap_or(TableAlignment::None),
-        ));
-        output.push_str(" |");
+                .and_then(|lines| lines.get(line_index))
+                .map_or("", String::as_str);
+            output.push(' ');
+            output.push_str(&aligned_cell(
+                display,
+                *width,
+                alignments
+                    .get(index)
+                    .copied()
+                    .unwrap_or(TableAlignment::None),
+            ));
+            output.push_str(" |");
+        }
+        output.push('\n');
     }
-    output.push('\n');
+}
+
+fn wrap_table_cell(text: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![String::new()];
+    }
+
+    let mut lines = Vec::new();
+    let mut current = String::new();
+
+    for word in text.split_whitespace() {
+        let word_width = word.chars().count();
+        if word_width > width {
+            if !current.is_empty() {
+                lines.push(current);
+                current = String::new();
+            }
+            lines.extend(split_long_table_word(word, width));
+            continue;
+        }
+
+        let next_width = current.chars().count() + usize::from(!current.is_empty()) + word_width;
+        if next_width > width && !current.is_empty() {
+            lines.push(current);
+            current = String::new();
+        }
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(word);
+    }
+
+    if !current.is_empty() {
+        lines.push(current);
+    }
+
+    if lines.is_empty() {
+        vec![String::new()]
+    } else {
+        lines
+    }
+}
+
+fn split_long_table_word(word: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+
+    for character in word.chars() {
+        if current.chars().count() == width {
+            lines.push(current);
+            current = String::new();
+        }
+        current.push(character);
+    }
+
+    if !current.is_empty() {
+        lines.push(current);
+    }
+
+    if lines.is_empty() {
+        vec![String::new()]
+    } else {
+        lines
+    }
 }
 
 fn render_table_separator(widths: &[usize], alignments: &[TableAlignment], output: &mut String) {
@@ -264,8 +343,8 @@ fn render_table_separator(widths: &[usize], alignments: &[TableAlignment], outpu
     output.push('\n');
 }
 
-fn aligned_cell(display: &str, plain: &str, width: usize, alignment: TableAlignment) -> String {
-    let padding = width.saturating_sub(plain.chars().count());
+fn aligned_cell(display: &str, width: usize, alignment: TableAlignment) -> String {
+    let padding = width.saturating_sub(display.chars().count());
 
     match alignment {
         TableAlignment::Right => format!("{}{display}", " ".repeat(padding)),
@@ -341,7 +420,9 @@ pub fn render_toc_text(
 mod tests {
     use paperview_core::Document;
 
-    use super::{render_document, render_document_with_anchors, render_toc_text};
+    use super::{
+        render_document, render_document_lines, render_document_with_anchors, render_toc_text,
+    };
 
     #[test]
     fn renders_basic_markdown_blocks() {
@@ -427,6 +508,54 @@ mod tests {
 
         assert!(rendered.contains("**GUI**"));
         assert!(rendered.contains("[docs](docs/gui.md)"));
+    }
+
+    #[test]
+    fn wraps_long_table_cells() {
+        let document = Document::from_source(
+            "| Feature | Notes |\n| --- | --- |\n| TUI | This cell has enough words to wrap into multiple table lines without stretching the whole row forever. |",
+        );
+        let lines = render_document_lines(&document);
+
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "| TUI     | This cell has enough words to    |")
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "|         | wrap into multiple table lines   |")
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "|         | without stretching the whole row |")
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "|         | forever.                         |")
+        );
+    }
+
+    #[test]
+    fn splits_long_table_words() {
+        let document = Document::from_source(
+            "| Feature | Token |\n| --- | --- |\n| TUI | abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN |",
+        );
+        let lines = render_document_lines(&document);
+
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "| TUI     | abcdefghijklmnopqrstuvwxyzABCDEF |")
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "|         | GHIJKLMN                         |")
+        );
     }
 
     #[test]
