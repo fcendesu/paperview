@@ -367,6 +367,7 @@ struct PdfLine {
     size: u16,
     indent: u16,
     gap_after: u16,
+    outline_level: Option<u8>,
 }
 
 fn pdf_lines(document: &Document) -> Vec<PdfLine> {
@@ -388,7 +389,8 @@ fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
         Block::Heading { level, spans } => {
             lines.push(
                 pdf_line(inline_plain_text(spans), pdf_heading_size(*level))
-                    .with_gap_after(pdf_heading_gap(*level)),
+                    .with_gap_after(pdf_heading_gap(*level))
+                    .with_outline(level.as_depth()),
             );
         }
         Block::Paragraph(spans) => push_wrapped_pdf_lines(&inline_plain_text(spans), 12, lines),
@@ -494,6 +496,11 @@ impl PdfLine {
         self.gap_after = gap_after;
         self
     }
+
+    fn with_outline(mut self, level: u8) -> Self {
+        self.outline_level = Some(level);
+        self
+    }
 }
 
 fn pdf_line(text: String, size: u16) -> PdfLine {
@@ -502,6 +509,7 @@ fn pdf_line(text: String, size: u16) -> PdfLine {
         size,
         indent: 0,
         gap_after: 3,
+        outline_level: None,
     }
 }
 
@@ -580,17 +588,19 @@ fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
     let pages = paginate_pdf_lines(lines, TOP - BOTTOM);
     let page_count = pages.len().max(1);
     let mut objects = vec![
-        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        String::new(),
         String::new(),
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
     ];
     let first_page_object = 4;
     let mut page_ids = Vec::new();
+    let mut outlines = Vec::new();
 
     for (page_index, page_lines) in pages.iter().enumerate() {
         let page_id = first_page_object + (page_index * 2);
         let content_id = page_id + 1;
         page_ids.push(page_id);
+        outlines.extend(pdf_page_outlines(page_lines, page_id, TOP));
         objects.push(format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_WIDTH:.0} {PAGE_HEIGHT:.0}] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>"
         ));
@@ -623,6 +633,15 @@ fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
             .collect::<Vec<_>>()
             .join(" ")
     );
+    if outlines.is_empty() {
+        objects[0] = "<< /Type /Catalog /Pages 2 0 R >>".to_owned();
+    } else {
+        let outline_root_id = objects.len() + 1;
+        objects[0] = format!(
+            "<< /Type /Catalog /Pages 2 0 R /Outlines {outline_root_id} 0 R /PageMode /UseOutlines >>"
+        );
+        append_pdf_outlines(&mut objects, outline_root_id, &outlines);
+    }
 
     let mut pdf = Vec::from(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".as_slice());
     let mut offsets = vec![0usize];
@@ -647,6 +666,62 @@ fn write_pdf(lines: &[PdfLine]) -> Vec<u8> {
     );
 
     pdf
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct PdfOutline {
+    title: String,
+    level: u8,
+    page_id: usize,
+    y: f32,
+}
+
+fn pdf_page_outlines(page_lines: &[PdfLine], page_id: usize, top: f32) -> Vec<PdfOutline> {
+    let mut outlines = Vec::new();
+    let mut y = top;
+
+    for line in page_lines {
+        if let Some(level) = line.outline_level {
+            outlines.push(PdfOutline {
+                title: line.text.clone(),
+                level,
+                page_id,
+                y,
+            });
+        }
+        y -= pdf_line_advance(line);
+    }
+
+    outlines
+}
+
+fn append_pdf_outlines(objects: &mut Vec<String>, outline_root_id: usize, outlines: &[PdfOutline]) {
+    let first_item_id = outline_root_id + 1;
+    let last_item_id = first_item_id + outlines.len() - 1;
+    objects.push(format!(
+        "<< /Type /Outlines /First {first_item_id} 0 R /Last {last_item_id} 0 R /Count {} >>",
+        outlines.len()
+    ));
+
+    for (index, outline) in outlines.iter().enumerate() {
+        let object_id = first_item_id + index;
+        let previous = (index > 0).then(|| format!("/Prev {} 0 R ", object_id - 1));
+        let next = (index + 1 < outlines.len()).then(|| format!("/Next {} 0 R ", object_id + 1));
+        let title = format!(
+            "{}{}",
+            "  ".repeat(usize::from(outline.level.saturating_sub(1))),
+            outline.title
+        );
+
+        objects.push(format!(
+            "<< /Title ({}) /Parent {outline_root_id} 0 R {}{} /Dest [{} 0 R /XYZ 54.0 {:.1} null] >>",
+            escape_pdf_text(&title),
+            previous.unwrap_or_default(),
+            next.unwrap_or_default(),
+            outline.page_id,
+            outline.y
+        ));
+    }
 }
 
 fn paginate_pdf_lines(lines: &[PdfLine], available_height: f32) -> Vec<&[PdfLine]> {
@@ -925,6 +1000,19 @@ mod tests {
         assert!(pdf_text.contains("(- [x] Done) Tj"));
         assert!(pdf_text.contains("(code: rust) Tj"));
         assert!(pdf_text.contains("(fn main\\(\\) {}) Tj"));
+    }
+
+    #[test]
+    fn exports_pdf_heading_outlines() {
+        let document = Document::from_source("# Intro\n\nBody.\n\n## Details\n\nMore.");
+        let pdf = export_pdf(&document);
+        let pdf_text = String::from_utf8_lossy(&pdf);
+
+        assert!(pdf_text.contains("/Outlines"));
+        assert!(pdf_text.contains("/PageMode /UseOutlines"));
+        assert!(pdf_text.contains("/Title (Intro)"));
+        assert!(pdf_text.contains("/Title (  Details)"));
+        assert!(pdf_text.contains("/Dest [4 0 R /XYZ 54.0"));
     }
 
     #[test]

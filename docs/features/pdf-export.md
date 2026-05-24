@@ -25,6 +25,8 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.pdf`.
   code/math/diagram source blocks, rules, and image metadata text.
 - PDF output uses a larger title treatment, heading sizes and spacing, indented
   lists/source blocks, wrapped text, and vertical-space page breaks.
+- Exported PDFs include heading-derived outline/bookmark entries so PDF readers
+  can expose document navigation.
 - The TUI command parses `--to html|pdf`, asks core for an artifact, writes
   successful output beside the source document, and prints the output path.
 
