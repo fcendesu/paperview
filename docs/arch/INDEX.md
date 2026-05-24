@@ -170,6 +170,10 @@ the secondary-tab index, bounded primary-pane width, toggle/retarget rules, and
 side-pane cycling. GUI and TUI frontends keep only presentation-specific state
 such as cached rendered side-pane lines or mouse-drag cursor positions.
 
+Zen Mode shared behavior lives in `paperview-core::ZenModeState`. It owns the
+enabled/disabled state and toggle behavior while GUI and TUI frontends map that
+state to their own layout chrome.
+
 ---
 
 ## 5. Performance Optimizations

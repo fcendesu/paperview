@@ -14,7 +14,7 @@ use iced::{
 };
 use paperview_core::{
     Config, ConfigStore, Document, History, HistoryStore, OpenDocuments, SearchMatch, SplitResize,
-    SplitViewState, WatchEvent, parser::Block, toggle_task_line_source, watch_file,
+    SplitViewState, WatchEvent, ZenModeState, parser::Block, toggle_task_line_source, watch_file,
 };
 
 use crate::{history, navigation, reader, theme};
@@ -31,7 +31,7 @@ pub struct PaperView {
     history_store: HistoryStore,
     status: Status,
     is_drag_hovered: bool,
-    is_zen: bool,
+    zen_mode: ZenModeState,
     split_view: SplitViewState,
     split_drag_cursor: Option<SplitDragCursor>,
     is_split_dragging: bool,
@@ -121,7 +121,7 @@ impl PaperView {
     ) -> Self {
         let args = args.into_iter().collect::<Vec<_>>();
         let config = load_config(&config_store);
-        let is_zen = config.zen_mode;
+        let zen_mode = ZenModeState::new(config.zen_mode);
         let split_primary_width = config.split_primary_width.clamp(
             SplitViewState::MIN_PRIMARY_WIDTH,
             SplitViewState::MAX_PRIMARY_WIDTH,
@@ -139,7 +139,7 @@ impl PaperView {
                     history_store,
                     status: Status::Empty,
                     is_drag_hovered: false,
-                    is_zen,
+                    zen_mode,
                     split_view: SplitViewState::new(split_primary_width),
                     split_drag_cursor: None,
                     is_split_dragging: false,
@@ -170,7 +170,7 @@ impl PaperView {
                             history_store,
                             status: Status::Loaded(path),
                             is_drag_hovered: false,
-                            is_zen,
+                            zen_mode,
                             split_view: SplitViewState::new(split_primary_width),
                             split_drag_cursor: None,
                             is_split_dragging: false,
@@ -189,7 +189,7 @@ impl PaperView {
                         history_store,
                         status: Status::Error(error.to_string()),
                         is_drag_hovered: false,
-                        is_zen,
+                        zen_mode,
                         split_view: SplitViewState::new(split_primary_width),
                         split_drag_cursor: None,
                         is_split_dragging: false,
@@ -212,7 +212,7 @@ impl PaperView {
                     history_store,
                     status: Status::Error("usage: paperview-gui [file]".to_owned()),
                     is_drag_hovered: false,
-                    is_zen,
+                    zen_mode,
                     split_view: SplitViewState::new(split_primary_width),
                     split_drag_cursor: None,
                     is_split_dragging: false,
@@ -253,7 +253,7 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
             state.open_dropped_files(paths);
         }
         Message::ToggleZen => {
-            state.is_zen = !state.is_zen;
+            state.zen_mode.toggle();
             state.save_config();
         }
         Message::ToggleSplit => state.toggle_split(),
@@ -650,7 +650,7 @@ impl PaperView {
     }
 
     fn save_config(&mut self) {
-        self.config.zen_mode = self.is_zen;
+        self.config.zen_mode = self.zen_mode.is_enabled();
         self.config.split_primary_width = self.split_view.primary_width();
         if let Err(error) = self.config_store.save(&self.config) {
             self.status = Status::Error(error.to_string());
@@ -966,15 +966,17 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let body = match state.documents.active() {
-        Some(document) if state.is_zen => reader::view_with_search_and_remote_images(
-            document,
-            Some(Message::ReaderScrolled),
-            Message::OpenLink,
-            state.active_search_query(),
-            state.active_search_line(),
-            Some(Message::ToggleTask),
-            &state.remote_images,
-        ),
+        Some(document) if state.zen_mode.is_enabled() => {
+            reader::view_with_search_and_remote_images(
+                document,
+                Some(Message::ReaderScrolled),
+                Message::OpenLink,
+                state.active_search_query(),
+                state.active_search_line(),
+                Some(Message::ToggleTask),
+                &state.remote_images,
+            )
+        }
         Some(document) => {
             let reader = if let Some(secondary) = state.split_document() {
                 split_reader(state, document, secondary)
@@ -1003,7 +1005,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         }
         None => empty_state(&state.status),
     };
-    let layout = if state.is_zen {
+    let layout = if state.zen_mode.is_enabled() {
         column![header, body].height(Fill)
     } else {
         column![header, tab_bar(state), body].height(Fill)
@@ -1850,7 +1852,7 @@ mod tests {
 
         let state = PaperView::from_args_with_stores([], history_store, config_store);
 
-        assert!(state.is_zen);
+        assert!(state.zen_mode.is_enabled());
         assert_eq!(state.split_widths(), (65, 35));
         assert_eq!(state.config.theme, ThemePreference::Hybrid);
 
@@ -2150,10 +2152,10 @@ mod tests {
         let mut state = PaperView::from_args_with_store([], temp_store("zen.toml"));
 
         apply(&mut state, Message::ToggleZen);
-        assert!(state.is_zen);
+        assert!(state.zen_mode.is_enabled());
 
         apply(&mut state, Message::ToggleZen);
-        assert!(!state.is_zen);
+        assert!(!state.zen_mode.is_enabled());
     }
 
     #[test]

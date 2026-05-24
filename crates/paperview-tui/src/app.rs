@@ -7,7 +7,7 @@ use std::{
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
     Config, ConfigStore, Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments,
-    SearchMatch, SplitResize, SplitViewState, WatchEvent, WorkspaceSearchMatch,
+    SearchMatch, SplitResize, SplitViewState, WatchEvent, WorkspaceSearchMatch, ZenModeState,
     parser::{Block as MarkdownBlock, TocItem},
     toggle_task_line_source, watch_file,
 };
@@ -62,7 +62,7 @@ struct ReaderApp {
     toc: Vec<TocItem>,
     toc_selected_index: Option<usize>,
     focus: ReaderFocus,
-    is_zen: bool,
+    zen_mode: ZenModeState,
     scroll: u16,
     status: Option<String>,
     search_mode: SearchMode,
@@ -113,7 +113,7 @@ impl ReaderApp {
 
         Self {
             split_view: SplitViewState::new(config.split_primary_width),
-            is_zen: config.zen_mode,
+            zen_mode: ZenModeState::new(config.zen_mode),
             config,
             config_store,
             documents: open_documents,
@@ -189,14 +189,14 @@ impl ReaderApp {
     fn draw(&self, frame: &mut Frame) {
         let [header, body] =
             Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).areas(frame.area());
-        let (main, toc) = if self.is_zen {
+        let (main, toc) = if self.zen_mode.is_enabled() {
             (body, None)
         } else {
             let [main, toc] =
                 Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
             (main, Some(toc))
         };
-        let reader_areas = if self.split_view.is_enabled() && !self.is_zen {
+        let reader_areas = if self.split_view.is_enabled() && !self.zen_mode.is_enabled() {
             let (primary_width, secondary_width) = self.split_widths();
             Layout::horizontal([
                 Constraint::Percentage(primary_width),
@@ -228,7 +228,7 @@ impl ReaderApp {
         );
 
         if let Some(split_index) = self.split_view.secondary_index() {
-            if self.is_zen {
+            if self.zen_mode.is_enabled() {
                 return;
             }
             let title = self
@@ -421,7 +421,7 @@ impl ReaderApp {
                 format!(" PaperView - {} ", self.active_document().title()),
                 theme::shell(),
             )),
-            if self.is_zen {
+            if self.zen_mode.is_enabled() {
                 Line::from(Span::styled(" Zen Mode ".to_owned(), theme::zen_badge()))
             } else {
                 tab_line(&self.documents)
@@ -522,11 +522,11 @@ impl ReaderApp {
     }
 
     fn toggle_zen(&mut self) {
-        self.is_zen = !self.is_zen;
-        if self.is_zen {
+        self.zen_mode.toggle();
+        if self.zen_mode.is_enabled() {
             self.focus = ReaderFocus::Reader;
         }
-        self.status = if self.is_zen {
+        self.status = if self.zen_mode.is_enabled() {
             Some("Zen Mode enabled".to_owned())
         } else {
             Some("Zen Mode disabled".to_owned())
@@ -695,7 +695,7 @@ impl ReaderApp {
     }
 
     fn toggle_focus(&mut self) {
-        if self.is_zen {
+        if self.zen_mode.is_enabled() {
             self.focus = ReaderFocus::Reader;
             return;
         }
@@ -819,7 +819,7 @@ impl ReaderApp {
     }
 
     fn save_config(&mut self) {
-        self.config.zen_mode = self.is_zen;
+        self.config.zen_mode = self.zen_mode.is_enabled();
         self.config.split_primary_width = self.split_view.primary_width();
         if let Err(error) = self.config_store.save(&self.config) {
             self.status = Some(error.to_string());
@@ -1443,14 +1443,14 @@ mod tests {
         assert_eq!(app.focus, ReaderFocus::Toc);
 
         app.toggle_zen();
-        assert!(app.is_zen);
+        assert!(app.zen_mode.is_enabled());
         assert_eq!(app.focus, ReaderFocus::Reader);
 
         app.toggle_focus();
         assert_eq!(app.focus, ReaderFocus::Reader);
 
         app.toggle_zen();
-        assert!(!app.is_zen);
+        assert!(!app.zen_mode.is_enabled());
         app.toggle_focus();
         assert_eq!(app.focus, ReaderFocus::Toc);
     }
@@ -1473,7 +1473,7 @@ mod tests {
             store,
         );
 
-        assert!(app.is_zen);
+        assert!(app.zen_mode.is_enabled());
         assert_eq!(app.split_widths(), (65, 35));
         assert_eq!(app.config.theme, ThemePreference::Hybrid);
 

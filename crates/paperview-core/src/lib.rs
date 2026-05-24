@@ -8,6 +8,7 @@ pub mod search;
 pub mod split_view;
 pub mod stats;
 pub mod watcher;
+pub mod zen_mode;
 
 pub use config::{Config, ConfigStore, ConfigStoreError, ThemePreference};
 pub use document::{Document, DocumentError, SupportedFileType, toggle_task_line_source};
@@ -22,3 +23,4 @@ pub use search::{
 pub use split_view::{SplitResize, SplitViewState};
 pub use stats::{DocumentStats, StatsHeading, document_stats};
 pub use watcher::{FileWatcher, WatchError, WatchEvent, watch_file};
+pub use zen_mode::ZenModeState;

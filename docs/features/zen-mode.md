@@ -29,8 +29,9 @@ Zen Mode requires an active document to feel useful, but the toggle state is all
 
 ## Implementation Notes
 
-- GUI layout state lives in `crates/paperview-gui/src/app.rs` as `is_zen`.
-- TUI layout state lives in `crates/paperview-tui/src/app.rs` as `is_zen`.
+- `paperview-core::ZenModeState` owns the shared enabled/disabled state and toggle behavior.
+- GUI layout state stores `ZenModeState` and maps it to Iced layout decisions.
+- TUI layout state stores `ZenModeState` and maps it to Ratatui layout decisions.
 - `Message::ToggleZen` flips the layout state.
 - The GUI and TUI readers persist `zen_mode` through `paperview-core::ConfigStore`.
 - The GUI runtime event subscription maps the platform command shortcut to `ToggleZen`.

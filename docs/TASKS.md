@@ -31,7 +31,7 @@ This document tracks the progress of features across the three workspace crates.
 | **In-Document Search** | ✅ | ✅ | ✅ |
 | **LaTeX Support** | ✅ | 🏗️ | 🏗️ |
 | **Mermaid Support** | ✅ | 🏗️ | 🏗️ |
-| **Zen Mode** | ⬜ | ✅ | ✅ |
+| **Zen Mode** | ✅ | ✅ | ✅ |
 | **Drag & Drop** | ✅ | ✅ | ⬜ |
 
 ---
@@ -42,7 +42,7 @@ This document tracks the progress of features across the three workspace crates.
 - Hybrid Theme covers a shared config theme preference, GUI Iced styles, and TUI Ratatui style tokens.
 - Live Reload covers active documents in both GUI and TUI; debouncing and exact scroll restoration are deferred.
 - Drag & Drop currently covers native GUI single-file and multi-file drops into tabs.
-- Zen Mode currently covers the GUI focused reader layout and the TUI full-width active reader layout; GUI and TUI preferences are persisted in config.
+- Zen Mode currently covers shared core state, the GUI focused reader layout, and the TUI full-width active reader layout; GUI and TUI preferences are persisted in config.
 - Tabbed Interface currently covers shared open-document state, GUI tab activation and close controls, and TUI multi-file launch with `[` / `]` tab switching plus `x` tab close; reorder is deferred.
 - Split View currently covers shared core split state, GUI comparison of the active tab with one other open tab, including a visible toggle, secondary tab selection, keyboard resizing, divider drag resizing, and persisted split width, plus TUI side-by-side comparison toggled with `\`, secondary pane cycling with `{` / `}`, keyboard resizing with `<` / `>`, and persisted split width; scroll sync is deferred.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
