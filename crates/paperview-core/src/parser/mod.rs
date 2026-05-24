@@ -110,6 +110,7 @@ pub struct InlineSpan {
     pub strong: bool,
     pub emphasis: bool,
     pub code: bool,
+    pub math: bool,
     pub link: Option<String>,
 }
 
@@ -248,7 +249,7 @@ impl DocumentBuilder {
             Event::End(tag) => self.end(tag),
             Event::Text(text) => self.push_text(&text),
             Event::Code(code) => self.push_code(&code),
-            Event::InlineMath(source) => self.push_text(&math::inline_text(&source)),
+            Event::InlineMath(source) => self.push_inline_math(&source),
             Event::DisplayMath(source) => self.push_display_math(&source),
             Event::TaskListMarker(checked) => self.push_task_list_marker(checked),
             Event::SoftBreak | Event::HardBreak => self.push_text("\n"),
@@ -481,6 +482,35 @@ impl DocumentBuilder {
         }
     }
 
+    fn push_inline_math(&mut self, source: &str) {
+        let source = math::inline_text(source);
+        if let Some(table) = &mut self.open_table
+            && let Some(cell) = &mut table.current_cell
+        {
+            inline::push_span(cell, inline::math_span(&source, &self.inline_state));
+            return;
+        }
+
+        if let Some(list) = &mut self.open_list
+            && let Some(item) = &mut list.current_item
+        {
+            inline::push_span(
+                &mut item.content,
+                inline::math_span(&source, &self.inline_state),
+            );
+            return;
+        }
+
+        match &mut self.open_block {
+            Some(OpenBlock::Heading { spans, .. })
+            | Some(OpenBlock::Paragraph(spans))
+            | Some(OpenBlock::BlockQuote(spans)) => {
+                inline::push_span(spans, inline::math_span(&source, &self.inline_state));
+            }
+            _ => self.push_text(&math::inline_text(&source)),
+        }
+    }
+
     fn close_image(&mut self) {
         let Some(open_image) = self.open_image.take() else {
             return;
@@ -665,6 +695,7 @@ mod tests {
             strong: false,
             emphasis: false,
             code: false,
+            math: false,
             link: None,
         }
     }
@@ -722,6 +753,7 @@ mod tests {
                         strong: true,
                         emphasis: false,
                         code: false,
+                        math: false,
                         link: None
                     },
                     text_span(" "),
@@ -730,6 +762,7 @@ mod tests {
                         strong: false,
                         emphasis: false,
                         code: false,
+                        math: false,
                         link: Some("docs/index.md".to_owned())
                     },
                     text_span(" "),
@@ -738,6 +771,7 @@ mod tests {
                         strong: false,
                         emphasis: false,
                         code: true,
+                        math: false,
                         link: None
                     }
                 ]
@@ -780,7 +814,18 @@ mod tests {
         assert_eq!(
             parsed.blocks,
             vec![
-                Block::Paragraph(vec![text_span("Before $x + y$.")]),
+                Block::Paragraph(vec![
+                    text_span("Before "),
+                    InlineSpan {
+                        text: "$x + y$".to_owned(),
+                        strong: false,
+                        emphasis: false,
+                        code: false,
+                        math: true,
+                        link: None
+                    },
+                    text_span(".")
+                ]),
                 Block::Math {
                     display: true,
                     source: "E = mc^2".to_owned()
@@ -804,6 +849,7 @@ mod tests {
                     strong: true,
                     emphasis: false,
                     code: false,
+                    math: false,
                     link: None
                 },
                 text_span(" and "),
@@ -812,6 +858,7 @@ mod tests {
                     strong: false,
                     emphasis: true,
                     code: false,
+                    math: false,
                     link: None
                 },
                 text_span(" "),
@@ -820,6 +867,7 @@ mod tests {
                     strong: false,
                     emphasis: false,
                     code: false,
+                    math: false,
                     link: Some("https://example.com".to_owned())
                 },
                 text_span(" with "),
@@ -828,6 +876,7 @@ mod tests {
                     strong: false,
                     emphasis: false,
                     code: true,
+                    math: false,
                     link: None
                 },
                 text_span(".")
@@ -851,6 +900,7 @@ mod tests {
                         strong: true,
                         emphasis: false,
                         code: false,
+                        math: false,
                         link: None
                     },
                     text_span(" "),
@@ -859,6 +909,7 @@ mod tests {
                         strong: false,
                         emphasis: false,
                         code: false,
+                        math: false,
                         link: Some("https://example.com".to_owned())
                     }
                 ]),
@@ -871,6 +922,7 @@ mod tests {
                                 strong: false,
                                 emphasis: true,
                                 code: false,
+                                math: false,
                                 link: None
                             },
                             text_span(" "),
@@ -879,6 +931,7 @@ mod tests {
                                 strong: false,
                                 emphasis: false,
                                 code: true,
+                                math: false,
                                 link: None
                             }
                         ]),
@@ -984,6 +1037,7 @@ mod tests {
                         strong: true,
                         emphasis: false,
                         code: false,
+                        math: false,
                         link: None
                     }],
                     vec![InlineSpan {
@@ -991,6 +1045,7 @@ mod tests {
                         strong: false,
                         emphasis: false,
                         code: false,
+                        math: false,
                         link: Some("docs/gui.md".to_owned())
                     }]
                 ]]

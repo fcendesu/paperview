@@ -333,9 +333,15 @@ fn render_inline_span(span: &InlineSpan, output: &mut String) {
     if span.code {
         output.push_str("<code>");
     }
+    if span.math {
+        output.push_str("<code class=\"math inline\">");
+    }
 
     output.push_str(&escape_text(&span.text));
 
+    if span.math {
+        output.push_str("</code>");
+    }
     if span.code {
         output.push_str("</code>");
     }
@@ -911,7 +917,7 @@ mod tests {
     #[test]
     fn exports_basic_html_document() {
         let document = Document::from_source(
-            "# PaperView\n\nA **native** [reader](docs/index.md).\n\n- [x] Done",
+            "# PaperView\n\nA **native** [reader](docs/index.md) with $x + y$.\n\n- [x] Done",
         );
         let html = export_html(&document);
 
@@ -920,6 +926,7 @@ mod tests {
         assert!(html.contains("<h1 id=\"paperview\">PaperView</h1>"));
         assert!(html.contains("<strong>native</strong>"));
         assert!(html.contains("<a href=\"docs/index.md\">reader</a>"));
+        assert!(html.contains("<code class=\"math inline\">$x + y$</code>"));
         assert!(html.contains("<ul class=\"task-list\">"));
         assert!(html.contains("<li class=\"task-item\">"));
         assert!(html.contains("<input type=\"checkbox\" disabled checked> Done"));

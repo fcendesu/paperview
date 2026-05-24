@@ -18,6 +18,7 @@ pub const SEARCH_ACTIVE_HIGHLIGHT_BACKGROUND: Color = Color::from_rgb(1.0, 0.522
 pub const SEARCH_ACTIVE_HIGHLIGHT_TEXT: Color = Color::from_rgb(0.067, 0.075, 0.094);
 const READER_BORDER: Color = Color::from_rgb(0.816, 0.843, 0.871);
 pub const CODE_BACKGROUND: Color = Color::from_rgb(0.965, 0.973, 0.98);
+pub const INLINE_MATH_BACKGROUND: Color = Color::from_rgb(0.98, 0.965, 0.925);
 const PAPER_SHADOW: Color = Color {
     r: 0.0,
     g: 0.0,

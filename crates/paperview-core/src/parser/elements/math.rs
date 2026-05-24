@@ -1,6 +1,11 @@
 #[must_use]
 pub fn inline_text(source: &str) -> String {
-    format!("${}$", source.trim())
+    format!("${}$", inline_source(source))
+}
+
+#[must_use]
+pub fn inline_source(source: &str) -> String {
+    source.trim().to_owned()
 }
 
 #[must_use]

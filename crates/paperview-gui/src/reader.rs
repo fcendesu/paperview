@@ -365,7 +365,7 @@ fn rich_span_segment<'a>(
         });
     }
 
-    if source.code {
+    if source.code || source.math {
         output = output.font(Font::MONOSPACE).padding([1, 4]);
     }
 
@@ -373,6 +373,8 @@ fn rich_span_segment<'a>(
         output.background(Background::Color(theme::SEARCH_ACTIVE_HIGHLIGHT_BACKGROUND))
     } else if highlight == SearchHighlight::Match {
         output.background(Background::Color(theme::SEARCH_HIGHLIGHT_BACKGROUND))
+    } else if source.math {
+        output.background(Background::Color(theme::INLINE_MATH_BACKGROUND))
     } else if source.code {
         output.background(Background::Color(theme::CODE_BACKGROUND))
     } else {

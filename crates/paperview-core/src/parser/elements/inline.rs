@@ -31,6 +31,7 @@ pub fn span(text: &str, state: &InlineState) -> InlineSpan {
         strong: state.strong(),
         emphasis: state.emphasis(),
         code: false,
+        math: false,
         link: state.link(),
     }
 }
@@ -42,6 +43,19 @@ pub fn code_span(text: &str, state: &InlineState) -> InlineSpan {
         strong: state.strong(),
         emphasis: state.emphasis(),
         code: true,
+        math: false,
+        link: state.link(),
+    }
+}
+
+#[must_use]
+pub fn math_span(text: &str, state: &InlineState) -> InlineSpan {
+    InlineSpan {
+        text: text.to_owned(),
+        strong: state.strong(),
+        emphasis: state.emphasis(),
+        code: false,
+        math: true,
         link: state.link(),
     }
 }
@@ -51,6 +65,7 @@ pub fn push_span(spans: &mut Vec<InlineSpan>, next: InlineSpan) {
         && previous.strong == next.strong
         && previous.emphasis == next.emphasis
         && previous.code == next.code
+        && previous.math == next.math
         && previous.link == next.link
     {
         previous.text.push_str(&next.text);
@@ -75,6 +90,9 @@ fn markdown_span(span: &InlineSpan) -> String {
 
     if span.code {
         text = format!("`{text}`");
+    }
+    if span.math && !text.starts_with('$') {
+        text = format!("${text}$");
     }
     if span.strong {
         text = format!("**{text}**");
