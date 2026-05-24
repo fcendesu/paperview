@@ -19,14 +19,15 @@ The report includes:
 - Estimated memory for source, parsed text payloads, and rendered TUI lines
 - Memory target status for the MVP 100MB target
 - Load target status for the MVP startup target
+- Config and recent-history load timings
 - Read, parse/model, render, and total durations
 
 ## Implementation Notes
 
 - The TUI binary owns the first `perf <file>` command.
-- The command validates supported file types, reads the source, constructs a
-  `paperview_core::Document`, and renders TUI lines through
-  `render_document_with_anchors`.
+- The command validates supported file types, loads config and recent-history
+  stores, reads the source, constructs a `paperview_core::Document`, and renders
+  TUI lines through `render_document_with_anchors`.
 - The memory estimate is deterministic payload accounting from source text,
   parsed text strings, and rendered TUI lines. It is not process RSS.
 - Timings use `std::time::Instant` and are intended as local baseline signals,
@@ -39,8 +40,9 @@ The report includes:
 - This is a baseline command, not a full benchmark harness.
 - GUI startup, GUI widget layout, OS RSS memory use, and scroll frame timing
   remain unmeasured.
-- The load target is reported from the headless read/parse/render path, not the
-  full interactive terminal or GUI startup path.
+- The load target is reported from a startup-adjacent headless path that
+  includes config load, history load, read, parse/model construction, and TUI
+  render. It still does not initialize the alternate-screen terminal or GUI.
 - Historical baseline storage and threshold enforcement are deferred.
 
 ## Verification Expectations

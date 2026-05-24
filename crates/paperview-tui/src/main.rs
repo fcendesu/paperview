@@ -268,6 +268,8 @@ struct PerfReport {
     estimated_memory_bytes: usize,
     memory_target_bytes: usize,
     load_target_duration: Duration,
+    config_duration: Duration,
+    history_duration: Duration,
     read_duration: Duration,
     parse_duration: Duration,
     render_duration: Duration,
@@ -279,6 +281,19 @@ fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
         .ok_or_else(|| format!("unsupported file type: {}", path.display()))?;
 
     let total_started = Instant::now();
+
+    let config_started = Instant::now();
+    paperview_core::ConfigStore::default()
+        .load()
+        .map_err(|error| error.to_string())?;
+    let config_duration = config_started.elapsed();
+
+    let history_started = Instant::now();
+    let mut history = paperview_core::HistoryStore::default()
+        .load()
+        .map_err(|error| error.to_string())?;
+    history.prune_missing();
+    let history_duration = history_started.elapsed();
 
     let read_started = Instant::now();
     let source = fs::read_to_string(&path)
@@ -310,6 +325,8 @@ fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
         estimated_memory_bytes,
         memory_target_bytes: MEMORY_TARGET_BYTES,
         load_target_duration: LOAD_TARGET_DURATION,
+        config_duration,
+        history_duration,
         read_duration,
         parse_duration,
         render_duration,
@@ -338,6 +355,8 @@ fn perf_text(report: &PerfReport) -> String {
                 "over"
             }
         ),
+        format!("Config load: {}", format_duration(report.config_duration)),
+        format!("History load: {}", format_duration(report.history_duration)),
         format!("Read: {}", format_duration(report.read_duration)),
         format!("Parse: {}", format_duration(report.parse_duration)),
         format!("Render: {}", format_duration(report.render_duration)),
@@ -498,10 +517,12 @@ mod tests {
             estimated_memory_bytes: 2_048,
             memory_target_bytes: MEMORY_TARGET_BYTES,
             load_target_duration: LOAD_TARGET_DURATION,
+            config_duration: Duration::from_micros(100),
+            history_duration: Duration::from_micros(150),
             read_duration: Duration::from_micros(250),
             parse_duration: Duration::from_micros(1_500),
             render_duration: Duration::from_micros(2_250),
-            total_duration: Duration::from_micros(4_000),
+            total_duration: Duration::from_micros(4_250),
         };
         let text = perf_text(&report);
 
@@ -510,9 +531,11 @@ mod tests {
         assert!(text.contains("Parsed blocks: 4"));
         assert!(text.contains("Estimated memory: 2.0KiB"));
         assert!(text.contains("Memory target: under 100.0MiB (ok)"));
+        assert!(text.contains("Config load: 100us"));
+        assert!(text.contains("History load: 150us"));
         assert!(text.contains("Read: 250us"));
         assert!(text.contains("Parse: 1.50ms"));
-        assert!(text.contains("Total: 4.00ms"));
+        assert!(text.contains("Total: 4.25ms"));
         assert!(text.contains("Load target: under 500.00ms (ok)"));
     }
 
@@ -638,6 +661,8 @@ mod tests {
         assert!(report.estimated_memory_bytes >= report.bytes);
         assert_eq!(report.memory_target_bytes, MEMORY_TARGET_BYTES);
         assert_eq!(report.load_target_duration, LOAD_TARGET_DURATION);
+        assert!(report.total_duration >= report.config_duration);
+        assert!(report.total_duration >= report.history_duration);
         fs::remove_file(path).expect("remove perf document");
     }
 }

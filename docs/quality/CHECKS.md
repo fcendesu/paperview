@@ -43,6 +43,6 @@ Use the headless perf command for a quick local document pipeline baseline:
 cargo run -p paperview-tui -- perf docs/PRD.md
 ```
 
-This measures source read, document parse/model construction, and TUI line
-rendering. It does not yet measure GUI startup, widget layout, memory, or scroll
-frame timing.
+This measures config load, recent-history load, source read, document
+parse/model construction, and TUI line rendering. It does not yet measure GUI
+startup, widget layout, OS memory, or scroll frame timing.
