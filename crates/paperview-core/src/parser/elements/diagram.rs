@@ -69,22 +69,83 @@ fn parse_flowchart_header(line: &str) -> Option<FlowchartDirection> {
 
 fn parse_edge(line: &str) -> Option<FlowchartEdge> {
     let line = line.trim_end_matches(';').trim();
-    let (_arrow, left, right) = split_edge(line)?;
+    if let Some(edge) = parse_labeled_edge(line) {
+        return Some(edge);
+    }
+
+    let (arrow, left, right) = split_edge(line)?;
+    let (label, to) = parse_edge_label(arrow, right);
 
     Some(FlowchartEdge {
         from: parse_node(left),
-        to: parse_node(right),
-        label: None,
+        to: parse_node(to),
+        label,
     })
 }
 
+fn parse_labeled_edge(line: &str) -> Option<FlowchartEdge> {
+    for (start, end) in [("--", "-->"), ("-.", ".->"), ("==", "==>")] {
+        let Some((left, rest)) = line.split_once(start) else {
+            continue;
+        };
+        let Some((label, right)) = rest.split_once(end) else {
+            continue;
+        };
+        if label.trim().is_empty() {
+            continue;
+        }
+
+        return Some(FlowchartEdge {
+            from: parse_node(left),
+            to: parse_node(right),
+            label: clean_label(label),
+        });
+    }
+
+    None
+}
+
 fn split_edge(line: &str) -> Option<(&str, &str, &str)> {
-    const ARROWS: [&str; 5] = ["-->", "---", "-.->", "==>", "~~~"];
+    const ARROWS: [&str; 8] = ["-->", "---", "-.->", "-.-", "==>", "===", "~~~", "--"];
 
     ARROWS.iter().find_map(|arrow| {
         let (left, right) = line.split_once(arrow)?;
         Some((*arrow, left.trim(), right.trim()))
     })
+}
+
+fn parse_edge_label<'a>(arrow: &str, right: &'a str) -> (Option<String>, &'a str) {
+    if let Some(rest) = right.strip_prefix('|')
+        && let Some((label, to)) = rest.split_once('|')
+    {
+        return (clean_label(label), to.trim());
+    }
+
+    if let Some((label, to)) = right.split_once("-->") {
+        return (clean_label(label), to.trim());
+    }
+    if let Some((label, to)) = right.split_once("-.->") {
+        return (clean_label(label), to.trim());
+    }
+    if let Some((label, to)) = right.split_once("==>") {
+        return (clean_label(label), to.trim());
+    }
+
+    if arrow == "---" || arrow == "--" {
+        if let Some((label, to)) = right.split_once("---") {
+            return (clean_label(label), to.trim());
+        }
+        if let Some((label, to)) = right.split_once("--") {
+            return (clean_label(label), to.trim());
+        }
+    }
+
+    (None, right)
+}
+
+fn clean_label(raw: &str) -> Option<String> {
+    let label = raw.trim().trim_matches('|').trim();
+    (!label.is_empty()).then(|| label.to_owned())
 }
 
 fn parse_node(raw: &str) -> String {
@@ -126,6 +187,38 @@ mod tests {
                         from: "B".to_owned(),
                         to: "Done".to_owned(),
                         label: None
+                    }
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn parses_labeled_flowchart_edges() {
+        let preview = flowchart_preview(
+            "flowchart LR\n  A -- yes --> B\n  B -. maybe .-> C\n  C ==>|fast| D[Done]",
+        )
+        .expect("flowchart preview");
+
+        assert_eq!(
+            preview,
+            FlowchartPreview {
+                direction: FlowchartDirection::LeftRight,
+                edges: vec![
+                    FlowchartEdge {
+                        from: "A".to_owned(),
+                        to: "B".to_owned(),
+                        label: Some("yes".to_owned())
+                    },
+                    FlowchartEdge {
+                        from: "B".to_owned(),
+                        to: "C".to_owned(),
+                        label: Some("maybe".to_owned())
+                    },
+                    FlowchartEdge {
+                        from: "C".to_owned(),
+                        to: "Done".to_owned(),
+                        label: Some("fast".to_owned())
                     }
                 ]
             }

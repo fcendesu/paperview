@@ -475,12 +475,16 @@ fn flowchart_preview<Message: Clone + 'static>(
 fn flowchart_edge<Message: Clone + 'static>(
     edge: diagram::FlowchartEdge,
 ) -> Element<'static, Message> {
-    Row::new()
+    let mut row = Row::new()
         .spacing(8)
         .push(flowchart_node(edge.from))
-        .push(text("->").size(14).color(theme::SHELL_ACCENT))
-        .push(flowchart_node(edge.to))
-        .into()
+        .push(text("->").size(14).color(theme::SHELL_ACCENT));
+
+    if let Some(label) = edge.label {
+        row = row.push(text(label).size(12).color(theme::READER_TEXT_MUTED));
+    }
+
+    row.push(flowchart_node(edge.to)).into()
 }
 
 fn flowchart_node<Message: Clone + 'static>(label: String) -> Element<'static, Message> {
