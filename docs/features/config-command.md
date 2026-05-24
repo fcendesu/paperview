@@ -14,6 +14,7 @@ cargo run -p paperview-tui -- config edit
 The config file currently stores:
 
 - `schema_version = 1`
+- `theme = "hybrid"`, the current supported GUI/TUI visual theme.
 - `zen_mode`, used by the GUI and TUI readers at startup and saved when toggled.
 - `split_primary_width`, used by GUI and TUI Split View at startup and saved when resized.
 
@@ -21,14 +22,15 @@ The config file currently stores:
 
 - `paperview-core::config::ConfigStore` owns config path resolution, loading, saving, and file creation.
 - `PAPERVIEW_CONFIG_PATH` overrides the default config location.
-- The default config stores `schema_version = 1`, `zen_mode = false`, and `split_primary_width = 50`.
+- The default config stores `schema_version = 1`, `theme = "hybrid"`, `zen_mode = false`, and `split_primary_width = 50`.
 - The TUI binary handles config commands without initializing Ratatui.
 - The GUI and TUI readers load config at startup, fall back to defaults if loading fails, and persist Zen Mode plus Split View width changes.
+- `paperview-core::ThemePreference` validates the shared theme setting. Unknown theme strings are rejected as config decode errors.
 - Missing config fields deserialize from defaults for compatibility with older config files.
 
 ## Decisions And Gaps
 
-- Theme choice and richer user-facing settings are still deferred.
+- User-facing theme switching and richer settings are still deferred.
 - `config edit` delegates to the platform opener rather than embedding an editor.
 - Config and history still use separate store types because their files have different schemas and override environment variables.
 

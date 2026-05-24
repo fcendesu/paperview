@@ -1420,7 +1420,8 @@ mod tests {
 
     use crossterm::event::KeyCode;
     use paperview_core::{
-        Config, ConfigStore, Document, FileEntry, HistoryStore, SearchMatch, WorkspaceSearchMatch,
+        Config, ConfigStore, Document, FileEntry, HistoryStore, SearchMatch, ThemePreference,
+        WorkspaceSearchMatch,
     };
     use ratatui::style::Modifier;
 
@@ -1514,6 +1515,7 @@ mod tests {
         store
             .save(&Config {
                 schema_version: 1,
+                theme: ThemePreference::Hybrid,
                 zen_mode: true,
                 split_primary_width: 65,
             })
@@ -1526,6 +1528,7 @@ mod tests {
 
         assert!(app.is_zen);
         assert_eq!(app.split_widths(), (65, 35));
+        assert_eq!(app.config.theme, ThemePreference::Hybrid);
 
         fs::remove_file(path).expect("remove config");
     }

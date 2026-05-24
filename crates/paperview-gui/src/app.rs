@@ -1376,7 +1376,7 @@ mod tests {
         },
     };
     use paperview_core::{
-        Config, ConfigStore, Document, History, HistoryStore,
+        Config, ConfigStore, Document, History, HistoryStore, ThemePreference,
         parser::{Block, parse_markdown},
     };
 
@@ -1877,6 +1877,7 @@ mod tests {
         config_store
             .save(&Config {
                 schema_version: 1,
+                theme: ThemePreference::Hybrid,
                 zen_mode: true,
                 split_primary_width: 65,
             })
@@ -1886,6 +1887,7 @@ mod tests {
 
         assert!(state.is_zen);
         assert_eq!(state.split_widths(), (65, 35));
+        assert_eq!(state.config.theme, ThemePreference::Hybrid);
 
         fs::remove_file(config_path).expect("remove config");
     }

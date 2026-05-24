@@ -22,6 +22,7 @@ The current TUI theme maps the same visual intent into Ratatui styles:
 - Distinct selected and matched search highlight styles.
 
 Core does not own theme behavior.
+The shared config stores `theme = "hybrid"` as the current supported theme preference so future theme switching can validate against a typed setting.
 
 ## Implementation Notes
 
@@ -30,13 +31,14 @@ Core does not own theme behavior.
 - TUI color styles live in `crates/paperview-tui/src/theme.rs`.
 - The Ratatui app and render modules consume TUI theme helpers instead of
   scattering inline style literals.
+- `paperview-core::ThemePreference` currently supports `Hybrid` and is serialized as `theme = "hybrid"` in the config file.
 - The active document tab is visual scaffolding for future tabbed interface work; it currently represents a single open document.
 - The initial theme follows the color values in `docs/design/INDEX.md`.
 
 ## Open Decisions
 
 - Font embedding is deferred until typography work can choose durable bundled fonts.
-- Theme switching is out of scope for the first MVP theme.
+- Additional theme variants and user-facing theme switching are deferred.
 
 ## Verification Expectations
 

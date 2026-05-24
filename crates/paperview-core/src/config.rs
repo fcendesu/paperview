@@ -10,15 +10,25 @@ pub struct Config {
     #[serde(default = "default_schema_version")]
     pub schema_version: u32,
     #[serde(default)]
+    pub theme: ThemePreference,
+    #[serde(default)]
     pub zen_mode: bool,
     #[serde(default = "default_split_primary_width")]
     pub split_primary_width: u16,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ThemePreference {
+    #[default]
+    Hybrid,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             schema_version: default_schema_version(),
+            theme: ThemePreference::default(),
             zen_mode: false,
             split_primary_width: default_split_primary_width(),
         }
@@ -218,7 +228,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use super::{Config, ConfigStore};
+    use super::{Config, ConfigStore, ThemePreference};
 
     #[test]
     fn missing_config_loads_default() {
@@ -236,6 +246,7 @@ mod tests {
         let store = ConfigStore::new(&path);
         let config = Config {
             schema_version: 7,
+            theme: ThemePreference::Hybrid,
             zen_mode: true,
             split_primary_width: 60,
         };
@@ -243,6 +254,29 @@ mod tests {
         store.save(&config).expect("save config");
 
         assert_eq!(store.load().expect("load config"), config);
+
+        fs::remove_file(path).expect("remove config");
+    }
+
+    #[test]
+    fn serializes_theme_preference_as_kebab_case() {
+        let encoded = toml::to_string(&Config::default()).expect("encode config");
+
+        assert!(encoded.contains("theme = \"hybrid\""));
+    }
+
+    #[test]
+    fn rejects_unknown_theme_preference() {
+        let path = temp_path("theme/config.toml");
+        let store = ConfigStore::new(&path);
+        fs::create_dir_all(path.parent().expect("config parent")).expect("create config parent");
+        fs::write(
+            &path,
+            "schema_version = 1\ntheme = \"solarized\"\nsplit_primary_width = 50\n",
+        )
+        .expect("write invalid config");
+
+        assert!(store.load().is_err());
 
         fs::remove_file(path).expect("remove config");
     }
