@@ -165,6 +165,11 @@ The first config implementation keeps TOML config path resolution and file
 creation in `paperview-core::ConfigStore`. The TUI binary exposes headless
 `config path` and `config edit` commands without initializing Ratatui.
 
+Split View shared behavior lives in `paperview-core::SplitViewState`. It owns
+the secondary-tab index, bounded primary-pane width, toggle/retarget rules, and
+side-pane cycling. GUI and TUI frontends keep only presentation-specific state
+such as cached rendered side-pane lines or mouse-drag cursor positions.
+
 ---
 
 ## 5. Performance Optimizations

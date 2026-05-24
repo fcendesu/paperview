@@ -13,15 +13,12 @@ use iced::{
     window,
 };
 use paperview_core::{
-    Config, ConfigStore, Document, History, HistoryStore, OpenDocuments, SearchMatch, WatchEvent,
-    parser::Block, toggle_task_line_source, watch_file,
+    Config, ConfigStore, Document, History, HistoryStore, OpenDocuments, SearchMatch, SplitResize,
+    SplitViewState, WatchEvent, parser::Block, toggle_task_line_source, watch_file,
 };
 
 use crate::{history, navigation, reader, theme};
 
-const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
-const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
-const SPLIT_RESIZE_STEP: u16 = 10;
 const SPLIT_DIVIDER_HIT_ZONE: f32 = 16.0;
 const MAX_REMOTE_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 
@@ -35,8 +32,7 @@ pub struct PaperView {
     status: Status,
     is_drag_hovered: bool,
     is_zen: bool,
-    split_document_index: Option<usize>,
-    split_primary_width: u16,
+    split_view: SplitViewState,
     split_drag_cursor: Option<SplitDragCursor>,
     is_split_dragging: bool,
     active_toc_block_index: Option<usize>,
@@ -90,12 +86,6 @@ pub enum Message {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum SplitResize {
-    GrowPrimary,
-    ShrinkPrimary,
-}
-
-#[derive(Debug, Clone, Copy)]
 struct SplitDragCursor {
     x: f32,
     width: f32,
@@ -132,9 +122,10 @@ impl PaperView {
         let args = args.into_iter().collect::<Vec<_>>();
         let config = load_config(&config_store);
         let is_zen = config.zen_mode;
-        let split_primary_width = config
-            .split_primary_width
-            .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
+        let split_primary_width = config.split_primary_width.clamp(
+            SplitViewState::MIN_PRIMARY_WIDTH,
+            SplitViewState::MAX_PRIMARY_WIDTH,
+        );
 
         match args.as_slice() {
             [] => {
@@ -149,8 +140,7 @@ impl PaperView {
                     status: Status::Empty,
                     is_drag_hovered: false,
                     is_zen,
-                    split_document_index: None,
-                    split_primary_width,
+                    split_view: SplitViewState::new(split_primary_width),
                     split_drag_cursor: None,
                     is_split_dragging: false,
                     active_toc_block_index: None,
@@ -181,8 +171,7 @@ impl PaperView {
                             status: Status::Loaded(path),
                             is_drag_hovered: false,
                             is_zen,
-                            split_document_index: None,
-                            split_primary_width,
+                            split_view: SplitViewState::new(split_primary_width),
                             split_drag_cursor: None,
                             is_split_dragging: false,
                             active_toc_block_index,
@@ -201,8 +190,7 @@ impl PaperView {
                         status: Status::Error(error.to_string()),
                         is_drag_hovered: false,
                         is_zen,
-                        split_document_index: None,
-                        split_primary_width,
+                        split_view: SplitViewState::new(split_primary_width),
                         split_drag_cursor: None,
                         is_split_dragging: false,
                         active_toc_block_index: None,
@@ -225,8 +213,7 @@ impl PaperView {
                     status: Status::Error("usage: paperview-gui [file]".to_owned()),
                     is_drag_hovered: false,
                     is_zen,
-                    split_document_index: None,
-                    split_primary_width,
+                    split_view: SplitViewState::new(split_primary_width),
                     split_drag_cursor: None,
                     is_split_dragging: false,
                     active_toc_block_index: None,
@@ -399,11 +386,13 @@ impl PaperView {
     }
 
     fn select_split_tab(&mut self, index: usize) {
-        if self.split_document_index.is_some()
-            && Some(index) != self.documents.active_index()
-            && index < self.documents.len()
-        {
-            self.split_document_index = Some(index);
+        let previous = self.split_view.secondary_index();
+        self.split_view.select_secondary(
+            index,
+            self.documents.active_index(),
+            self.documents.len(),
+        );
+        if self.split_view.secondary_index() != previous {
             self.track_remote_images();
         }
     }
@@ -430,44 +419,33 @@ impl PaperView {
     }
 
     fn toggle_split(&mut self) {
-        self.split_document_index = self
-            .split_document_index
-            .is_none()
-            .then(|| self.first_secondary_index())
-            .flatten();
+        self.split_view
+            .toggle(self.documents.active_index(), self.documents.len());
         self.end_split_drag();
         self.track_remote_images();
     }
 
     fn resize_split(&mut self, direction: SplitResize) {
-        if self.split_document_index.is_none() {
-            return;
+        if self.split_view.resize(direction) {
+            self.save_config();
         }
-
-        self.split_primary_width = match direction {
-            SplitResize::GrowPrimary => self
-                .split_primary_width
-                .saturating_add(SPLIT_RESIZE_STEP)
-                .min(MAX_SPLIT_PRIMARY_WIDTH),
-            SplitResize::ShrinkPrimary => self
-                .split_primary_width
-                .saturating_sub(SPLIT_RESIZE_STEP)
-                .max(MIN_SPLIT_PRIMARY_WIDTH),
-        };
-        self.save_config();
     }
 
     fn move_split_drag(&mut self, x: f32, width: f32) {
         self.split_drag_cursor = Some(SplitDragCursor { x, width });
 
         if self.is_split_dragging {
-            self.split_primary_width =
-                split_primary_width_from_cursor(x, width, self.split_primary_width);
+            self.split_view
+                .set_primary_width(split_primary_width_from_cursor(
+                    x,
+                    width,
+                    self.split_view.primary_width(),
+                ));
         }
     }
 
     fn start_split_drag(&mut self) {
-        if self.split_document_index.is_none() {
+        if !self.split_view.is_enabled() {
             return;
         }
 
@@ -484,29 +462,17 @@ impl PaperView {
 
     fn is_split_divider_hovered(&self) -> bool {
         self.split_drag_cursor.is_some_and(|cursor| {
-            is_split_divider_hit(cursor.x, cursor.width, self.split_primary_width)
+            is_split_divider_hit(cursor.x, cursor.width, self.split_view.primary_width())
         })
     }
 
     fn ensure_split_target(&mut self) {
-        if self.split_document_index.is_some_and(|index| {
-            Some(index) == self.documents.active_index() || index >= self.documents.len()
-        }) {
-            self.split_document_index = self.first_secondary_index();
-        }
-    }
-
-    fn first_secondary_index(&self) -> Option<usize> {
-        let active = self.documents.active_index()?;
-
-        self.documents
-            .iter()
-            .map(|(index, _)| index)
-            .find(|index| *index != active)
+        self.split_view
+            .retarget(self.documents.active_index(), self.documents.len());
     }
 
     fn split_document(&self) -> Option<&Document> {
-        let split_index = self.split_document_index?;
+        let split_index = self.split_view.secondary_index()?;
 
         self.documents
             .iter()
@@ -514,15 +480,11 @@ impl PaperView {
     }
 
     fn split_widths(&self) -> (u16, u16) {
-        let primary = self
-            .split_primary_width
-            .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
-
-        (primary, 100 - primary)
+        self.split_view.widths()
     }
 
     fn track_remote_images(&mut self) {
-        for url in visible_remote_image_urls(&self.documents, self.split_document_index) {
+        for url in visible_remote_image_urls(&self.documents, self.split_view.secondary_index()) {
             self.remote_images
                 .entry(url)
                 .or_insert(reader::RemoteImage::Loading);
@@ -689,7 +651,7 @@ impl PaperView {
 
     fn save_config(&mut self) {
         self.config.zen_mode = self.is_zen;
-        self.config.split_primary_width = self.split_primary_width;
+        self.config.split_primary_width = self.split_view.primary_width();
         if let Err(error) = self.config_store.save(&self.config) {
             self.status = Status::Error(error.to_string());
         }
@@ -710,12 +672,15 @@ fn clamp_search_selection(selection: Option<usize>, len: usize) -> Option<usize>
 
 fn split_primary_width_from_cursor(x: f32, width: f32, fallback: u16) -> u16 {
     if width <= 0.0 {
-        return fallback.clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
+        return fallback.clamp(
+            SplitViewState::MIN_PRIMARY_WIDTH,
+            SplitViewState::MAX_PRIMARY_WIDTH,
+        );
     }
 
     ((x / width) * 100.0).round().clamp(
-        MIN_SPLIT_PRIMARY_WIDTH as f32,
-        MAX_SPLIT_PRIMARY_WIDTH as f32,
+        SplitViewState::MIN_PRIMARY_WIDTH as f32,
+        SplitViewState::MAX_PRIMARY_WIDTH as f32,
     ) as u16
 }
 
@@ -1175,7 +1140,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
         Status::Error(error) => error.clone(),
     };
 
-    let is_split_enabled = state.split_document_index.is_some();
+    let is_split_enabled = state.split_view.secondary_index().is_some();
     let split_label = if is_split_enabled {
         let (primary, secondary) = state.split_widths();
         format!("Split {primary}/{secondary}")
@@ -1273,7 +1238,7 @@ fn tab_bar(state: &PaperView) -> Element<'_, Message> {
                 .path()
                 .map_or_else(|| "<memory>".to_owned(), |path| path.display().to_string());
             let is_active = state.documents.active_index() == Some(index);
-            let is_secondary = state.split_document_index == Some(index);
+            let is_secondary = state.split_view.secondary_index() == Some(index);
 
             let mut tab_content = row![
                 column![
@@ -1293,7 +1258,7 @@ fn tab_bar(state: &PaperView) -> Element<'_, Message> {
             ]
             .spacing(8);
 
-            if state.split_document_index.is_some() && !is_active {
+            if state.split_view.secondary_index().is_some() && !is_active {
                 let split_label = if is_secondary { "Side" } else { "Use" };
                 tab_content = tab_content.push(
                     button(text(split_label).size(11))
@@ -1815,7 +1780,7 @@ mod tests {
 
         apply(&mut state, Message::ToggleSplit);
 
-        assert_eq!(state.split_document_index, None);
+        assert_eq!(state.split_view.secondary_index(), None);
         assert!(state.split_document().is_none());
 
         fs::remove_file(path).expect("remove test document");
@@ -1834,12 +1799,12 @@ mod tests {
         apply(&mut state, Message::ToggleSplit);
 
         assert_eq!(state.documents.active_index(), Some(1));
-        assert_eq!(state.split_document_index, Some(0));
+        assert_eq!(state.split_view.secondary_index(), Some(0));
         assert_eq!(state.split_document().map(Document::title), Some("First"));
 
         apply(&mut state, Message::ToggleSplit);
 
-        assert_eq!(state.split_document_index, None);
+        assert_eq!(state.split_view.secondary_index(), None);
 
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");
@@ -2083,7 +2048,7 @@ mod tests {
         apply(&mut state, Message::SelectTab(0));
 
         assert_eq!(state.documents.active_index(), Some(0));
-        assert_eq!(state.split_document_index, Some(1));
+        assert_eq!(state.split_view.secondary_index(), Some(1));
         assert_eq!(state.split_document().map(Document::title), Some("Second"));
 
         fs::remove_file(first).expect("remove first test document");
@@ -2109,7 +2074,7 @@ mod tests {
         apply(&mut state, Message::SelectSplitTab(1));
 
         assert_eq!(state.documents.active_index(), Some(2));
-        assert_eq!(state.split_document_index, Some(1));
+        assert_eq!(state.split_view.secondary_index(), Some(1));
         assert_eq!(state.split_document().map(Document::title), Some("Second"));
 
         fs::remove_file(first).expect("remove first test document");
@@ -2131,7 +2096,7 @@ mod tests {
         apply(&mut state, Message::SelectSplitTab(1));
 
         assert_eq!(state.documents.active_index(), Some(1));
-        assert_eq!(state.split_document_index, Some(0));
+        assert_eq!(state.split_view.secondary_index(), Some(0));
 
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");
@@ -2152,7 +2117,7 @@ mod tests {
 
         assert_eq!(state.documents.len(), 1);
         assert_eq!(state.documents.active_index(), Some(0));
-        assert_eq!(state.split_document_index, None);
+        assert_eq!(state.split_view.secondary_index(), None);
 
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");

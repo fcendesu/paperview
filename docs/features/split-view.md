@@ -41,18 +41,19 @@ Current TUI behavior:
 
 ## Implementation Notes
 
-- `paperview-gui` stores the secondary pane as an optional open-document index.
-- `paperview-tui` stores the secondary pane as an optional open-document index
-  and renders a cached line buffer for the side pane.
-- TUI side-pane cycling walks non-active tabs only and wraps at either end.
-- The primary pane width is stored as a bounded 30/70 to 70/30 ratio in TUI
-  state; it defaults to 50/50 and is persisted through `paperview-core::ConfigStore`.
-- `OpenDocuments` remains the shared tab/document model; no separate core split
-  model exists yet.
+- `paperview-core::SplitViewState` stores the secondary pane index, primary
+  width, enable/disable state, retargeting behavior, side-pane cycling, and
+  bounded resize rules.
+- `paperview-core::SplitResize` represents grow/shrink resize commands shared
+  by GUI and TUI.
+- `OpenDocuments` remains the shared tab/document model while `SplitViewState`
+  owns the split-specific relationship between the active and secondary tabs.
+- `paperview-tui` renders a cached line buffer for the side pane.
+- TUI side-pane cycling uses the shared non-active-tab cycling behavior.
+- The primary pane width is stored as a bounded 30/70 to 70/30 ratio; it
+  defaults to 50/50 and is persisted through `paperview-core::ConfigStore`.
 - The header owns the global Split View toggle.
 - Non-active tabs show a compact secondary-pane selector while Split View is on.
-- The primary pane width is stored as a bounded 30/70 to 70/30 ratio in GUI
-  state; it defaults to 50/50 and is persisted through `paperview-core::ConfigStore`.
 - The draggable divider updates the same bounded ratio used by keyboard
   resizing.
 - History and table-of-contents sidebars remain visible in Split View.

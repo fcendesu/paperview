@@ -7,7 +7,7 @@ use std::{
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use paperview_core::{
     Config, ConfigStore, Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments,
-    SearchMatch, WatchEvent, WorkspaceSearchMatch,
+    SearchMatch, SplitResize, SplitViewState, WatchEvent, WorkspaceSearchMatch,
     parser::{Block as MarkdownBlock, TocItem},
     toggle_task_line_source, watch_file,
 };
@@ -20,10 +20,6 @@ use ratatui::{
 };
 
 use crate::{render, theme};
-
-const MIN_SPLIT_PRIMARY_WIDTH: u16 = 30;
-const MAX_SPLIT_PRIMARY_WIDTH: u16 = 70;
-const SPLIT_RESIZE_STEP: u16 = 10;
 
 pub fn run(document: Document) -> io::Result<()> {
     run_documents(vec![document])
@@ -60,8 +56,7 @@ struct ReaderApp {
     config_store: ConfigStore,
     documents: OpenDocuments,
     document_lines: Vec<String>,
-    split_document_index: Option<usize>,
-    split_primary_width: u16,
+    split_view: SplitViewState,
     split_document_lines: Vec<String>,
     block_line_starts: Vec<render::BlockLineStart>,
     toc: Vec<TocItem>,
@@ -88,12 +83,6 @@ enum ReaderFocus {
 enum SearchMode {
     Inactive,
     Editing,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SplitResize {
-    GrowPrimary,
-    ShrinkPrimary,
 }
 
 impl ReaderApp {
@@ -123,15 +112,12 @@ impl ReaderApp {
         let status = config_status.or(watch_status);
 
         Self {
-            split_primary_width: config
-                .split_primary_width
-                .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH),
+            split_view: SplitViewState::new(config.split_primary_width),
             is_zen: config.zen_mode,
             config,
             config_store,
             documents: open_documents,
             document_lines: rendered.lines,
-            split_document_index: None,
             split_document_lines: Vec::new(),
             block_line_starts: rendered.block_line_starts,
             toc_selected_index: initial_toc_selection(&toc),
@@ -210,7 +196,7 @@ impl ReaderApp {
                 Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
             (main, Some(toc))
         };
-        let reader_areas = if self.split_document_index.is_some() && !self.is_zen {
+        let reader_areas = if self.split_view.is_enabled() && !self.is_zen {
             let (primary_width, secondary_width) = self.split_widths();
             Layout::horizontal([
                 Constraint::Percentage(primary_width),
@@ -241,7 +227,7 @@ impl ReaderApp {
             reader_areas[0],
         );
 
-        if let Some(split_index) = self.split_document_index {
+        if let Some(split_index) = self.split_view.secondary_index() {
             if self.is_zen {
                 return;
             }
@@ -505,13 +491,10 @@ impl ReaderApp {
     }
 
     fn toggle_split(&mut self) {
-        self.split_document_index = self
-            .split_document_index
-            .is_none()
-            .then(|| self.first_secondary_index())
-            .flatten();
+        self.split_view
+            .toggle(self.documents.active_index(), self.documents.len());
         self.refresh_split_document();
-        self.status = if self.split_document_index.is_some() {
+        self.status = if self.split_view.is_enabled() {
             Some("Split View enabled".to_owned())
         } else {
             Some("Split View disabled".to_owned())
@@ -527,31 +510,15 @@ impl ReaderApp {
     }
 
     fn resize_split(&mut self, direction: SplitResize) {
-        if self.split_document_index.is_none() {
-            return;
+        if self.split_view.resize(direction) {
+            let (primary, secondary) = self.split_widths();
+            self.status = Some(format!("Split View {primary}/{secondary}"));
+            self.save_config();
         }
-
-        self.split_primary_width = match direction {
-            SplitResize::GrowPrimary => self
-                .split_primary_width
-                .saturating_add(SPLIT_RESIZE_STEP)
-                .min(MAX_SPLIT_PRIMARY_WIDTH),
-            SplitResize::ShrinkPrimary => self
-                .split_primary_width
-                .saturating_sub(SPLIT_RESIZE_STEP)
-                .max(MIN_SPLIT_PRIMARY_WIDTH),
-        };
-        let (primary, secondary) = self.split_widths();
-        self.status = Some(format!("Split View {primary}/{secondary}"));
-        self.save_config();
     }
 
     fn split_widths(&self) -> (u16, u16) {
-        let primary = self
-            .split_primary_width
-            .clamp(MIN_SPLIT_PRIMARY_WIDTH, MAX_SPLIT_PRIMARY_WIDTH);
-
-        (primary, 100 - primary)
+        self.split_view.widths()
     }
 
     fn toggle_zen(&mut self) {
@@ -639,36 +606,27 @@ impl ReaderApp {
     }
 
     fn select_split_tab_offset(&mut self, offset: isize) {
-        if self.split_document_index.is_none() {
+        let next_index = self.split_view.cycle_secondary(
+            self.documents.active_index(),
+            self.documents.len(),
+            offset,
+        );
+        if next_index == self.split_view.secondary_index() {
             return;
         }
 
-        let Some(active) = self.documents.active_index() else {
-            return;
-        };
-
-        let candidates = self
-            .documents
-            .iter()
-            .map(|(index, _)| index)
-            .filter(|index| *index != active)
-            .collect::<Vec<_>>();
-        if candidates.is_empty() {
-            self.split_document_index = None;
+        let Some(next_index) = next_index else {
+            self.split_view.disable();
             self.split_document_lines.clear();
             self.status = Some("Split View disabled".to_owned());
             return;
-        }
+        };
 
-        let current_position = self
-            .split_document_index
-            .and_then(|current| candidates.iter().position(|index| *index == current))
-            .unwrap_or(0);
-        let next_position =
-            (current_position as isize + offset).rem_euclid(candidates.len() as isize) as usize;
-        let next_index = candidates[next_position];
-
-        self.split_document_index = Some(next_index);
+        self.split_view.select_secondary(
+            next_index,
+            self.documents.active_index(),
+            self.documents.len(),
+        );
         self.refresh_split_document();
         let title = self
             .documents
@@ -683,26 +641,15 @@ impl ReaderApp {
     }
 
     fn ensure_split_target(&mut self) {
-        if self.split_document_index.is_some_and(|index| {
-            Some(index) == self.documents.active_index() || index >= self.documents.len()
-        }) {
-            self.split_document_index = self.first_secondary_index();
-        }
+        self.split_view
+            .retarget(self.documents.active_index(), self.documents.len());
         self.refresh_split_document();
-    }
-
-    fn first_secondary_index(&self) -> Option<usize> {
-        let active = self.documents.active_index()?;
-
-        self.documents
-            .iter()
-            .map(|(index, _)| index)
-            .find(|index| *index != active)
     }
 
     fn refresh_split_document(&mut self) {
         self.split_document_lines = self
-            .split_document_index
+            .split_view
+            .secondary_index()
             .and_then(|split_index| {
                 self.documents
                     .iter()
@@ -873,7 +820,7 @@ impl ReaderApp {
 
     fn save_config(&mut self) {
         self.config.zen_mode = self.is_zen;
-        self.config.split_primary_width = self.split_primary_width;
+        self.config.split_primary_width = self.split_view.primary_width();
         if let Err(error) = self.config_store.save(&self.config) {
             self.status = Some(error.to_string());
         }
@@ -1675,7 +1622,7 @@ mod tests {
 
         app.toggle_split();
 
-        assert_eq!(app.split_document_index, Some(1));
+        assert_eq!(app.split_view.secondary_index(), Some(1));
         assert!(
             app.split_document_lines
                 .iter()
@@ -1684,7 +1631,7 @@ mod tests {
 
         app.toggle_split();
 
-        assert_eq!(app.split_document_index, None);
+        assert_eq!(app.split_view.secondary_index(), None);
         assert!(app.split_document_lines.is_empty());
     }
 
@@ -1694,7 +1641,7 @@ mod tests {
 
         app.toggle_split();
 
-        assert_eq!(app.split_document_index, None);
+        assert_eq!(app.split_view.secondary_index(), None);
         assert!(app.split_document_lines.is_empty());
     }
 
@@ -1709,8 +1656,11 @@ mod tests {
 
         app.select_next_tab();
 
-        assert_ne!(app.split_document_index, app.documents.active_index());
-        assert_eq!(app.split_document_index, Some(0));
+        assert_ne!(
+            app.split_view.secondary_index(),
+            app.documents.active_index()
+        );
+        assert_eq!(app.split_view.secondary_index(), Some(0));
         assert!(
             app.split_document_lines
                 .iter()
@@ -1728,7 +1678,7 @@ mod tests {
         app.toggle_split();
 
         app.select_next_split_tab();
-        assert_eq!(app.split_document_index, Some(2));
+        assert_eq!(app.split_view.secondary_index(), Some(2));
         assert!(
             app.split_document_lines
                 .iter()
@@ -1736,10 +1686,10 @@ mod tests {
         );
 
         app.select_next_split_tab();
-        assert_eq!(app.split_document_index, Some(1));
+        assert_eq!(app.split_view.secondary_index(), Some(1));
 
         app.select_previous_split_tab();
-        assert_eq!(app.split_document_index, Some(2));
+        assert_eq!(app.split_view.secondary_index(), Some(2));
     }
 
     #[test]
@@ -1750,7 +1700,7 @@ mod tests {
         ]);
 
         app.select_next_split_tab();
-        assert_eq!(app.split_document_index, None);
+        assert_eq!(app.split_view.secondary_index(), None);
         assert!(app.split_document_lines.is_empty());
     }
 
@@ -1804,7 +1754,7 @@ mod tests {
 
         assert!(!app.close_active_tab());
 
-        assert_eq!(app.split_document_index, None);
+        assert_eq!(app.split_view.secondary_index(), None);
         assert!(app.split_document_lines.is_empty());
     }
 
