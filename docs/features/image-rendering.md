@@ -14,7 +14,9 @@ PaperView preserves Markdown image metadata.
   remote previews. Loading and failed remote previews keep the metadata panel
   visible with status text.
 - Missing and unresolved non-HTTP images fall back to metadata panels.
-- The TUI renders standalone images in Markdown image syntax.
+- The TUI renders standalone images in Markdown image syntax plus a metadata
+  line that identifies remote images, unresolved paths, missing local files, or
+  existing local files with byte size.
 
 This is still a first pass. PaperView does not yet resize images from actual
 decoded dimensions or support click-to-zoom.
@@ -27,7 +29,8 @@ decoded dimensions or support click-to-zoom.
 - Standalone images are promoted from image-only paragraphs into image blocks.
 - Inline images stay textual until PaperView has image-specific inline spans.
 - The GUI uses Iced image widgets for local image files.
-- Relative standalone image URLs resolve against the active document path.
+- Relative standalone image URLs resolve against the active document path in GUI
+  previews and TUI local metadata lines.
 - Remote image fetching stays in `paperview-gui`; core remains responsible for
   image metadata parsing only.
 - Remote image bytes are cached in GUI state for the current session and are
@@ -37,13 +40,15 @@ decoded dimensions or support click-to-zoom.
 
 - Decide whether image previews should use decoded dimensions for more precise
   layout estimates.
-- Decide whether TUI should expose file metadata for local images.
+- Decide whether TUI image metadata should show dimensions if a future
+  dependency-light decoding path exists.
 
 ## Verification
 
 - Parser tests cover standalone image blocks and inline image preservation.
 - GUI tests cover relative image path resolution, remote URL classification, and
   remote image loading placeholders.
-- TUI tests cover Markdown image output.
+- TUI tests cover Markdown image output plus local, missing, unresolved, and
+  remote metadata lines.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.

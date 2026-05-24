@@ -1,3 +1,8 @@
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
 use paperview_core::{
     Document,
     parser::{
@@ -45,7 +50,7 @@ pub fn render_document_with_anchors(document: &Document) -> RenderedDocument {
             block_index,
             line: output.lines().count(),
         });
-        render_block(block, &mut output);
+        render_block(block, document.path().map(PathBuf::as_path), &mut output);
         output.push('\n');
     }
 
@@ -55,7 +60,7 @@ pub fn render_document_with_anchors(document: &Document) -> RenderedDocument {
     }
 }
 
-fn render_block(block: &Block, output: &mut String) {
+fn render_block(block: &Block, document_path: Option<&Path>, output: &mut String) {
     match block {
         Block::Heading { level, spans } => render_heading(*level, spans, output),
         Block::Paragraph(spans) => {
@@ -93,16 +98,7 @@ fn render_block(block: &Block, output: &mut String) {
             output.push_str("```\n");
         }
         Block::Image { alt, url, title } => {
-            output.push_str("![");
-            output.push_str(alt);
-            output.push_str("](");
-            output.push_str(url);
-            if !title.is_empty() {
-                output.push_str(" \"");
-                output.push_str(title);
-                output.push('"');
-            }
-            output.push_str(")\n");
+            render_image(alt, url, title, document_path, output);
         }
         Block::List { ordered, items } => {
             for (index, item) in items.iter().enumerate() {
@@ -170,6 +166,84 @@ fn render_heading(level: HeadingLevel, spans: &[InlineSpan], output: &mut String
     output.push(' ');
     output.push_str(&inline::markdown_text(spans));
     output.push('\n');
+}
+
+fn render_image(
+    alt: &str,
+    url: &str,
+    title: &str,
+    document_path: Option<&Path>,
+    output: &mut String,
+) {
+    output.push_str(&image_markdown(alt, url, title));
+    output.push('\n');
+    output.push_str(&image_metadata_line(url, document_path));
+    output.push('\n');
+}
+
+fn image_markdown(alt: &str, url: &str, title: &str) -> String {
+    let mut output = format!("![{alt}]({url}");
+    if !title.is_empty() {
+        output.push_str(" \"");
+        output.push_str(title);
+        output.push('"');
+    }
+    output.push(')');
+    output
+}
+
+fn image_metadata_line(url: &str, document_path: Option<&Path>) -> String {
+    if is_remote_image_url(url) {
+        return format!("  image: remote ({url})");
+    }
+
+    let Some(path) = resolve_local_image_path(url, document_path) else {
+        return format!("  image: unresolved ({url})");
+    };
+
+    match fs::metadata(&path) {
+        Ok(metadata) if metadata.is_file() => {
+            format!(
+                "  image: local {} ({})",
+                path.display(),
+                format_bytes(metadata.len())
+            )
+        }
+        Ok(_) => format!("  image: not a file {}", path.display()),
+        Err(_) => format!("  image: missing {}", path.display()),
+    }
+}
+
+fn resolve_local_image_path(url: &str, document_path: Option<&Path>) -> Option<PathBuf> {
+    if url.trim().is_empty() || url.contains("://") || url.starts_with("data:") {
+        return None;
+    }
+
+    let path = PathBuf::from(url);
+    if path.is_absolute() {
+        return Some(path);
+    }
+
+    document_path
+        .and_then(Path::parent)
+        .map(|parent| parent.join(path))
+}
+
+fn is_remote_image_url(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = 1024.0 * 1024.0;
+
+    if bytes < 1024 {
+        format!("{bytes}B")
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1}KiB", bytes as f64 / KIB)
+    } else {
+        format!("{:.1}MiB", bytes as f64 / MIB)
+    }
 }
 
 fn render_table(
@@ -418,6 +492,11 @@ pub fn render_toc_text(
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
     use paperview_core::Document;
 
     use super::{
@@ -566,6 +645,46 @@ mod tests {
             render_document(&document)
                 .contains("![Architecture](docs/arch.png \"System diagram\")\n")
         );
+        assert!(render_document(&document).contains("  image: unresolved (docs/arch.png)\n"));
+    }
+
+    #[test]
+    fn renders_local_image_metadata() {
+        let dir = temp_dir("tui-image-metadata");
+        let image_path = dir.join("preview.png");
+        let document_path = dir.join("notes.md");
+        fs::write(&image_path, [0_u8; 2048]).expect("write image file");
+        let document =
+            Document::from_source("![Preview](preview.png \"System\")").with_path(&document_path);
+        let rendered = render_document(&document);
+
+        assert!(rendered.contains("![Preview](preview.png \"System\")\n"));
+        assert!(rendered.contains(&format!(
+            "  image: local {} (2.0KiB)\n",
+            image_path.display()
+        )));
+
+        fs::remove_file(image_path).expect("remove image file");
+        fs::remove_dir(dir).expect("remove temp dir");
+    }
+
+    #[test]
+    fn renders_missing_and_remote_image_metadata() {
+        let dir = temp_dir("tui-missing-image");
+        let document_path = dir.join("notes.md");
+        let missing = Document::from_source("![Missing](missing.png)").with_path(&document_path);
+        let remote = Document::from_source("![Remote](https://example.com/preview.png)");
+
+        assert!(render_document(&missing).contains(&format!(
+            "  image: missing {}\n",
+            dir.join("missing.png").display()
+        )));
+        assert!(
+            render_document(&remote)
+                .contains("  image: remote (https://example.com/preview.png)\n")
+        );
+
+        fs::remove_dir(dir).expect("remove temp dir");
     }
 
     #[test]
@@ -637,5 +756,15 @@ mod tests {
         let rendered = format!("{text:?}");
 
         assert!(rendered.contains("+ Reader"));
+    }
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("paperview-{name}-{nanos}"));
+        fs::create_dir(&path).expect("create temp dir");
+        path
     }
 }

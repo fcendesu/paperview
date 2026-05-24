@@ -51,7 +51,7 @@ This document tracks the progress of features across the three workspace crates.
 - Mermaid Support currently covers parser recognition for `mermaid` fences, source-preserving diagram panels in GUI/TUI, and simple GUI/TUI flowchart previews; full Mermaid layout, validation, and export assets are deferred.
 - Table Rendering currently covers structured table parsing, inline cell formatting, GUI table panels, aligned TUI table output, and TUI long-cell wrapping; wide-table scrolling and responsive GUI column sizing are deferred.
 - Task List Rendering currently covers checked and unchecked task markers in the shared parser model, GUI checkbox toggles with file writeback, and TUI file-backed task toggles from the current reader line; nested list structure is deferred.
-- Image Rendering currently covers standalone image metadata blocks, inline image text preservation, GUI local and remote bitmap previews with metadata fallback, relative-path resolution, and TUI Markdown image output; decoded-dimension layout and click-to-zoom are deferred.
+- Image Rendering currently covers standalone image metadata blocks, inline image text preservation, GUI local and remote bitmap previews with metadata fallback, relative-path resolution, and TUI Markdown image output with local/remote/missing metadata lines; decoded-dimension layout and click-to-zoom are deferred.
 - Inline Span Rendering currently covers heading, paragraph, list, blockquote, and table-cell bold, italic, inline code, and link metadata. GUI renders rich text with clickable links, including in-document heading anchors, and TUI renders Markdown-shaped inline text.
 
 ---
