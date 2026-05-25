@@ -73,6 +73,6 @@ This document tracks the progress of features across the three workspace crates.
 | Task | Status | Target |
 | :--- | :---: | :--- |
 | **Cold Startup Time** | 🏗️ | `paperview-tui perf <file>` records config/history/read/parse/render baseline and load target status; full interactive terminal/GUI startup timing still needed |
-| **Scrolling 60 FPS** | ⬜ | Constant |
+| **Scrolling 60 FPS** | 🏗️ | `paperview-tui perf <file>` records deterministic rendered-line scroll workload; real frame timing still needed |
 | **Memory Footprint** | 🏗️ | `paperview-tui perf <file>` estimates source/model/rendered text payloads against < 100MB |
 | **Zero-Dependency Build**| ⬜ | Single Binary |

@@ -265,6 +265,7 @@ struct PerfReport {
     blocks: usize,
     headings: usize,
     rendered_lines: usize,
+    scroll_workload: ScrollWorkload,
     estimated_memory_bytes: usize,
     memory_target_bytes: usize,
     load_target_duration: Duration,
@@ -274,6 +275,42 @@ struct PerfReport {
     parse_duration: Duration,
     render_duration: Duration,
     total_duration: Duration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ScrollWorkload {
+    viewport_lines: usize,
+    viewport_count: usize,
+    scroll_steps: usize,
+    target_steps: usize,
+}
+
+impl ScrollWorkload {
+    fn from_rendered_lines(rendered_lines: usize) -> Self {
+        let viewport_count = rendered_lines
+            .div_ceil(SCROLL_WORKLOAD_VIEWPORT_LINES)
+            .max(1);
+        let scroll_steps = rendered_lines.saturating_sub(SCROLL_WORKLOAD_VIEWPORT_LINES);
+
+        Self {
+            viewport_lines: SCROLL_WORKLOAD_VIEWPORT_LINES,
+            viewport_count,
+            scroll_steps,
+            target_steps: SCROLL_WORKLOAD_TARGET_STEPS,
+        }
+    }
+
+    fn average_lines_per_viewport(self, rendered_lines: usize) -> usize {
+        rendered_lines.div_ceil(self.viewport_count)
+    }
+
+    fn target_status(self) -> &'static str {
+        if self.scroll_steps <= self.target_steps {
+            "ok"
+        } else {
+            "over"
+        }
+    }
 }
 
 fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
@@ -322,6 +359,7 @@ fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
         blocks,
         headings,
         rendered_lines: rendered.lines.len(),
+        scroll_workload: ScrollWorkload::from_rendered_lines(rendered.lines.len()),
         estimated_memory_bytes,
         memory_target_bytes: MEMORY_TARGET_BYTES,
         load_target_duration: LOAD_TARGET_DURATION,
@@ -342,6 +380,20 @@ fn perf_text(report: &PerfReport) -> String {
         format!("Parsed blocks: {}", report.blocks),
         format!("Headings: {}", report.headings),
         format!("Rendered TUI lines: {}", report.rendered_lines),
+        format!(
+            "Scroll workload: {} viewports at {} lines, {} synthetic steps, avg {} lines/viewport",
+            report.scroll_workload.viewport_count,
+            report.scroll_workload.viewport_lines,
+            report.scroll_workload.scroll_steps,
+            report
+                .scroll_workload
+                .average_lines_per_viewport(report.rendered_lines)
+        ),
+        format!(
+            "Scroll target: under {} synthetic steps ({})",
+            report.scroll_workload.target_steps,
+            report.scroll_workload.target_status()
+        ),
         format!(
             "Estimated memory: {}",
             format_bytes(report.estimated_memory_bytes)
@@ -376,6 +428,8 @@ fn perf_text(report: &PerfReport) -> String {
 
 const MEMORY_TARGET_BYTES: usize = 100 * 1024 * 1024;
 const LOAD_TARGET_DURATION: Duration = Duration::from_millis(500);
+const SCROLL_WORKLOAD_VIEWPORT_LINES: usize = 40;
+const SCROLL_WORKLOAD_TARGET_STEPS: usize = 10_000;
 
 fn parsed_payload_bytes(blocks: &[Block]) -> usize {
     blocks.iter().map(block_payload_bytes).sum()
@@ -472,9 +526,9 @@ mod tests {
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
     use super::{
-        LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, config_path_text, export_path,
-        format_bytes, format_duration, is_reserved_command, measure_perf, open_documents,
-        perf_text, run, stats_json_text, stats_text, workspace_search_text,
+        LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, config_path_text,
+        export_path, format_bytes, format_duration, is_reserved_command, measure_perf,
+        open_documents, perf_text, run, stats_json_text, stats_text, workspace_search_text,
     };
 
     #[test]
@@ -514,6 +568,7 @@ mod tests {
             blocks: 4,
             headings: 2,
             rendered_lines: 9,
+            scroll_workload: ScrollWorkload::from_rendered_lines(9),
             estimated_memory_bytes: 2_048,
             memory_target_bytes: MEMORY_TARGET_BYTES,
             load_target_duration: LOAD_TARGET_DURATION,
@@ -529,6 +584,10 @@ mod tests {
         assert!(text.contains("File: docs/PRD.md"));
         assert!(text.contains("Bytes: 128"));
         assert!(text.contains("Parsed blocks: 4"));
+        assert!(text.contains(
+            "Scroll workload: 1 viewports at 40 lines, 0 synthetic steps, avg 9 lines/viewport"
+        ));
+        assert!(text.contains("Scroll target: under 10000 synthetic steps (ok)"));
         assert!(text.contains("Estimated memory: 2.0KiB"));
         assert!(text.contains("Memory target: under 100.0MiB (ok)"));
         assert!(text.contains("Config load: 100us"));
@@ -658,6 +717,9 @@ mod tests {
         assert_eq!(report.blocks, 2);
         assert_eq!(report.headings, 1);
         assert!(report.rendered_lines >= 2);
+        assert_eq!(report.scroll_workload.viewport_lines, 40);
+        assert_eq!(report.scroll_workload.viewport_count, 1);
+        assert_eq!(report.scroll_workload.scroll_steps, 0);
         assert!(report.estimated_memory_bytes >= report.bytes);
         assert_eq!(report.memory_target_bytes, MEMORY_TARGET_BYTES);
         assert_eq!(report.load_target_duration, LOAD_TARGET_DURATION);

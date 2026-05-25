@@ -16,6 +16,8 @@ The report includes:
 - Parsed block count
 - Heading count
 - Rendered TUI line count
+- Scroll workload estimate with viewport count, synthetic scroll steps, average
+  lines per viewport, and target status
 - Estimated memory for source, parsed text payloads, and rendered TUI lines
 - Memory target status for the MVP 100MB target
 - Load target status for the MVP startup target
@@ -30,6 +32,9 @@ The report includes:
   TUI lines through `render_document_with_anchors`.
 - The memory estimate is deterministic payload accounting from source text,
   parsed text strings, and rendered TUI lines. It is not process RSS.
+- The scroll workload estimate is deterministic accounting from rendered TUI
+  line count and a fixed 40-line viewport. It is not a real terminal frame-rate
+  benchmark.
 - Timings use `std::time::Instant` and are intended as local baseline signals,
   not deterministic benchmark assertions.
 - Tests cover report formatting and report shape rather than exact timing
@@ -38,8 +43,8 @@ The report includes:
 ## Decisions And Gaps
 
 - This is a baseline command, not a full benchmark harness.
-- GUI startup, GUI widget layout, OS RSS memory use, and scroll frame timing
-  remain unmeasured.
+- GUI startup, GUI widget layout, OS RSS memory use, and real scroll frame
+  timing remain unmeasured.
 - The load target is reported from a startup-adjacent headless path that
   includes config load, history load, read, parse/model construction, and TUI
   render. It still does not initialize the alternate-screen terminal or GUI.
