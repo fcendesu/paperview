@@ -21,6 +21,7 @@ use paperview_core::{
 use crate::theme;
 
 pub const ACTIVE_READER_SCROLLABLE_ID: &str = "active-reader-scrollable";
+pub const SPLIT_READER_SCROLLABLE_ID: &str = "split-reader-scrollable";
 const BLOCK_SPACING: f32 = 18.0;
 const HEADING_LINE_CHARS: usize = 36;
 const BODY_LINE_CHARS: usize = 72;
@@ -37,23 +38,6 @@ pub enum RemoteImage {
     Failed(String),
 }
 
-pub fn view_with_remote_images<'a, Message: Clone + 'static>(
-    document: &'a Document,
-    on_link_click: fn(String) -> Message,
-    on_task_toggle: Option<fn(usize) -> Message>,
-    remote_images: &'a HashMap<String, RemoteImage>,
-) -> Element<'a, Message> {
-    view_with_scroll_and_search(
-        document,
-        None::<fn(f32) -> Message>,
-        on_link_click,
-        None,
-        None,
-        on_task_toggle,
-        Some(remote_images),
-    )
-}
-
 pub fn view_with_search_and_remote_images<'a, Message: Clone + 'static>(
     document: &'a Document,
     on_scroll: Option<impl Fn(f32) -> Message + 'a>,
@@ -66,26 +50,41 @@ pub fn view_with_search_and_remote_images<'a, Message: Clone + 'static>(
     view_with_scroll_and_search(
         document,
         on_scroll,
+        Some(ACTIVE_READER_SCROLLABLE_ID),
         on_link_click,
-        search_query,
-        active_search_line,
+        SearchContext::new(search_query, active_search_line),
         on_task_toggle,
-        Some(remote_images),
+        remote_images,
+    )
+}
+
+pub fn split_view_with_remote_images<'a, Message: Clone + 'static>(
+    document: &'a Document,
+    on_link_click: fn(String) -> Message,
+    remote_images: &'a HashMap<String, RemoteImage>,
+) -> Element<'a, Message> {
+    view_with_scroll_and_search(
+        document,
+        None::<fn(f32) -> Message>,
+        Some(SPLIT_READER_SCROLLABLE_ID),
+        on_link_click,
+        None,
+        None,
+        remote_images,
     )
 }
 
 fn view_with_scroll_and_search<'a, Message: Clone + 'static>(
     document: &'a Document,
     on_scroll: Option<impl Fn(f32) -> Message + 'a>,
+    scrollable_id: Option<&'static str>,
     on_link_click: fn(String) -> Message,
-    search_query: Option<&'a str>,
-    active_search_line: Option<&'a str>,
+    search_context: Option<SearchContext<'a>>,
     on_task_toggle: Option<fn(usize) -> Message>,
-    remote_images: Option<&'a HashMap<String, RemoteImage>>,
+    remote_images: &'a HashMap<String, RemoteImage>,
 ) -> Element<'a, Message> {
     let mut content = column![].spacing(BLOCK_SPACING).width(Fill);
     let document_path = document.path().map(PathBuf::as_path);
-    let search_context = SearchContext::new(search_query, active_search_line);
 
     for block in &document.parsed().blocks {
         content = content.push(block_view(
@@ -105,13 +104,15 @@ fn view_with_scroll_and_search<'a, Message: Clone + 'static>(
             .style(|_| theme::paper_container()),
     );
 
+    if let Some(scrollable_id) = scrollable_id {
+        scrollable = scrollable.id(scrollable_id);
+    }
+
     if let Some(on_scroll) = on_scroll {
-        scrollable = scrollable
-            .id(ACTIVE_READER_SCROLLABLE_ID)
-            .on_scroll(move |viewport| {
-                let offset = viewport.relative_offset().y;
-                on_scroll(if offset.is_finite() { offset } else { 0.0 })
-            });
+        scrollable = scrollable.on_scroll(move |viewport| {
+            let offset = viewport.relative_offset().y;
+            on_scroll(if offset.is_finite() { offset } else { 0.0 })
+        });
     }
 
     container(scrollable)
@@ -262,7 +263,7 @@ fn block_view<'a, Message: Clone + 'static>(
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
     on_task_toggle: Option<fn(usize) -> Message>,
-    remote_images: Option<&'a HashMap<String, RemoteImage>>,
+    remote_images: &'a HashMap<String, RemoteImage>,
 ) -> Element<'a, Message> {
     match block {
         Block::Heading { level, spans } => heading(*level, spans, on_link_click, search),
@@ -503,7 +504,7 @@ fn image_block<'a, Message: Clone + 'static>(
     url: &'a str,
     title: &'a str,
     document_path: Option<&'a Path>,
-    remote_images: Option<&'a HashMap<String, RemoteImage>>,
+    remote_images: &'a HashMap<String, RemoteImage>,
 ) -> Element<'a, Message> {
     let resolved_path = resolve_image_path(url, document_path);
     let display_path = resolved_path
@@ -543,7 +544,7 @@ fn image_block<'a, Message: Clone + 'static>(
                 .content_fit(ContentFit::Contain),
         );
     } else if is_fetchable_remote_image_url(url) {
-        details = match remote_images.and_then(|images| images.get(url)) {
+        details = match remote_images.get(url) {
             Some(RemoteImage::Loaded(bytes)) => {
                 if let Some(dimensions) = image::dimensions_from_bytes(bytes) {
                     details = details.push(

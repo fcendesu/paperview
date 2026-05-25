@@ -94,6 +94,7 @@ struct ReaderApp {
     document_lines: Vec<String>,
     split_view: SplitViewState,
     split_document_lines: Vec<String>,
+    split_scroll: u16,
     block_line_starts: Vec<render::BlockLineStart>,
     toc: Vec<TocItem>,
     toc_selected_index: Option<usize>,
@@ -164,6 +165,7 @@ impl ReaderApp {
             documents: open_documents,
             document_lines: rendered.lines,
             split_document_lines: Vec::new(),
+            split_scroll: 0,
             block_line_starts: rendered.block_line_starts,
             toc_selected_index: initial_toc_selection(&toc),
             toc,
@@ -228,7 +230,10 @@ impl ReaderApp {
                     KeyCode::Char('j') | KeyCode::Down => self.move_down(),
                     KeyCode::Char('k') | KeyCode::Up => self.move_up(),
                     KeyCode::Enter => self.jump_to_selected_toc(),
-                    KeyCode::Char('g') if self.focus == ReaderFocus::Reader => self.scroll = 0,
+                    KeyCode::Char('g') if self.focus == ReaderFocus::Reader => {
+                        self.scroll = 0;
+                        self.sync_split_scroll();
+                    }
                     KeyCode::Char('G') if self.focus == ReaderFocus::Reader => {
                         self.scroll_to_bottom();
                     }
@@ -299,6 +304,7 @@ impl ReaderApp {
                         .borders(Borders::ALL),
                 )
                 .style(theme::reader())
+                .scroll((self.split_scroll, 0))
                 .wrap(Wrap { trim: false }),
                 reader_areas[1],
             );
@@ -343,14 +349,17 @@ impl ReaderApp {
 
     fn scroll_down(&mut self) {
         self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
+        self.sync_split_scroll();
     }
 
     fn scroll_up(&mut self) {
         self.scroll = self.scroll.saturating_sub(1);
+        self.sync_split_scroll();
     }
 
     fn scroll_to_bottom(&mut self) {
         self.scroll = self.max_scroll();
+        self.sync_split_scroll();
     }
 
     fn start_search(&mut self) {
@@ -496,6 +505,7 @@ impl ReaderApp {
         if let Some(search_match) = self.search_matches.get(index) {
             self.scroll = (search_match.line_index as u16).min(self.max_scroll());
             self.focus = ReaderFocus::Reader;
+            self.sync_split_scroll();
         }
     }
 
@@ -617,6 +627,7 @@ impl ReaderApp {
         self.status = if self.split_view.is_enabled() {
             Some("Split View enabled".to_owned())
         } else {
+            self.split_scroll = 0;
             Some("Split View disabled".to_owned())
         };
     }
@@ -738,6 +749,7 @@ impl ReaderApp {
         let Some(next_index) = next_index else {
             self.split_view.disable();
             self.split_document_lines.clear();
+            self.split_scroll = 0;
             self.status = Some("Split View disabled".to_owned());
             return;
         };
@@ -778,6 +790,15 @@ impl ReaderApp {
             .map_or_else(Vec::new, |document| {
                 render::render_document_with_anchors(document).lines
             });
+        self.sync_split_scroll();
+    }
+
+    fn sync_split_scroll(&mut self) {
+        self.split_scroll = paperview_core::synced_scroll_offset(
+            self.scroll,
+            self.max_scroll(),
+            self.max_split_scroll(),
+        );
     }
 
     fn load_active_document(&mut self, reset_scroll: bool) {
@@ -805,6 +826,7 @@ impl ReaderApp {
             self.scroll = 0;
         }
         self.scroll = self.scroll.min(self.max_scroll());
+        self.sync_split_scroll();
 
         self._watcher = watcher;
         self.watch_receiver = watch_receiver;
@@ -878,6 +900,7 @@ impl ReaderApp {
         self.scroll = self
             .block_line_start(item.block_index)
             .min(usize::from(self.max_scroll())) as u16;
+        self.sync_split_scroll();
     }
 
     fn active_toc_block_index(&self) -> Option<usize> {
@@ -905,6 +928,10 @@ impl ReaderApp {
 
     fn max_scroll(&self) -> u16 {
         self.document_lines.len().saturating_sub(1) as u16
+    }
+
+    fn max_split_scroll(&self) -> u16 {
+        self.split_document_lines.len().saturating_sub(1) as u16
     }
 
     fn handle_watch_events(&mut self) {
@@ -1805,7 +1832,7 @@ mod tests {
     fn split_toggle_targets_first_non_active_tab() {
         let mut app = ReaderApp::new_documents(vec![
             Document::from_source("# First").with_path("first.md"),
-            Document::from_source("# Second\n\nSide").with_path("second.md"),
+            Document::from_source("# Second\n\nSide\n\nMore").with_path("second.md"),
         ]);
 
         app.toggle_split();
@@ -1821,6 +1848,25 @@ mod tests {
 
         assert_eq!(app.split_view.secondary_index(), None);
         assert!(app.split_document_lines.is_empty());
+        assert_eq!(app.split_scroll, 0);
+    }
+
+    #[test]
+    fn split_scroll_tracks_primary_reader_progress() {
+        let mut app = ReaderApp::new_documents(vec![
+            Document::from_source("# First\n\nOne\n\nTwo\n\nThree\n\nFour").with_path("first.md"),
+            Document::from_source("# Second\n\nA\n\nB").with_path("second.md"),
+        ]);
+        app.toggle_split();
+
+        app.scroll_to_bottom();
+
+        assert_eq!(app.scroll, app.max_scroll());
+        assert_eq!(app.split_scroll, app.max_split_scroll());
+
+        app.scroll_up();
+
+        assert!(app.split_scroll <= app.max_split_scroll());
     }
 
     #[test]

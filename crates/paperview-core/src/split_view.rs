@@ -10,6 +10,16 @@ pub struct SplitViewState {
     primary_width: u16,
 }
 
+#[must_use]
+pub fn synced_scroll_offset(primary_offset: u16, primary_max: u16, secondary_max: u16) -> u16 {
+    if primary_max == 0 || secondary_max == 0 {
+        return 0;
+    }
+
+    let progress = f32::from(primary_offset.min(primary_max)) / f32::from(primary_max);
+    (progress * f32::from(secondary_max)).round() as u16
+}
+
 impl SplitViewState {
     pub const DEFAULT_PRIMARY_WIDTH: u16 = 50;
     pub const MIN_PRIMARY_WIDTH: u16 = 30;
@@ -144,7 +154,7 @@ fn clamp_primary_width(width: u16) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{SplitResize, SplitViewState};
+    use super::{SplitResize, SplitViewState, synced_scroll_offset};
 
     #[test]
     fn toggles_to_first_non_active_document() {
@@ -197,5 +207,15 @@ mod tests {
 
         assert_eq!(split.cycle_secondary(Some(0), 3, 1), Some(2));
         assert_eq!(split.cycle_secondary(Some(0), 3, -1), Some(2));
+    }
+
+    #[test]
+    fn maps_synced_scroll_offset_by_relative_progress() {
+        assert_eq!(synced_scroll_offset(0, 100, 50), 0);
+        assert_eq!(synced_scroll_offset(50, 100, 20), 10);
+        assert_eq!(synced_scroll_offset(100, 100, 50), 50);
+        assert_eq!(synced_scroll_offset(150, 100, 50), 50);
+        assert_eq!(synced_scroll_offset(50, 0, 50), 0);
+        assert_eq!(synced_scroll_offset(50, 100, 0), 0);
     }
 }

@@ -13,6 +13,8 @@ Current GUI behavior:
 - The first heading is highlighted when a document is opened, selected, reloaded,
   or when the reader is at the top.
 - In Split View, the table of contents follows the active/primary pane only.
+- In Split View, the secondary pane follows the active/primary pane's normalized
+  scroll progress.
 
 Current TUI behavior:
 
@@ -22,6 +24,8 @@ Current TUI behavior:
 - While the TOC is focused, `j` / `k` or arrow keys move the TOC selection and
   `Enter` jumps the reader to the selected heading.
 - The active TOC marker is preserved across live reload after scroll clamping.
+- In Split View, the side pane follows the active pane's relative rendered-line
+  scroll progress.
 
 ## Implementation Notes
 
@@ -44,12 +48,13 @@ Current TUI behavior:
   or above the viewport.
 - The TUI keeps TOC selection local to `ReaderApp`, clamps it after reload, and
   uses the same block-line anchors for active highlighting and jumps.
+- `paperview-core::synced_scroll_offset` maps primary scroll offsets to
+  secondary scroll offsets by relative progress for split-pane synchronization.
 
 ## Open Decisions
 
 - Exact pixel-accurate heading activation is deferred until reader rendering
   exposes actual per-block layout rectangles.
-- Split-pane scroll synchronization is deferred.
 - Independent scroll position persistence is deferred.
 - TUI mouse-based TOC navigation is deferred.
 

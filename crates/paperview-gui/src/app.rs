@@ -297,7 +297,7 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::SplitDragMoved { x, width } => state.move_split_drag(x, width),
         Message::SplitDragStarted => state.start_split_drag(),
         Message::SplitDragEnded => state.end_split_drag(),
-        Message::ReaderScrolled(progress) => state.sync_active_toc_to_scroll(progress),
+        Message::ReaderScrolled(progress) => return state.sync_active_toc_to_scroll(progress),
         Message::OpenLink(target) => return state.open_link(target),
         Message::LinkOpened => {}
         Message::LinkOpenFailed(error) => {
@@ -534,14 +534,29 @@ impl PaperView {
             .and_then(|document| first_toc_block_index(document.parsed()));
     }
 
-    fn sync_active_toc_to_scroll(&mut self, progress: f32) {
+    fn sync_active_toc_to_scroll(&mut self, progress: f32) -> Task<Message> {
         let Some(document) = self.documents.active() else {
             self.active_toc_block_index = None;
-            return;
+            return Task::none();
         };
 
         self.active_toc_block_index =
             reader::active_heading_for_scroll(document.parsed(), progress);
+        self.sync_split_scroll(progress)
+    }
+
+    fn sync_split_scroll(&self, progress: f32) -> Task<Message> {
+        if self.split_view.secondary_index().is_none() || self.zen_mode.is_enabled() {
+            return Task::none();
+        }
+
+        operation::snap_to(
+            reader::SPLIT_READER_SCROLLABLE_ID,
+            RelativeOffset {
+                x: 0.0,
+                y: normalized_scroll_progress(progress),
+            },
+        )
     }
 
     fn scroll_to_toc_block(&self, block_index: usize) -> Task<Message> {
@@ -796,6 +811,14 @@ fn search_scroll_progress(document: &Document, line_index: usize) -> f32 {
         0.0
     } else {
         (line_index as f32 / (line_count - 1) as f32).clamp(0.0, 1.0)
+    }
+}
+
+fn normalized_scroll_progress(progress: f32) -> f32 {
+    if progress.is_finite() {
+        progress.clamp(0.0, 1.0)
+    } else {
+        0.0
     }
 }
 
@@ -1075,10 +1098,9 @@ fn split_reader<'a>(
             ))
             .width(Length::FillPortion(primary_width)),
             split_divider(is_divider_active),
-            container(reader::view_with_remote_images(
+            container(reader::split_view_with_remote_images(
                 secondary,
                 Message::OpenLink,
-                None,
                 &state.remote_images
             ))
             .width(Length::FillPortion(secondary_width))
@@ -1384,9 +1406,9 @@ mod tests {
     };
 
     use super::{
-        Message, PaperView, SplitResize, is_split_divider_hit, open_link_target, reader,
-        remote_image_placeholders, resolve_link_target, runtime_event, search_scroll_progress,
-        split_primary_width_from_cursor, title, update,
+        Message, PaperView, SplitResize, is_split_divider_hit, normalized_scroll_progress,
+        open_link_target, reader, remote_image_placeholders, resolve_link_target, runtime_event,
+        search_scroll_progress, split_primary_width_from_cursor, title, update,
     };
 
     #[test]
@@ -1602,6 +1624,14 @@ mod tests {
         assert_eq!(search_scroll_progress(&document, 0), 0.0);
         assert!(search_scroll_progress(&document, 1) > 0.3);
         assert_eq!(search_scroll_progress(&document, usize::MAX), 1.0);
+    }
+
+    #[test]
+    fn split_scroll_progress_is_bounded() {
+        assert_eq!(normalized_scroll_progress(-1.0), 0.0);
+        assert_eq!(normalized_scroll_progress(f32::NAN), 0.0);
+        assert_eq!(normalized_scroll_progress(0.5), 0.5);
+        assert_eq!(normalized_scroll_progress(2.0), 1.0);
     }
 
     #[test]

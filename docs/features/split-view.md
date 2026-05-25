@@ -17,6 +17,8 @@ Current GUI behavior:
 - Split View only activates when at least two tabs are open.
 - When enabled, the active document renders in the left pane and the secondary
   document renders in the right pane.
+- The secondary pane tracks the primary pane's normalized scroll progress while
+  Split View is enabled.
 - Choose the secondary pane from any non-active tab while Split View is on.
 - Selecting the document currently used as the secondary pane retargets the
   secondary pane to another open tab when one exists.
@@ -34,6 +36,7 @@ Current TUI behavior:
 - Resize the primary pane with `<` / `>` while Split View is on.
 - Loads the initial primary pane width from config and saves changes when resized.
 - The left active pane owns scrolling, search, and TOC highlighting.
+- The right side pane tracks the active pane's relative scroll progress.
 - Selecting the document currently used as the secondary pane retargets the
   secondary pane to another open tab when one exists.
 - Closing the secondary tab retargets the split pane or disables Split View when
@@ -59,10 +62,12 @@ Current TUI behavior:
 - History and table-of-contents sidebars remain visible in Split View.
 - The table of contents follows the active document only.
 - Live reload remains scoped to the active document watcher.
+- Split scroll synchronization maps primary scroll progress to the secondary
+  line buffer with `paperview-core::synced_scroll_offset`.
 
 ## Open Decisions
 
-- Independent scroll persistence and scroll synchronization are deferred.
+- Independent scroll persistence is deferred.
 - Per-document Split View ratio persistence is deferred.
 
 ## Verification

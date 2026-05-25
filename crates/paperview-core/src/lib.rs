@@ -20,7 +20,7 @@ pub use open_documents::OpenDocuments;
 pub use search::{
     SearchMatch, WorkspaceSearchError, WorkspaceSearchMatch, search_lines, search_workspace,
 };
-pub use split_view::{SplitResize, SplitViewState};
+pub use split_view::{SplitResize, SplitViewState, synced_scroll_offset};
 pub use stats::{DocumentStats, StatsHeading, document_stats};
 pub use watcher::{FileWatcher, WatchError, WatchEvent, watch_file};
 pub use zen_mode::ZenModeState;
