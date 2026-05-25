@@ -48,7 +48,7 @@ This document tracks the progress of features across the three workspace crates.
 - Scroll Synchronization currently covers GUI active-reader TOC highlighting and click-to-scroll navigation based on estimated reader heading anchors, plus TUI active-TOC highlighting and keyboard TOC jumps from rendered line anchors; exact GUI layout rectangles, split-pane scroll sync, and mouse-based TUI TOC navigation are deferred.
 - In-Document Search currently covers shared case-insensitive line search, GUI header query with previous/next controls, rendered-text highlighting with stronger selected-match emphasis, and TUI `/`, `n`, and `N` navigation with highlighted match lines; exact rendered-line geometry is deferred.
 - LaTeX Support currently covers structured inline math spans, a dedicated display math block, GUI and TUI readable previews for common display math tokens, source-preserving display math, and inline math export metadata; full formula typesetting is deferred.
-- Mermaid Support currently covers parser recognition for `mermaid` fences, source-preserving diagram panels in GUI/TUI, and simple GUI/TUI flowchart previews with common labeled edge forms; full Mermaid layout, validation, and export assets are deferred.
+- Mermaid Support currently covers parser recognition for `mermaid` fences, source-preserving diagram panels in GUI/TUI/export, and simple GUI/TUI/HTML-export flowchart previews with common labeled edge forms; full Mermaid layout, validation, and rich rendered assets are deferred.
 - Table Rendering currently covers structured table parsing, inline cell formatting, GUI table panels, aligned TUI table output, and TUI long-cell wrapping; wide-table scrolling and responsive GUI column sizing are deferred.
 - Task List Rendering currently covers checked and unchecked task markers in the shared parser model, GUI checkbox toggles with file writeback, and TUI file-backed task toggles from the current reader line; nested list structure is deferred.
 - Image Rendering currently covers standalone image metadata blocks, inline image text preservation, GUI local and remote bitmap previews with metadata fallback, relative-path resolution, and TUI Markdown image output with local/remote/missing metadata lines; decoded-dimension layout and click-to-zoom are deferred.
@@ -61,7 +61,7 @@ This document tracks the progress of features across the three workspace crates.
 | Command | Status | Notes |
 | :--- | :---: | :--- |
 | **paperview search** | ✅ | Prints ripgrep-backed path, line, column, and text results; `--interactive` opens a TUI result picker |
-| **paperview export** | 🏗️ | HTML export writes standalone styled `.html`; PDF export writes a text-first `.pdf` with basic layout |
+| **paperview export** | 🏗️ | HTML export writes standalone styled `.html` with static Mermaid previews; PDF export writes a text-first `.pdf` with basic layout |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, heading structure, and optional JSON |
 | **paperview perf** | ✅ | Prints shape, deterministic memory estimate, target status, and baseline timings |
 | **paperview config** | ✅ | Supports config path/edit plus theme, GUI/TUI Zen Mode, and Split View width preferences |

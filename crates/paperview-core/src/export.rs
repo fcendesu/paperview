@@ -1,6 +1,8 @@
 use crate::{
     Document,
-    parser::{Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TableCell},
+    parser::{
+        Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TableCell, elements::diagram,
+    },
 };
 
 use std::{error::Error, fmt, str::FromStr};
@@ -157,6 +159,9 @@ fn render_block(block: &Block, heading_slug: Option<&str>, output: &mut String) 
             render_code_block(language.as_deref(), code, "source-panel code-panel", output)
         }
         Block::Diagram { language, source } => {
+            if let Some(preview) = diagram::flowchart_preview(source) {
+                render_flowchart_preview(preview, output);
+            }
             render_code_block(Some(language), source, "source-panel diagram-panel", output);
         }
         Block::Image { alt, url, title } => {
@@ -228,6 +233,37 @@ fn render_code_block(language: Option<&str>, code: &str, block_class: &str, outp
     output.push('>');
     output.push_str(&escape_text(code));
     output.push_str("</code></pre>\n");
+}
+
+fn render_flowchart_preview(preview: diagram::FlowchartPreview, output: &mut String) {
+    let direction = match preview.direction {
+        diagram::FlowchartDirection::TopDown => "top down",
+        diagram::FlowchartDirection::BottomTop => "bottom to top",
+        diagram::FlowchartDirection::LeftRight => "left to right",
+        diagram::FlowchartDirection::RightLeft => "right to left",
+    };
+
+    output.push_str(
+        "<section class=\"flowchart-preview\"><p class=\"flowchart-title\">flowchart preview - ",
+    );
+    output.push_str(direction);
+    output.push_str("</p>\n");
+
+    for edge in preview.edges {
+        output.push_str("<div class=\"flowchart-edge\"><span class=\"flowchart-node\">");
+        output.push_str(&escape_text(&edge.from));
+        output.push_str("</span><span class=\"flowchart-arrow\">-&gt;</span>");
+        if let Some(label) = edge.label {
+            output.push_str("<span class=\"flowchart-label\">");
+            output.push_str(&escape_text(&label));
+            output.push_str("</span>");
+        }
+        output.push_str("<span class=\"flowchart-node\">");
+        output.push_str(&escape_text(&edge.to));
+        output.push_str("</span></div>\n");
+    }
+
+    output.push_str("</section>\n");
 }
 
 fn render_table(
@@ -848,6 +884,40 @@ const CSS: &str = r#"    :root {
     .diagram-panel {
       border-left: 4px solid var(--accent);
     }
+    .flowchart-preview {
+      margin: 1em 0 0.6em;
+      padding: 1em;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      background: var(--panel-bg);
+    }
+    .flowchart-title {
+      margin: 0 0 0.75em;
+      color: var(--muted-text);
+      font-size: 0.9em;
+    }
+    .flowchart-edge {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5em;
+      margin-top: 0.5em;
+    }
+    .flowchart-node {
+      padding: 0.35em 0.6em;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--paper-bg);
+    }
+    .flowchart-arrow {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .flowchart-label {
+      color: var(--muted-text);
+      font-size: 0.9em;
+    }
     code {
       font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.92em;
@@ -942,11 +1012,35 @@ mod tests {
         assert!(html.contains("--shell-bg: #111318;"));
         assert!(html.contains("--paper-bg: #fdf8ef;"));
         assert!(html.contains(".source-panel"));
+        assert!(html.contains(".flowchart-preview"));
         assert!(html.contains("<blockquote class=\"callout\">"));
         assert!(html.contains(
             "<pre class=\"source-panel diagram-panel\"><code class=\"language-mermaid\">"
         ));
         assert!(html.contains("<pre class=\"math display\"><code>"));
+    }
+
+    #[test]
+    fn exports_mermaid_flowchart_preview_html() {
+        let document =
+            Document::from_source("```mermaid\nflowchart LR\n  A[Start] -- yes --> B{Done}\n```");
+        let html = export_html(&document);
+
+        assert!(html.contains("<section class=\"flowchart-preview\">"));
+        assert!(html.contains("flowchart preview - left to right"));
+        assert!(html.contains("<span class=\"flowchart-node\">Start</span>"));
+        assert!(html.contains("<span class=\"flowchart-label\">yes</span>"));
+        assert!(html.contains("<span class=\"flowchart-node\">Done</span>"));
+        assert!(html.contains("<pre class=\"source-panel diagram-panel\"><code class=\"language-mermaid\">flowchart LR"));
+    }
+
+    #[test]
+    fn exports_unsupported_mermaid_as_source_only() {
+        let document = Document::from_source("```mermaid\nsequenceDiagram\nA->>B: Hello\n```");
+        let html = export_html(&document);
+
+        assert!(!html.contains("<section class=\"flowchart-preview\">"));
+        assert!(html.contains("<pre class=\"source-panel diagram-panel\"><code class=\"language-mermaid\">sequenceDiagram"));
     }
 
     #[test]

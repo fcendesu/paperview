@@ -18,6 +18,8 @@ graph TD
 - The TUI renders Mermaid source with the original fenced-code shape. Simple
   `graph` and `flowchart` edge lists, including common labeled arrow forms,
   also get a compact text flowchart preview.
+- HTML export renders the same simple flowchart preview above the preserved
+  Mermaid source panel.
 
 This is still a foundation slice. PaperView does not yet implement full Mermaid
 layout, validate Mermaid syntax, or provide export-specific diagram assets.
@@ -35,17 +37,21 @@ layout, validate Mermaid syntax, or provide export-specific diagram assets.
   keeps the original Mermaid source visible below the preview.
 - `paperview-tui::render` renders parsed flowchart edges as compact text rows
   and keeps the original Mermaid source visible below the preview.
+- HTML export renders parsed flowchart edges as static node/edge rows and keeps
+  the original Mermaid source visible below the preview.
 
 ## Open Decisions
 
 - Decide whether full Mermaid rendering should use a native layout engine, a
   bundled renderer, or export-time assets.
-- Decide how rendered Mermaid assets should participate in future export.
+- Decide how full rendered Mermaid assets should participate in future export.
 
 ## Verification
 
 - Parser tests cover Mermaid fence detection and non-Mermaid code preservation.
 - Core diagram tests cover simple and labeled flowchart preview parsing.
 - TUI tests cover Mermaid source output and simple flowchart preview output.
+- Export tests cover simple Mermaid flowchart preview output and source-only
+  fallback for unsupported Mermaid diagrams.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.
