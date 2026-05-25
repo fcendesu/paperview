@@ -61,7 +61,7 @@ This document tracks the progress of features across the three workspace crates.
 | Command | Status | Notes |
 | :--- | :---: | :--- |
 | **paperview search** | ✅ | Prints ripgrep-backed path, line, column, and text results; `--interactive` opens a TUI result picker |
-| **paperview export** | 🏗️ | HTML export writes standalone styled `.html` with static Mermaid previews; PDF export writes a text-first `.pdf` with basic layout |
+| **paperview export** | 🏗️ | HTML export writes standalone styled `.html` with static Mermaid previews; PDF export writes a text-first `.pdf` with basic layout and padded/wrapped tables |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, heading structure, and optional JSON |
 | **paperview perf** | ✅ | Prints shape, deterministic memory estimate, target status, and baseline timings |
 | **paperview config** | ✅ | Supports config path/edit plus theme, GUI/TUI Zen Mode, and Split View width preferences |

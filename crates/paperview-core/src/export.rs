@@ -464,14 +464,11 @@ fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
                 push_wrapped_pdf_lines(title, 10, lines);
             }
         }
-        Block::Table { header, rows, .. } => {
-            if !header.is_empty() {
-                push_wrapped_pdf_lines(&pdf_table_row(header), 10, lines);
-            }
-            for row in rows {
-                push_wrapped_pdf_lines(&pdf_table_row(row), 10, lines);
-            }
-        }
+        Block::Table {
+            alignments,
+            header,
+            rows,
+        } => push_pdf_table(alignments, header, rows, lines),
         Block::List { ordered, items } => {
             for (index, item) in items.iter().enumerate() {
                 let marker = match item.checked {
@@ -559,11 +556,144 @@ fn inline_plain_text(spans: &[InlineSpan]) -> String {
     spans.iter().map(|span| span.text.as_str()).collect()
 }
 
-fn pdf_table_row(row: &[TableCell]) -> String {
-    row.iter()
-        .map(|cell| inline_plain_text(cell))
+const PDF_TABLE_MAX_COLUMN_WIDTH: usize = 24;
+const PDF_TABLE_INDENT: u16 = 14;
+
+fn push_pdf_table(
+    alignments: &[TableAlignment],
+    header: &[TableCell],
+    rows: &[Vec<TableCell>],
+    lines: &mut Vec<PdfLine>,
+) {
+    let widths = pdf_table_widths(header, rows);
+    if widths.is_empty() {
+        return;
+    }
+
+    if !header.is_empty() {
+        push_pdf_table_row(header, &widths, alignments, lines);
+        lines.push(
+            pdf_line(pdf_table_separator(&widths, alignments), 10)
+                .with_indent(PDF_TABLE_INDENT)
+                .with_gap_after(2),
+        );
+    }
+
+    for row in rows {
+        push_pdf_table_row(row, &widths, alignments, lines);
+    }
+}
+
+fn pdf_table_widths(header: &[TableCell], rows: &[Vec<TableCell>]) -> Vec<usize> {
+    let column_count = rows
+        .iter()
+        .map(Vec::len)
+        .chain(std::iter::once(header.len()))
+        .max()
+        .unwrap_or(0);
+    let mut widths = vec![3; column_count];
+
+    for (index, cell) in header.iter().enumerate() {
+        widths[index] = widths[index].max(pdf_table_cell_width(cell));
+    }
+    for row in rows {
+        for (index, cell) in row.iter().enumerate() {
+            widths[index] = widths[index].max(pdf_table_cell_width(cell));
+        }
+    }
+
+    widths
+}
+
+fn pdf_table_cell_width(cell: &[InlineSpan]) -> usize {
+    inline_plain_text(cell)
+        .chars()
+        .count()
+        .min(PDF_TABLE_MAX_COLUMN_WIDTH)
+}
+
+fn push_pdf_table_row(
+    cells: &[TableCell],
+    widths: &[usize],
+    alignments: &[TableAlignment],
+    lines: &mut Vec<PdfLine>,
+) {
+    let wrapped_cells = widths
+        .iter()
+        .enumerate()
+        .map(|(index, width)| {
+            cells
+                .get(index)
+                .map(|cell| wrap_pdf_text(&inline_plain_text(cell), *width))
+                .unwrap_or_else(|| vec![String::new()])
+        })
+        .collect::<Vec<_>>();
+    let line_count = wrapped_cells.iter().map(Vec::len).max().unwrap_or(1);
+
+    for line_index in 0..line_count {
+        let row = widths
+            .iter()
+            .enumerate()
+            .map(|(index, width)| {
+                let value = wrapped_cells
+                    .get(index)
+                    .and_then(|wrapped| wrapped.get(line_index))
+                    .map_or("", String::as_str);
+                aligned_pdf_table_cell(
+                    value,
+                    *width,
+                    alignments
+                        .get(index)
+                        .copied()
+                        .unwrap_or(TableAlignment::None),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" | ");
+        lines.push(pdf_line(format!("| {row} |"), 10).with_indent(PDF_TABLE_INDENT));
+    }
+}
+
+fn pdf_table_separator(widths: &[usize], alignments: &[TableAlignment]) -> String {
+    let cells = widths
+        .iter()
+        .enumerate()
+        .map(|(index, width)| {
+            match alignments
+                .get(index)
+                .copied()
+                .unwrap_or(TableAlignment::None)
+            {
+                TableAlignment::Left => format!(":{:-<width$}", "-", width = width - 1),
+                TableAlignment::Center => {
+                    if *width <= 2 {
+                        ":-:".to_owned()
+                    } else {
+                        format!(":{:-<width$}:", "-", width = width - 2)
+                    }
+                }
+                TableAlignment::Right => format!("{:-<width$}:", "-", width = width - 1),
+                TableAlignment::None => "-".repeat(*width),
+            }
+        })
         .collect::<Vec<_>>()
-        .join(" | ")
+        .join(" | ");
+
+    format!("| {cells} |")
+}
+
+fn aligned_pdf_table_cell(value: &str, width: usize, alignment: TableAlignment) -> String {
+    let padding = width.saturating_sub(value.chars().count());
+
+    match alignment {
+        TableAlignment::Right => format!("{}{value}", " ".repeat(padding)),
+        TableAlignment::Center => {
+            let left = padding / 2;
+            let right = padding - left;
+            format!("{}{}{}", " ".repeat(left), value, " ".repeat(right))
+        }
+        TableAlignment::None | TableAlignment::Left => format!("{value}{}", " ".repeat(padding)),
+    }
 }
 
 fn push_wrapped_pdf_lines(text: &str, size: u16, lines: &mut Vec<PdfLine>) {
@@ -1101,6 +1231,34 @@ mod tests {
         assert!(pdf_text.contains("(- [x] Done) Tj"));
         assert!(pdf_text.contains("(code: rust) Tj"));
         assert!(pdf_text.contains("(fn main\\(\\) {}) Tj"));
+    }
+
+    #[test]
+    fn exports_pdf_table_structure() {
+        let document = Document::from_source(
+            "| Feature | Status |\n| :--- | ---: |\n| GUI | Done |\n| TUI | In progress |\n",
+        );
+        let pdf = export_pdf(&document);
+        let pdf_text = String::from_utf8_lossy(&pdf);
+
+        assert!(pdf_text.contains("(| Feature |      Status |) Tj"));
+        assert!(pdf_text.contains("(| :------ | ----------: |) Tj"));
+        assert!(pdf_text.contains("(| GUI     |        Done |) Tj"));
+        assert!(pdf_text.contains("(| TUI     | In progress |) Tj"));
+    }
+
+    #[test]
+    fn exports_pdf_wrapped_table_cells() {
+        let document = Document::from_source(
+            "| Feature | Notes |\n| --- | --- |\n| TUI | This cell has enough words to wrap across more than one PDF table line. |\n",
+        );
+        let pdf = export_pdf(&document);
+        let pdf_text = String::from_utf8_lossy(&pdf);
+
+        assert!(pdf_text.contains("(| TUI     | This cell has enough     |) Tj"));
+        assert!(pdf_text.contains("(|         | words to wrap across     |) Tj"));
+        assert!(pdf_text.contains("(|         | more than one PDF table  |) Tj"));
+        assert!(pdf_text.contains("(|         | line.                    |) Tj"));
     }
 
     #[test]

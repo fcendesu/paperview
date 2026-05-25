@@ -21,10 +21,12 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.pdf`.
 - HTML export is implemented through the shared export path.
 - `paperview-core::export_pdf` writes a dependency-light PDF 1.4 document using
   built-in Helvetica text.
-- The first PDF backend preserves headings, paragraphs, lists, tables,
-  code/math/diagram source blocks, rules, and image metadata text.
+- The first PDF backend preserves headings, paragraphs, lists, text-shaped
+  tables, code/math/diagram source blocks, rules, and image metadata text.
 - PDF output uses a larger title treatment, heading sizes and spacing, indented
   lists/source blocks, wrapped text, and vertical-space page breaks.
+- PDF tables render with padded columns, a header separator, basic alignment,
+  and wrapped long cells.
 - Exported PDFs include heading-derived outline/bookmark entries so PDF readers
   can expose document navigation.
 - The TUI command parses `--to html|pdf`, asks core for an artifact, writes
