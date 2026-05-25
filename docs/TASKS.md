@@ -51,7 +51,7 @@ This document tracks the progress of features across the three workspace crates.
 - Mermaid Support currently covers parser recognition for `mermaid` fences, source-preserving diagram panels in GUI/TUI/export, and simple GUI/TUI/HTML-export flowchart previews with common labeled edge forms; full Mermaid layout, validation, and rich rendered assets are deferred.
 - Table Rendering currently covers structured table parsing, inline cell formatting, GUI table panels, aligned TUI table output, and TUI long-cell wrapping; wide-table scrolling and responsive GUI column sizing are deferred.
 - Task List Rendering currently covers checked and unchecked task markers in the shared parser model, GUI checkbox toggles with file writeback, and TUI file-backed task toggles from the current reader line; nested list structure is deferred.
-- Image Rendering currently covers standalone image metadata blocks, inline image text preservation, GUI local and remote bitmap previews with metadata fallback, relative-path resolution, and TUI Markdown image output with local/remote/missing metadata lines; decoded-dimension layout and click-to-zoom are deferred.
+- Image Rendering currently covers standalone image metadata blocks, inline image text preservation, GUI local and remote bitmap previews with metadata fallback, relative-path resolution, TUI Markdown image output with local/remote/missing metadata lines, and PDF image placeholders with local/remote/missing status; decoded-dimension layout and click-to-zoom are deferred.
 - Inline Span Rendering currently covers heading, paragraph, list, blockquote, and table-cell bold, italic, inline code, and link metadata. GUI renders rich text with clickable links, including in-document heading anchors, and TUI renders Markdown-shaped inline text.
 
 ---
@@ -61,7 +61,7 @@ This document tracks the progress of features across the three workspace crates.
 | Command | Status | Notes |
 | :--- | :---: | :--- |
 | **paperview search** | ✅ | Prints ripgrep-backed path, line, column, and text results; `--interactive` opens a TUI result picker |
-| **paperview export** | 🏗️ | HTML export writes standalone styled `.html` with static Mermaid previews; PDF export writes a text-first `.pdf` with basic layout and padded/wrapped tables |
+| **paperview export** | 🏗️ | HTML export writes standalone styled `.html` with static Mermaid previews; PDF export writes a text-first `.pdf` with basic layout, padded/wrapped tables, and image metadata placeholders |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, heading structure, and optional JSON |
 | **paperview perf** | ✅ | Prints shape, deterministic memory estimate, target status, and baseline timings |
 | **paperview config** | ✅ | Supports config path/edit plus theme, GUI/TUI Zen Mode, and Split View width preferences |

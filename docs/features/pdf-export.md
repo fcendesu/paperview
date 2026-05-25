@@ -27,6 +27,9 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.pdf`.
   lists/source blocks, wrapped text, and vertical-space page breaks.
 - PDF tables render with padded columns, a header separator, basic alignment,
   and wrapped long cells.
+- PDF image placeholders identify remote URLs, unresolved paths, missing local
+  files, or existing local files with byte size, and preserve image titles as
+  caption lines.
 - Exported PDFs include heading-derived outline/bookmark entries so PDF readers
   can expose document navigation.
 - The TUI command parses `--to html|pdf`, asks core for an artifact, writes

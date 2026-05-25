@@ -5,7 +5,12 @@ use crate::{
     },
 };
 
-use std::{error::Error, fmt, str::FromStr};
+use std::{
+    error::Error,
+    fmt, fs,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExportFormat {
@@ -420,13 +425,13 @@ fn pdf_lines(document: &Document) -> Vec<PdfLine> {
     ];
 
     for block in &document.parsed().blocks {
-        render_pdf_block(block, &mut lines);
+        render_pdf_block(block, document.path().map(PathBuf::as_path), &mut lines);
     }
 
     lines
 }
 
-fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
+fn render_pdf_block(block: &Block, document_path: Option<&Path>, lines: &mut Vec<PdfLine>) {
     match block {
         Block::Heading { level, spans } => {
             lines.push(
@@ -458,11 +463,7 @@ fn render_pdf_block(block: &Block, lines: &mut Vec<PdfLine>) {
             push_preformatted_pdf_lines(source, lines);
         }
         Block::Image { alt, url, title } => {
-            let label = if alt.trim().is_empty() { "Image" } else { alt };
-            push_wrapped_pdf_lines(&format!("[image] {label}: {url}"), 11, lines);
-            if !title.trim().is_empty() {
-                push_wrapped_pdf_lines(title, 10, lines);
-            }
+            push_pdf_image_metadata(alt, url, title, document_path, lines);
         }
         Block::Table {
             alignments,
@@ -554,6 +555,88 @@ fn pdf_line(text: String, size: u16) -> PdfLine {
 
 fn inline_plain_text(spans: &[InlineSpan]) -> String {
     spans.iter().map(|span| span.text.as_str()).collect()
+}
+
+fn push_pdf_image_metadata(
+    alt: &str,
+    url: &str,
+    title: &str,
+    document_path: Option<&Path>,
+    lines: &mut Vec<PdfLine>,
+) {
+    let label = if alt.trim().is_empty() {
+        "Image"
+    } else {
+        alt.trim()
+    };
+    push_wrapped_pdf_lines(
+        &format!("[image] {label}: {}", pdf_image_status(url, document_path)),
+        11,
+        lines,
+    );
+    if !title.trim().is_empty() {
+        push_wrapped_pdf_lines_with_indent(
+            &format!("caption: {}", title.trim()),
+            10,
+            PDF_TABLE_INDENT,
+            PDF_BODY_WRAP_CHARS.saturating_sub(4),
+            lines,
+        );
+    }
+}
+
+fn pdf_image_status(url: &str, document_path: Option<&Path>) -> String {
+    if is_remote_url(url) {
+        return format!("remote {url}");
+    }
+
+    let Some(path) = resolve_local_image_path(url, document_path) else {
+        return format!("unresolved {url}");
+    };
+
+    match fs::metadata(&path) {
+        Ok(metadata) if metadata.is_file() => {
+            format!(
+                "local {} ({})",
+                path.display(),
+                format_bytes(metadata.len())
+            )
+        }
+        Ok(_) => format!("not a file {}", path.display()),
+        Err(_) => format!("missing {}", path.display()),
+    }
+}
+
+fn resolve_local_image_path(url: &str, document_path: Option<&Path>) -> Option<PathBuf> {
+    if url.trim().is_empty() || url.contains("://") || url.starts_with("data:") {
+        return None;
+    }
+
+    let path = PathBuf::from(url);
+    if path.is_absolute() {
+        return Some(path);
+    }
+
+    document_path
+        .and_then(Path::parent)
+        .map(|parent| parent.join(path))
+}
+
+fn is_remote_url(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = 1024.0 * 1024.0;
+
+    if bytes < 1024 {
+        format!("{bytes}B")
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1}KiB", bytes as f64 / KIB)
+    } else {
+        format!("{:.1}MiB", bytes as f64 / MIB)
+    }
 }
 
 const PDF_TABLE_MAX_COLUMN_WIDTH: usize = 24;
@@ -1109,6 +1192,8 @@ const CSS: &str = r#"    :root {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use crate::{
         Document,
         export::{ExportFormat, export_document, export_html, export_pdf},
@@ -1262,6 +1347,50 @@ mod tests {
     }
 
     #[test]
+    fn exports_pdf_local_image_metadata() {
+        let dir = temp_dir("pdf-img");
+        let image_path = dir.join("preview.png");
+        let document_path = dir.join("notes.md");
+        fs::write(&image_path, [0_u8; 2048]).expect("write image file");
+        let document = Document::from_source("![Preview](preview.png \"System diagram\")")
+            .with_path(document_path);
+        let pdf = export_pdf(&document);
+        let pdf_text = String::from_utf8_lossy(&pdf);
+
+        assert!(pdf_text.contains(&format!(
+            "([image] Preview: local {} \\(2.0KiB\\)) Tj",
+            image_path.display()
+        )));
+        assert!(pdf_text.contains("(caption: System diagram) Tj"));
+
+        fs::remove_file(image_path).expect("remove image file");
+        fs::remove_dir(dir).expect("remove temp dir");
+    }
+
+    #[test]
+    fn exports_pdf_missing_and_remote_image_metadata() {
+        let dir = temp_dir("pdf-miss");
+        let document_path = dir.join("notes.md");
+        let missing = Document::from_source("![Missing](missing.png)").with_path(&document_path);
+        let remote = Document::from_source("![Remote](https://example.com/preview.png)");
+
+        let missing_pdf = export_pdf(&missing);
+        let missing_text = String::from_utf8_lossy(&missing_pdf);
+        assert!(missing_text.contains(&format!(
+            "([image] Missing: missing {}) Tj",
+            dir.join("missing.png").display()
+        )));
+
+        let remote_pdf = export_pdf(&remote);
+        let remote_text = String::from_utf8_lossy(&remote_pdf);
+        assert!(
+            remote_text.contains("([image] Remote: remote https://example.com/preview.png) Tj")
+        );
+
+        fs::remove_dir(dir).expect("remove temp dir");
+    }
+
+    #[test]
     fn exports_pdf_heading_outlines() {
         let document = Document::from_source("# Intro\n\nBody.\n\n## Details\n\nMore.");
         let pdf = export_pdf(&document);
@@ -1287,5 +1416,15 @@ mod tests {
         let pdf_text = String::from_utf8_lossy(&pdf);
 
         assert!(pdf_text.contains("/Count 3") || pdf_text.contains("/Count 4"));
+    }
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let path = std::path::PathBuf::from("target")
+            .join(format!("paperview-{name}-{}", std::process::id()));
+        if path.exists() {
+            fs::remove_dir_all(&path).expect("remove stale temp dir");
+        }
+        fs::create_dir_all(&path).expect("create temp dir");
+        path
     }
 }

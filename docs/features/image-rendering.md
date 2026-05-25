@@ -17,6 +17,9 @@ PaperView preserves Markdown image metadata.
 - The TUI renders standalone images in Markdown image syntax plus a metadata
   line that identifies remote images, unresolved paths, missing local files, or
   existing local files with byte size.
+- PDF export renders standalone images as text placeholders with the same
+  local, missing, unresolved, and remote status categories, including local file
+  size when available.
 
 This is still a first pass. PaperView does not yet resize images from actual
 decoded dimensions or support click-to-zoom.
@@ -30,7 +33,7 @@ decoded dimensions or support click-to-zoom.
 - Inline images stay textual until PaperView has image-specific inline spans.
 - The GUI uses Iced image widgets for local image files.
 - Relative standalone image URLs resolve against the active document path in GUI
-  previews and TUI local metadata lines.
+  previews, TUI local metadata lines, and PDF image placeholders.
 - Remote image fetching stays in `paperview-gui`; core remains responsible for
   image metadata parsing only.
 - Remote image bytes are cached in GUI state for the current session and are
@@ -50,5 +53,6 @@ decoded dimensions or support click-to-zoom.
   remote image loading placeholders.
 - TUI tests cover Markdown image output plus local, missing, unresolved, and
   remote metadata lines.
+- PDF export tests cover local, missing, and remote image placeholder metadata.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.
