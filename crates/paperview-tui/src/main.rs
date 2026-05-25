@@ -42,6 +42,16 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             println!("{}", stats_text(&document));
             Ok(())
         }
+        [command, mode] if command == "perf" && mode == "startup" => {
+            let report = measure_startup(None)?;
+            println!("{}", startup_perf_text(&report));
+            Ok(())
+        }
+        [command, mode, path] if command == "perf" && mode == "startup" => {
+            let report = measure_startup(Some(PathBuf::from(path)))?;
+            println!("{}", startup_perf_text(&report));
+            Ok(())
+        }
         [command, path] if command == "perf" => {
             let report = measure_perf(PathBuf::from(path))?;
             println!("{}", perf_text(&report));
@@ -111,7 +121,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         _ => Err(
-            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
+            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
                 .to_owned(),
         ),
     }
@@ -277,6 +287,37 @@ struct PerfReport {
     total_duration: Duration,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StartupPerfReport {
+    target: StartupTarget,
+    file: Option<PathBuf>,
+    document_count: usize,
+    rendered_lines: usize,
+    toc_items: usize,
+    history_entries: usize,
+    watcher_enabled: bool,
+    selected_history_entry: Option<usize>,
+    load_target_duration: Duration,
+    document_open_duration: Duration,
+    app_state_duration: Duration,
+    total_duration: Duration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StartupTarget {
+    Dashboard,
+    Reader,
+}
+
+impl StartupTarget {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Dashboard => "dashboard",
+            Self::Reader => "reader",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ScrollWorkload {
     viewport_lines: usize,
@@ -372,6 +413,61 @@ fn measure_perf(path: PathBuf) -> Result<PerfReport, String> {
     })
 }
 
+fn measure_startup(path: Option<PathBuf>) -> Result<StartupPerfReport, String> {
+    let total_started = Instant::now();
+
+    match path {
+        Some(path) => {
+            paperview_core::SupportedFileType::from_path(&path)
+                .ok_or_else(|| format!("unsupported file type: {}", path.display()))?;
+
+            let document_open_started = Instant::now();
+            let document =
+                paperview_core::Document::open(&path).map_err(|error| error.to_string())?;
+            let document_open_duration = document_open_started.elapsed();
+
+            let app_state_started = Instant::now();
+            let probe = app::probe_reader_startup(vec![document]);
+            let app_state_duration = app_state_started.elapsed();
+
+            Ok(StartupPerfReport {
+                target: StartupTarget::Reader,
+                file: Some(path),
+                document_count: probe.document_count,
+                rendered_lines: probe.rendered_lines,
+                toc_items: probe.toc_items,
+                history_entries: 0,
+                watcher_enabled: probe.watcher_enabled,
+                selected_history_entry: None,
+                load_target_duration: LOAD_TARGET_DURATION,
+                document_open_duration,
+                app_state_duration,
+                total_duration: total_started.elapsed(),
+            })
+        }
+        None => {
+            let app_state_started = Instant::now();
+            let probe = app::probe_dashboard_startup();
+            let app_state_duration = app_state_started.elapsed();
+
+            Ok(StartupPerfReport {
+                target: StartupTarget::Dashboard,
+                file: None,
+                document_count: 0,
+                rendered_lines: 0,
+                toc_items: 0,
+                history_entries: probe.history_entries,
+                watcher_enabled: false,
+                selected_history_entry: probe.selected_entry,
+                load_target_duration: LOAD_TARGET_DURATION,
+                document_open_duration: Duration::ZERO,
+                app_state_duration,
+                total_duration: total_started.elapsed(),
+            })
+        }
+    }
+}
+
 fn perf_text(report: &PerfReport) -> String {
     [
         format!("File: {}", report.path.display()),
@@ -424,6 +520,62 @@ fn perf_text(report: &PerfReport) -> String {
         ),
     ]
     .join("\n")
+}
+
+fn startup_perf_text(report: &StartupPerfReport) -> String {
+    let mut output = vec![format!("Startup target: {}", report.target.label())];
+    if let Some(path) = &report.file {
+        output.push(format!("File: {}", path.display()));
+    }
+
+    match report.target {
+        StartupTarget::Reader => {
+            output.extend([
+                format!("Documents: {}", report.document_count),
+                format!("Rendered TUI lines: {}", report.rendered_lines),
+                format!("TOC items: {}", report.toc_items),
+                format!(
+                    "File watcher: {}",
+                    if report.watcher_enabled {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ),
+                format!(
+                    "Document open: {}",
+                    format_duration(report.document_open_duration)
+                ),
+            ]);
+        }
+        StartupTarget::Dashboard => {
+            output.extend([
+                format!("History entries: {}", report.history_entries),
+                format!(
+                    "Selected history entry: {}",
+                    report
+                        .selected_history_entry
+                        .map_or_else(|| "none".to_owned(), |index| index.to_string())
+                ),
+            ]);
+        }
+    }
+
+    output.extend([
+        format!("App state: {}", format_duration(report.app_state_duration)),
+        format!("Total: {}", format_duration(report.total_duration)),
+        format!(
+            "Startup target: under {} ({})",
+            format_duration(report.load_target_duration),
+            if report.total_duration <= report.load_target_duration {
+                "ok"
+            } else {
+                "over"
+            }
+        ),
+    ]);
+
+    output.join("\n")
 }
 
 const MEMORY_TARGET_BYTES: usize = 100 * 1024 * 1024;
@@ -526,9 +678,10 @@ mod tests {
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
     use super::{
-        LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, config_path_text,
-        export_path, format_bytes, format_duration, is_reserved_command, measure_perf,
-        open_documents, perf_text, run, stats_json_text, stats_text, workspace_search_text,
+        LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, StartupPerfReport,
+        StartupTarget, config_path_text, export_path, format_bytes, format_duration,
+        is_reserved_command, measure_perf, measure_startup, open_documents, perf_text, run,
+        startup_perf_text, stats_json_text, stats_text, workspace_search_text,
     };
 
     #[test]
@@ -596,6 +749,59 @@ mod tests {
         assert!(text.contains("Parse: 1.50ms"));
         assert!(text.contains("Total: 4.25ms"));
         assert!(text.contains("Load target: under 500.00ms (ok)"));
+    }
+
+    #[test]
+    fn formats_dashboard_startup_report() {
+        let report = StartupPerfReport {
+            target: StartupTarget::Dashboard,
+            file: None,
+            document_count: 0,
+            rendered_lines: 0,
+            toc_items: 0,
+            history_entries: 2,
+            watcher_enabled: false,
+            selected_history_entry: Some(0),
+            load_target_duration: LOAD_TARGET_DURATION,
+            document_open_duration: Duration::ZERO,
+            app_state_duration: Duration::from_micros(2_000),
+            total_duration: Duration::from_micros(2_500),
+        };
+        let text = startup_perf_text(&report);
+
+        assert!(text.contains("Startup target: dashboard"));
+        assert!(text.contains("History entries: 2"));
+        assert!(text.contains("Selected history entry: 0"));
+        assert!(text.contains("App state: 2.00ms"));
+        assert!(text.contains("Startup target: under 500.00ms (ok)"));
+    }
+
+    #[test]
+    fn formats_reader_startup_report() {
+        let report = StartupPerfReport {
+            target: StartupTarget::Reader,
+            file: Some("docs/PRD.md".into()),
+            document_count: 1,
+            rendered_lines: 177,
+            toc_items: 23,
+            history_entries: 0,
+            watcher_enabled: true,
+            selected_history_entry: None,
+            load_target_duration: LOAD_TARGET_DURATION,
+            document_open_duration: Duration::from_micros(1_500),
+            app_state_duration: Duration::from_micros(3_000),
+            total_duration: Duration::from_micros(4_500),
+        };
+        let text = startup_perf_text(&report);
+
+        assert!(text.contains("Startup target: reader"));
+        assert!(text.contains("File: docs/PRD.md"));
+        assert!(text.contains("Documents: 1"));
+        assert!(text.contains("Rendered TUI lines: 177"));
+        assert!(text.contains("TOC items: 23"));
+        assert!(text.contains("File watcher: enabled"));
+        assert!(text.contains("Document open: 1.50ms"));
+        assert!(text.contains("Startup target: under 500.00ms (ok)"));
     }
 
     #[test]
@@ -726,5 +932,31 @@ mod tests {
         assert!(report.total_duration >= report.config_duration);
         assert!(report.total_duration >= report.history_duration);
         fs::remove_file(path).expect("remove perf document");
+    }
+
+    #[test]
+    fn measures_startup_report_shapes() {
+        let path = env::temp_dir().join(format!(
+            "paperview-startup-perf-test-{}.md",
+            std::process::id()
+        ));
+        fs::write(&path, "# PaperView\n\nBody.").expect("write startup perf document");
+
+        let dashboard = measure_startup(None).expect("measure dashboard startup");
+        assert_eq!(dashboard.target, StartupTarget::Dashboard);
+        assert!(dashboard.total_duration >= dashboard.app_state_duration);
+        assert_eq!(dashboard.load_target_duration, LOAD_TARGET_DURATION);
+
+        let reader = measure_startup(Some(path.clone())).expect("measure reader startup");
+        assert_eq!(reader.target, StartupTarget::Reader);
+        assert_eq!(reader.file, Some(path.clone()));
+        assert_eq!(reader.document_count, 1);
+        assert!(reader.rendered_lines >= 2);
+        assert_eq!(reader.toc_items, 1);
+        assert!(reader.total_duration >= reader.document_open_duration);
+        assert!(reader.total_duration >= reader.app_state_duration);
+        assert_eq!(reader.load_target_duration, LOAD_TARGET_DURATION);
+
+        fs::remove_file(path).expect("remove startup perf document");
     }
 }

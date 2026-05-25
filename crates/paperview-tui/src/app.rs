@@ -52,6 +52,40 @@ pub fn run_workspace_search(
     result
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReaderStartupProbe {
+    pub(crate) document_count: usize,
+    pub(crate) rendered_lines: usize,
+    pub(crate) toc_items: usize,
+    pub(crate) watcher_enabled: bool,
+}
+
+pub(crate) fn probe_reader_startup(documents: Vec<Document>) -> ReaderStartupProbe {
+    let app = ReaderApp::new_documents(documents);
+
+    ReaderStartupProbe {
+        document_count: app.documents.len(),
+        rendered_lines: app.document_lines.len(),
+        toc_items: app.toc.len(),
+        watcher_enabled: app._watcher.is_some(),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DashboardStartupProbe {
+    pub(crate) history_entries: usize,
+    pub(crate) selected_entry: Option<usize>,
+}
+
+pub(crate) fn probe_dashboard_startup() -> DashboardStartupProbe {
+    let app = DashboardApp::new(HistoryStore::default());
+
+    DashboardStartupProbe {
+        history_entries: app.history.entries().len(),
+        selected_entry: app.list_state.selected(),
+    }
+}
+
 struct ReaderApp {
     config: Config,
     config_store: ConfigStore,
