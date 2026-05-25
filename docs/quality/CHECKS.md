@@ -29,6 +29,17 @@ cargo tree --workspace --depth 1
 Record durable dependency and packaging notes in
 `docs/quality/DEPENDENCIES.md`.
 
+## Packaging Readiness
+
+Before release packaging changes, prove that optimized native artifacts build:
+
+```sh
+cargo build --release --workspace
+```
+
+Then record the produced GUI and TUI binary paths, platform format, and sizes in
+`docs/quality/DEPENDENCIES.md`.
+
 ## Documentation
 
 After any `feat`, `fix`, or `refactor`, update:

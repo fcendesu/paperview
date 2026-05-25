@@ -46,6 +46,21 @@ For a deeper audit, run:
 cargo tree --workspace
 ```
 
+## Packaging Check
+
+Run this before release packaging changes:
+
+```sh
+cargo build --release --workspace
+```
+
+Current local packaging baseline, recorded on 2026-05-25 from macOS arm64:
+
+| Binary | Path | Format | Size |
+| :--- | :--- | :--- | ---: |
+| GUI | `target/release/paperview-gui` | Mach-O 64-bit executable arm64 | 17M |
+| TUI | `target/release/paperview-tui` | Mach-O 64-bit executable arm64 | 2.0M |
+
 ## Current Assessment
 
 - The project remains native Rust and avoids Electron, WebView, Node, Python,
@@ -61,6 +76,7 @@ cargo tree --workspace
 
 - Decide the final distribution format for GUI and TUI binaries.
 - Decide whether GUI and TUI ship as separate binaries or one package.
-- Record final binary size and platform packaging checks before v0.1.
+- Repeat release binary size and platform packaging checks for Linux and
+  Windows before v0.1.
 - Revisit any future rich rendering dependency against native/offline packaging
   goals before adding it.

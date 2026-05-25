@@ -75,4 +75,4 @@ This document tracks the progress of features across the three workspace crates.
 | **Cold Startup Time** | 🏗️ | `paperview-tui perf <file>` records config/history/read/parse/render baseline and load target status; full interactive terminal/GUI startup timing still needed |
 | **Scrolling 60 FPS** | 🏗️ | `paperview-tui perf <file>` records deterministic rendered-line scroll workload; real frame timing still needed |
 | **Memory Footprint** | 🏗️ | `paperview-tui perf <file>` estimates source/model/rendered text payloads against < 100MB |
-| **Zero-Dependency Build**| 🏗️ | Native Rust binaries with dependency audit in `docs/quality/DEPENDENCIES.md`; final packaging checks still needed |
+| **Zero-Dependency Build**| 🏗️ | Native Rust binaries with dependency and macOS arm64 release artifact baseline in `docs/quality/DEPENDENCIES.md`; Linux/Windows packaging checks still needed |
