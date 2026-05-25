@@ -27,6 +27,8 @@ const BODY_LINE_CHARS: usize = 72;
 const CODE_LINE_HEIGHT: f32 = 18.0;
 const BODY_LINE_HEIGHT: f32 = 24.0;
 const IMAGE_PREVIEW_HEIGHT: f32 = 360.0;
+const TABLE_MIN_COLUMN_PORTION: u16 = 8;
+const TABLE_MAX_COLUMN_PORTION: u16 = 32;
 
 #[derive(Debug, Clone)]
 pub enum RemoteImage {
@@ -660,13 +662,28 @@ fn table_block<'a, Message: Clone + 'static>(
     search: Option<RenderSearch<'a>>,
 ) -> Element<'a, Message> {
     let mut table = Column::new().spacing(0).width(Fill);
+    let column_portions = table_column_portions(header, rows);
 
     if !header.is_empty() {
-        table = table.push(table_row(header, alignments, true, on_link_click, search));
+        table = table.push(table_row(
+            header,
+            alignments,
+            &column_portions,
+            true,
+            on_link_click,
+            search,
+        ));
     }
 
     for row in rows {
-        table = table.push(table_row(row, alignments, false, on_link_click, search));
+        table = table.push(table_row(
+            row,
+            alignments,
+            &column_portions,
+            false,
+            on_link_click,
+            search,
+        ));
     }
 
     container(table)
@@ -678,6 +695,7 @@ fn table_block<'a, Message: Clone + 'static>(
 fn table_row<'a, Message: Clone + 'static>(
     cells: &'a [TableCell],
     alignments: &'a [TableAlignment],
+    column_portions: &[u16],
     is_header: bool,
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
@@ -691,6 +709,7 @@ fn table_row<'a, Message: Clone + 'static>(
                 .get(index)
                 .copied()
                 .unwrap_or(TableAlignment::None),
+            column_portions.get(index).copied().unwrap_or(1),
             is_header,
             on_link_click,
             search,
@@ -703,6 +722,7 @@ fn table_row<'a, Message: Clone + 'static>(
 fn table_cell<'a, Message: Clone + 'static>(
     value: &'a [InlineSpan],
     alignment: TableAlignment,
+    column_portion: u16,
     is_header: bool,
     on_link_click: fn(String) -> Message,
     search: Option<RenderSearch<'a>>,
@@ -721,7 +741,7 @@ fn table_cell<'a, Message: Clone + 'static>(
 
     let mut cell = container(label)
         .padding([8, 10])
-        .width(Fill)
+        .width(Length::FillPortion(column_portion))
         .style(move |_| theme::table_cell_container(is_header));
 
     cell = match alignment {
@@ -731,6 +751,36 @@ fn table_cell<'a, Message: Clone + 'static>(
     };
 
     cell.into()
+}
+
+fn table_column_portions(header: &TableRow, rows: &[TableRow]) -> Vec<u16> {
+    let column_count = std::iter::once(header.len())
+        .chain(rows.iter().map(Vec::len))
+        .max()
+        .unwrap_or(0);
+
+    (0..column_count)
+        .map(|index| {
+            std::iter::once(header)
+                .chain(rows.iter())
+                .filter_map(|row| row.get(index))
+                .map(table_cell_portion)
+                .max()
+                .unwrap_or(TABLE_MIN_COLUMN_PORTION)
+        })
+        .collect()
+}
+
+fn table_cell_portion(cell: &TableCell) -> u16 {
+    let text_width = inline::plain_text(cell).chars().count();
+
+    text_width
+        .clamp(
+            usize::from(TABLE_MIN_COLUMN_PORTION),
+            usize::from(TABLE_MAX_COLUMN_PORTION),
+        )
+        .try_into()
+        .expect("table column portion is clamped to u16")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -900,7 +950,8 @@ mod tests {
     use super::{
         HighlightSegment, RenderSearch, SearchHighlight, active_heading_for_scroll,
         block_matches_active_search_line, heading_scroll_progress, highlight_segments,
-        is_fetchable_remote_image_url, resolve_image_path,
+        is_fetchable_remote_image_url, resolve_image_path, table_cell_portion,
+        table_column_portions,
     };
 
     #[test]
@@ -1032,6 +1083,29 @@ mod tests {
             "A **needle** here.",
             "needle"
         ));
+    }
+
+    #[test]
+    fn responsive_table_columns_use_shared_bounded_widths() {
+        let parsed = parse_markdown(
+            "| Short | Description |\n| --- | --- |\n| A | Supercalifragilisticexpialidocious detail |\n| Longer label | ok |",
+        );
+        let paperview_core::parser::Block::Table { header, rows, .. } = &parsed.blocks[0] else {
+            panic!("expected table block");
+        };
+
+        assert_eq!(table_column_portions(header, rows), vec![12, 32]);
+    }
+
+    #[test]
+    fn responsive_table_columns_keep_empty_cells_readable() {
+        let parsed = parse_markdown("| A | B |\n| --- | --- |\n|  | ok |");
+        let paperview_core::parser::Block::Table { header, rows, .. } = &parsed.blocks[0] else {
+            panic!("expected table block");
+        };
+
+        assert_eq!(table_cell_portion(&rows[0][0]), 8);
+        assert_eq!(table_column_portions(header, rows), vec![8, 8]);
     }
 
     #[test]
