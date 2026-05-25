@@ -7,7 +7,7 @@ use paperview_core::{
     Document,
     parser::{
         Block, HeadingLevel, InlineSpan, TableAlignment, TableCell, TableRow, TocItem,
-        elements::{diagram, inline, math},
+        elements::{diagram, image, inline, math},
     },
 };
 use ratatui::text::{Line, Span, Text};
@@ -203,11 +203,11 @@ fn image_metadata_line(url: &str, document_path: Option<&Path>) -> String {
 
     match fs::metadata(&path) {
         Ok(metadata) if metadata.is_file() => {
-            format!(
-                "  image: local {} ({})",
-                path.display(),
-                format_bytes(metadata.len())
-            )
+            let details = image::dimensions_from_path(&path).map_or_else(
+                || format_bytes(metadata.len()),
+                |dimensions| format!("{}, {}", format_bytes(metadata.len()), dimensions.label()),
+            );
+            format!("  image: local {} ({details})", path.display(),)
         }
         Ok(_) => format!("  image: not a file {}", path.display()),
         Err(_) => format!("  image: missing {}", path.display()),
@@ -653,14 +653,18 @@ mod tests {
         let dir = temp_dir("tui-image-metadata");
         let image_path = dir.join("preview.png");
         let document_path = dir.join("notes.md");
-        fs::write(&image_path, [0_u8; 2048]).expect("write image file");
+        let png = [
+            0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n', 0, 0, 0, 13, b'I', b'H', b'D', b'R',
+            0, 0, 1, 0x40, 0, 0, 0, 0xf0, 8, 2, 0, 0, 0,
+        ];
+        fs::write(&image_path, png).expect("write image file");
         let document =
             Document::from_source("![Preview](preview.png \"System\")").with_path(&document_path);
         let rendered = render_document(&document);
 
         assert!(rendered.contains("![Preview](preview.png \"System\")\n"));
         assert!(rendered.contains(&format!(
-            "  image: local {} (2.0KiB)\n",
+            "  image: local {} (29B, 320 x 240 px)\n",
             image_path.display()
         )));
 

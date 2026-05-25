@@ -17,10 +17,11 @@ PaperView preserves Markdown image metadata.
 - Missing and unresolved non-HTTP images fall back to metadata panels.
 - The TUI renders standalone images in Markdown image syntax plus a metadata
   line that identifies remote images, unresolved paths, missing local files, or
-  existing local files with byte size.
+  existing local files with byte size and decoded PNG/JPEG/GIF/WebP dimensions
+  when available.
 - PDF export renders standalone images as text placeholders with the same
   local, missing, unresolved, and remote status categories, including local file
-  size when available.
+  size and decoded PNG/JPEG/GIF/WebP dimensions when available.
 
 This is still a first pass. PaperView does not yet drive preview layout from
 decoded dimensions or support click-to-zoom.
@@ -33,8 +34,10 @@ decoded dimensions or support click-to-zoom.
 - Standalone images are promoted from image-only paragraphs into image blocks.
 - Inline images stay textual until PaperView has image-specific inline spans.
 - The GUI uses Iced image widgets for local image files.
-- The GUI reads PNG, JPEG, GIF, and WebP header dimensions for local files and
-  loaded remote bytes without adding a separate image-decoding dependency.
+- `paperview-core::parser::elements::image` owns dependency-light PNG, JPEG,
+  GIF, and WebP header dimension parsing.
+- The GUI uses shared core image dimension helpers for local files and loaded
+  remote bytes.
 - Relative standalone image URLs resolve against the active document path in GUI
   previews, TUI local metadata lines, and PDF image placeholders.
 - Remote image fetching stays in `paperview-gui`; core remains responsible for
@@ -46,16 +49,18 @@ decoded dimensions or support click-to-zoom.
 
 - Decide whether image previews should use decoded dimensions for more precise
   layout estimates instead of metadata-only display.
-- Decide whether TUI image metadata should show dimensions if a future
-  dependency-light decoding path exists.
+- Decide whether remote dimensions should be recorded outside GUI session state
+  for future export workflows.
 
 ## Verification
 
 - Parser tests cover standalone image blocks and inline image preservation.
+- Core tests cover PNG/JPEG/GIF/WebP dimension parsing.
 - GUI tests cover relative image path resolution, remote URL classification,
-  remote image loading placeholders, and PNG/JPEG/GIF/WebP dimension parsing.
+  and remote image loading placeholders.
 - TUI tests cover Markdown image output plus local, missing, unresolved, and
-  remote metadata lines.
-- PDF export tests cover local, missing, and remote image placeholder metadata.
+  remote metadata lines, including local dimensions.
+- PDF export tests cover local, missing, and remote image placeholder metadata,
+  including local dimensions.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.

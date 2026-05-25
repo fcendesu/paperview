@@ -1,7 +1,8 @@
 use crate::{
     Document,
     parser::{
-        Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TableCell, elements::diagram,
+        Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TableCell,
+        elements::{diagram, image},
     },
 };
 
@@ -596,11 +597,11 @@ fn pdf_image_status(url: &str, document_path: Option<&Path>) -> String {
 
     match fs::metadata(&path) {
         Ok(metadata) if metadata.is_file() => {
-            format!(
-                "local {} ({})",
-                path.display(),
-                format_bytes(metadata.len())
-            )
+            let details = image::dimensions_from_path(&path).map_or_else(
+                || format_bytes(metadata.len()),
+                |dimensions| format!("{}, {}", format_bytes(metadata.len()), dimensions.label()),
+            );
+            format!("local {} ({details})", path.display())
         }
         Ok(_) => format!("not a file {}", path.display()),
         Err(_) => format!("missing {}", path.display()),
@@ -1351,16 +1352,20 @@ mod tests {
         let dir = temp_dir("pdf-img");
         let image_path = dir.join("preview.png");
         let document_path = dir.join("notes.md");
-        fs::write(&image_path, [0_u8; 2048]).expect("write image file");
+        let png = [
+            0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n', 0, 0, 0, 13, b'I', b'H', b'D', b'R',
+            0, 0, 1, 0x40, 0, 0, 0, 0xf0, 8, 2, 0, 0, 0,
+        ];
+        fs::write(&image_path, png).expect("write image file");
         let document = Document::from_source("![Preview](preview.png \"System diagram\")")
             .with_path(document_path);
         let pdf = export_pdf(&document);
         let pdf_text = String::from_utf8_lossy(&pdf);
 
-        assert!(pdf_text.contains(&format!(
-            "([image] Preview: local {} \\(2.0KiB\\)) Tj",
-            image_path.display()
-        )));
+        assert!(pdf_text.contains("[image] Preview: local"));
+        assert!(pdf_text.contains(&image_path.display().to_string()));
+        assert!(pdf_text.contains("\\(29B,"));
+        assert!(pdf_text.contains("320 x 240"));
         assert!(pdf_text.contains("(caption: System diagram) Tj"));
 
         fs::remove_file(image_path).expect("remove image file");
