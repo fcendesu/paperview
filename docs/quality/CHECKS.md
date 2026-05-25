@@ -17,6 +17,18 @@ Run focused tests when touched code has test coverage or obvious behavior to ver
 
 Use broader workspace tests when a change affects shared core behavior, parser behavior, CLI behavior, or cross-crate contracts.
 
+## Dependency Audit
+
+For release-readiness or dependency-surface changes, check the direct workspace
+dependency surface:
+
+```sh
+cargo tree --workspace --depth 1
+```
+
+Record durable dependency and packaging notes in
+`docs/quality/DEPENDENCIES.md`.
+
 ## Documentation
 
 After any `feat`, `fix`, or `refactor`, update:
