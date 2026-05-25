@@ -372,18 +372,32 @@ impl PaperView {
     }
 
     fn reload_path(&mut self, path: PathBuf) {
-        if !self.is_active_path(&path) {
+        if self.is_active_path(&path) {
+            match Document::open(&path) {
+                Ok(document) => {
+                    self.history.record_document(&document);
+                    save_history(&self.history_store, &self.history);
+                    self.documents.replace_active(document);
+                    self.status = Status::Loaded(path);
+                    self.sync_active_toc_to_top();
+                    self.refresh_search_matches();
+                    self.track_remote_images();
+                }
+                Err(error) => {
+                    self.status = Status::Error(error.to_string());
+                }
+            }
             return;
         }
 
+        let Some(split_index) = self.split_index_for_path(&path) else {
+            return;
+        };
+
         match Document::open(&path) {
             Ok(document) => {
-                self.history.record_document(&document);
-                save_history(&self.history_store, &self.history);
-                self.documents.replace_active(document);
+                self.documents.replace_at(split_index, document);
                 self.status = Status::Loaded(path);
-                self.sync_active_toc_to_top();
-                self.refresh_search_matches();
                 self.track_remote_images();
             }
             Err(error) => {
@@ -401,6 +415,19 @@ impl PaperView {
 
     fn is_active_path(&self, path: &PathBuf) -> bool {
         self.documents.active().and_then(Document::path) == Some(path)
+    }
+
+    fn split_path(&self) -> Option<PathBuf> {
+        self.split_document()
+            .and_then(Document::path)
+            .map(PathBuf::from)
+    }
+
+    fn split_index_for_path(&self, path: &PathBuf) -> Option<usize> {
+        let split_index = self.split_view.secondary_index()?;
+        self.documents.iter().find_map(|(index, document)| {
+            (index == split_index && document.path() == Some(path)).then_some(index)
+        })
     }
 
     fn select_tab(&mut self, index: usize) {
@@ -824,7 +851,10 @@ fn normalized_scroll_progress(progress: f32) -> f32 {
 
 pub fn subscription(state: &PaperView) -> Subscription<Message> {
     let runtime_events = event::listen_with(runtime_event);
-    let file_watch = state.active_path().map_or_else(Subscription::none, |path| {
+    let active_watch = state.active_path().map_or_else(Subscription::none, |path| {
+        Subscription::run_with(ActiveWatchPath(path), watch_active_document)
+    });
+    let split_watch = state.split_path().map_or_else(Subscription::none, |path| {
         Subscription::run_with(ActiveWatchPath(path), watch_active_document)
     });
     let remote_images = state
@@ -834,7 +864,7 @@ pub fn subscription(state: &PaperView) -> Subscription<Message> {
         .map(|(url, _)| Subscription::run_with(RemoteImageUrl(url.clone()), watch_remote_image));
 
     Subscription::batch(
-        [runtime_events, file_watch]
+        [runtime_events, active_watch, split_watch]
             .into_iter()
             .chain(remote_images),
     )
@@ -1481,6 +1511,31 @@ mod tests {
         );
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn file_changed_reloads_split_document_without_activating_it() {
+        let first = temp_doc("gui-split-reload-first.md", "# First\n\nOne.");
+        let second = temp_doc("gui-split-reload-second.md", "# Before\n\nTwo.");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&first)],
+            temp_store("split-reload.toml"),
+        );
+        state.open_path(second.clone());
+        state.select_tab(0);
+        state.toggle_split();
+
+        fs::write(&second, "# After\n\nUpdated.").expect("rewrite split document");
+        apply(&mut state, Message::FileChanged(second.clone()));
+
+        assert_eq!(state.documents.active().map(Document::title), Some("First"));
+        assert_eq!(state.split_document().map(Document::title), Some("After"));
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &second)
+        );
+
+        fs::remove_file(first).expect("remove first document");
+        fs::remove_file(second).expect("remove second document");
     }
 
     #[test]

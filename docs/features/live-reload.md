@@ -7,13 +7,17 @@ PaperView refreshes the active GUI or TUI document when its source file changes 
 Current behavior:
 
 - Watches the active GUI and TUI document path when a file is open.
+- Watches the secondary split-pane document path while Split View is enabled.
 - Reloads the current document after a relevant create, modify, rename, metadata, or remove event touches that path.
+- Reloads the secondary split-pane document in place without activating it when
+  its source file changes.
 - Updates the active title, parsed document, and table of contents after a successful reload.
 - Refreshes the GUI recent-file entry when the GUI reloads successfully.
 - Shows reload failures in the GUI status line or TUI status area.
 - Stops watching when there is no active document.
 
-Dashboard watching, multi-tab watching, split-pane watching, and exact scroll-position restoration are deferred.
+Dashboard watching, non-visible background tab watching, and exact
+scroll-position restoration are deferred.
 
 ## Implementation Notes
 
@@ -22,7 +26,11 @@ Dashboard watching, multi-tab watching, split-pane watching, and exact scroll-po
 - The watcher observes the parent directory non-recursively and filters events to the active path. This catches common editor save strategies that replace a file instead of writing it in place.
 - GUI subscription wiring lives in `crates/paperview-gui/src/app.rs`.
 - `Message::FileChanged` reloads only when the changed path still matches the active document path.
+- GUI Split View subscribes to the secondary document path and replaces that
+  document in the shared tab set without changing the active tab.
 - TUI watcher wiring lives in `crates/paperview-tui/src/app.rs`.
+- TUI Split View keeps a second watcher for the side document and refreshes the
+  rendered side-pane buffer after a successful reload.
 - The TUI reader uses short input polling ticks so watcher events can be handled without losing keyboard responsiveness.
 - TUI reload preserves the current scroll offset within the new document bounds.
 

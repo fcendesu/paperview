@@ -25,6 +25,8 @@ Current GUI behavior:
 - Closing the secondary tab retargets the split pane or disables Split View when
   no secondary tab remains.
 - Zen Mode takes precedence and shows only the active reader.
+- Live reload updates the secondary document in place while preserving the
+  active tab.
 
 Current TUI behavior:
 
@@ -41,6 +43,8 @@ Current TUI behavior:
   secondary pane to another open tab when one exists.
 - Closing the secondary tab retargets the split pane or disables Split View when
   no secondary tab remains.
+- Live reload updates the side document in place while preserving the active
+  tab.
 
 ## Implementation Notes
 
@@ -61,7 +65,8 @@ Current TUI behavior:
   resizing.
 - History and table-of-contents sidebars remain visible in Split View.
 - The table of contents follows the active document only.
-- Live reload remains scoped to the active document watcher.
+- Live reload watches both the active document and the secondary split document
+  while Split View is enabled.
 - Split scroll synchronization maps primary scroll progress to the secondary
   line buffer with `paperview-core::synced_scroll_offset`.
 

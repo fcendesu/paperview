@@ -110,6 +110,8 @@ struct ReaderApp {
     open_path_input: String,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
+    _split_watcher: Option<FileWatcher>,
+    split_watch_receiver: Option<Receiver<WatchEvent>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -180,6 +182,8 @@ impl ReaderApp {
             open_path_input: String::new(),
             _watcher: watcher,
             watch_receiver,
+            _split_watcher: None,
+            split_watch_receiver: None,
         }
     }
 
@@ -628,6 +632,8 @@ impl ReaderApp {
             Some("Split View enabled".to_owned())
         } else {
             self.split_scroll = 0;
+            self._split_watcher = None;
+            self.split_watch_receiver = None;
             Some("Split View disabled".to_owned())
         };
     }
@@ -750,6 +756,8 @@ impl ReaderApp {
             self.split_view.disable();
             self.split_document_lines.clear();
             self.split_scroll = 0;
+            self._split_watcher = None;
+            self.split_watch_receiver = None;
             self.status = Some("Split View disabled".to_owned());
             return;
         };
@@ -790,7 +798,30 @@ impl ReaderApp {
             .map_or_else(Vec::new, |document| {
                 render::render_document_with_anchors(document).lines
             });
+        let (watcher, receiver, status) = self
+            .split_document()
+            .map_or_else(|| (None, None, None), watch_document);
+        self._split_watcher = watcher;
+        self.split_watch_receiver = receiver;
+        if let Some(status) = status {
+            self.status = Some(status);
+        }
         self.sync_split_scroll();
+    }
+
+    fn split_document(&self) -> Option<&Document> {
+        let split_index = self.split_view.secondary_index()?;
+        self.documents
+            .iter()
+            .find_map(|(index, document)| (index == split_index).then_some(document))
+    }
+
+    fn split_index_for_path(&self, path: &std::path::Path) -> Option<usize> {
+        let split_index = self.split_view.secondary_index()?;
+        self.documents.iter().find_map(|(index, document)| {
+            (index == split_index && document.path().is_some_and(|open_path| open_path == path))
+                .then_some(index)
+        })
     }
 
     fn sync_split_scroll(&mut self) {
@@ -935,29 +966,51 @@ impl ReaderApp {
     }
 
     fn handle_watch_events(&mut self) {
-        let Some(receiver) = self.watch_receiver.take() else {
-            return;
-        };
-
-        while let Ok(event) = receiver.try_recv() {
-            match event {
-                WatchEvent::Changed(path) => self.reload_path(path),
+        if let Some(receiver) = self.watch_receiver.take() {
+            while let Ok(event) = receiver.try_recv() {
+                match event {
+                    WatchEvent::Changed(path) => self.reload_path(path),
+                }
             }
+
+            self.watch_receiver = Some(receiver);
         }
 
-        self.watch_receiver = Some(receiver);
+        if let Some(receiver) = self.split_watch_receiver.take() {
+            while let Ok(event) = receiver.try_recv() {
+                match event {
+                    WatchEvent::Changed(path) => self.reload_path(path),
+                }
+            }
+
+            self.split_watch_receiver = Some(receiver);
+        }
     }
 
     fn reload_path(&mut self, path: std::path::PathBuf) {
-        if self.active_document().path() != Some(&path) {
+        if self.active_document().path() == Some(&path) {
+            match Document::open(&path) {
+                Ok(document) => {
+                    self.documents.replace_active(document);
+                    self.load_active_document(false);
+                    self.status = Some(format!("Reloaded {}", path.display()));
+                }
+                Err(error) => {
+                    self.status = Some(error.to_string());
+                }
+            }
             return;
         }
 
+        let Some(split_index) = self.split_index_for_path(&path) else {
+            return;
+        };
+
         match Document::open(&path) {
             Ok(document) => {
-                self.documents.replace_active(document);
-                self.load_active_document(false);
-                self.status = Some(format!("Reloaded {}", path.display()));
+                self.documents.replace_at(split_index, document);
+                self.refresh_split_document();
+                self.status = Some(format!("Reloaded side {}", path.display()));
             }
             Err(error) => {
                 self.status = Some(error.to_string());
@@ -2246,6 +2299,30 @@ mod tests {
         );
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn reload_path_updates_split_document_without_activating_it() {
+        let first = temp_doc("tui-split-reload-first.md", "# First\n\nOne.");
+        let second = temp_doc("tui-split-reload-second.md", "# Before\n\nTwo.");
+        let first_document = Document::open(&first).expect("open first document");
+        let second_document = Document::open(&second).expect("open second document");
+        let mut app = ReaderApp::new_documents(vec![first_document, second_document]);
+        app.toggle_split();
+
+        fs::write(&second, "# After\n\nUpdated.").expect("rewrite split document");
+        app.reload_path(second.clone());
+
+        assert_eq!(app.active_document().title(), "First");
+        assert_eq!(app.split_document().map(Document::title), Some("After"));
+        assert!(
+            app.status
+                .as_deref()
+                .is_some_and(|status| status.starts_with("Reloaded side "))
+        );
+
+        fs::remove_file(first).expect("remove first document");
+        fs::remove_file(second).expect("remove second document");
     }
 
     fn temp_doc(name: &str, source: &str) -> std::path::PathBuf {

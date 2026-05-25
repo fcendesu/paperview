@@ -90,6 +90,15 @@ impl OpenDocuments {
         self.open_or_activate(document);
     }
 
+    pub fn replace_at(&mut self, index: usize, document: Document) -> bool {
+        let Some(target) = self.documents.get_mut(index) else {
+            return false;
+        };
+
+        *target = document;
+        true
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (usize, &Document)> {
         self.documents.iter().enumerate()
     }
@@ -133,6 +142,26 @@ mod tests {
         assert_eq!(index, 1);
         assert_eq!(documents.len(), 2);
         assert_eq!(documents.active().map(Document::title), Some("Fresh"));
+    }
+
+    #[test]
+    fn replaces_document_without_activating_it() {
+        let first = Document::from_source("# First").with_path("first.md");
+        let stale = Document::from_source("# Stale").with_path("second.md");
+        let fresh = Document::from_source("# Fresh").with_path("second.md");
+        let mut documents = OpenDocuments::from_document(first);
+        documents.open_or_activate(stale);
+        documents.select(0);
+
+        assert!(documents.replace_at(1, fresh));
+
+        assert_eq!(documents.active().map(Document::title), Some("First"));
+        assert_eq!(
+            documents
+                .iter()
+                .find_map(|(index, document)| (index == 1).then_some(document.title())),
+            Some("Fresh")
+        );
     }
 
     #[test]
