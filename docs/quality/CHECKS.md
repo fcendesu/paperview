@@ -68,5 +68,16 @@ cargo run -p paperview-tui -- perf docs/PRD.md
 
 This measures config load, recent-history load, source read, document
 parse/model construction, TUI line rendering, deterministic memory payloads, and
-a headless scroll workload estimate. It does not yet measure GUI startup,
-widget layout, OS memory, or real scroll frame timing.
+a headless scroll workload estimate.
+
+Use the startup perf commands for dashboard and reader app-state baselines:
+
+```sh
+cargo run -p paperview-tui -- perf startup
+cargo run -p paperview-tui -- perf startup docs/PRD.md
+cargo run -p paperview-gui -- perf startup
+cargo run -p paperview-gui -- perf startup docs/PRD.md
+```
+
+These commands do not yet measure platform event-loop/window timing, GUI widget
+layout timing, OS memory, or real scroll frame timing.
