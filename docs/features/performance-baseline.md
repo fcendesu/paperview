@@ -16,6 +16,14 @@ cargo run -p paperview-tui -- perf startup
 cargo run -p paperview-tui -- perf startup docs/PRD.md
 ```
 
+The GUI binary has a matching app-state startup baseline that stops before
+opening the native window:
+
+```sh
+cargo run -p paperview-gui -- perf startup
+cargo run -p paperview-gui -- perf startup docs/PRD.md
+```
+
 The report includes:
 
 - File path
@@ -43,12 +51,24 @@ The startup report includes:
 - App-state construction duration and total startup duration
 - Startup target status against the MVP 500ms goal
 
+The GUI startup report includes:
+
+- Startup target, either `dashboard` or `reader`
+- Reader file path when a document is provided
+- App status, open document count, history entry count, active TOC item count,
+  and remote image placeholder count
+- App-state construction duration and total startup duration
+- Startup target status against the MVP 500ms goal
+
 ## Implementation Notes
 
 - The TUI binary owns the first `perf <file>` command.
 - The TUI binary also owns `perf startup [file]`, which constructs the same
   dashboard or reader app state used by the interactive TUI without entering
   the alternate-screen terminal event loop.
+- The GUI binary owns `perf startup [file]`, which constructs the same
+  `PaperView` state used by the Iced application without opening the native
+  window or entering the Iced event loop.
 - The command validates supported file types, loads config and recent-history
   stores, reads the source, constructs a `paperview_core::Document`, and renders
   TUI lines through `render_document_with_anchors`.
@@ -66,17 +86,22 @@ The startup report includes:
     history entries.
   - `perf startup docs/PRD.md`: reader startup reported under 10ms total, 177
     rendered TUI lines, 23 TOC items, and an enabled file watcher.
+  - `paperview-gui perf startup`: dashboard app-state startup reported under
+    10ms with 2 history entries.
+  - `paperview-gui perf startup docs/PRD.md`: reader app-state startup reported
+    under 10ms total, 23 active TOC items, and 0 remote image placeholders.
 
 ## Decisions And Gaps
 
 - This is a baseline command, not a full benchmark harness.
-- GUI startup, GUI widget layout, terminal initialization/event-loop timing, OS
-  RSS memory use, and real scroll frame timing remain unmeasured.
+- GUI native-window/event-loop timing, GUI widget layout timing, terminal
+  initialization/event-loop timing, OS RSS memory use, and real scroll frame
+  timing remain unmeasured.
 - The load target is reported from a startup-adjacent headless path that
   includes config load, history load, read, parse/model construction, and TUI
   render. `perf startup [file]` now measures interactive TUI app-state
-  construction but still does not initialize the alternate-screen terminal or
-  GUI.
+  construction, and the GUI startup command measures Iced app-state
+  construction, but neither initializes the platform event loop.
 - Historical baseline storage and threshold enforcement are deferred.
 
 ## Verification Expectations
@@ -89,6 +114,9 @@ cargo test -p paperview-tui startup
 cargo run -p paperview-tui -- perf docs/PRD.md
 cargo run -p paperview-tui -- perf startup
 cargo run -p paperview-tui -- perf startup docs/PRD.md
+cargo test -p paperview-gui startup
+cargo run -p paperview-gui -- perf startup
+cargo run -p paperview-gui -- perf startup docs/PRD.md
 ```
 
 Run workspace checks before finishing performance command changes:

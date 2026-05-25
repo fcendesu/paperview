@@ -227,6 +227,42 @@ impl PaperView {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StartupProbe {
+    pub(crate) document_count: usize,
+    pub(crate) history_entries: usize,
+    pub(crate) active_toc_items: usize,
+    pub(crate) remote_image_placeholders: usize,
+    pub(crate) status: &'static str,
+}
+
+pub(crate) fn probe_startup(args: impl IntoIterator<Item = OsString>) -> StartupProbe {
+    let state = PaperView::from_args(args);
+    let active_toc_items = state
+        .documents
+        .active()
+        .map_or(0, |document| document.parsed().toc().len());
+
+    StartupProbe {
+        document_count: state.documents.len(),
+        history_entries: state.history.entries().len(),
+        active_toc_items,
+        remote_image_placeholders: state.remote_images.len(),
+        status: state.status.label(),
+    }
+}
+
+impl Status {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Empty => "empty",
+            Self::Loaded(_) => "loaded",
+            Self::Hovering(_) => "hovering",
+            Self::Error(_) => "error",
+        }
+    }
+}
+
 pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
     match message {
         Message::OpenHistory(path) => {
