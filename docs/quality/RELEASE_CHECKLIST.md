@@ -21,7 +21,7 @@ Run the user-facing command surface against a repository document:
 ```sh
 cargo run -p paperview-tui -- stats docs/PRD.md
 cargo run -p paperview-tui -- stats docs/PRD.md --json
-cargo run -p paperview-tui -- search docs heading
+cargo run -p paperview-tui -- search heading docs
 cargo run -p paperview-tui -- export docs/PRD.md --to html
 cargo run -p paperview-tui -- export docs/PRD.md --to pdf
 cargo run -p paperview-tui -- perf docs/PRD.md
@@ -38,6 +38,14 @@ committed:
 ```sh
 rm -f docs/PRD.html docs/PRD.pdf
 ```
+
+2026-05-26 local smoke status:
+
+- Passed the non-interactive smoke command set against `docs/PRD.md` on macOS
+  arm64.
+- Corrected the workspace-search smoke command to use the documented
+  `search <query> [path]` argument order.
+- Removed generated `docs/PRD.html` and `docs/PRD.pdf` after the smoke pass.
 
 ## Interactive Smoke Checks
 
