@@ -2,7 +2,7 @@ use crate::{
     Document,
     parser::{
         Block, HeadingLevel, InlineSpan, ListItem, TableAlignment, TableCell,
-        elements::{diagram, image},
+        elements::{diagram, image, math},
     },
 };
 
@@ -194,14 +194,7 @@ fn render_block(block: &Block, heading_slug: Option<&str>, output: &mut String) 
         } => render_table(alignments, header, rows, output),
         Block::List { ordered, items } => render_list(*ordered, items, output),
         Block::Math { display, source } => {
-            let class = if *display {
-                "math display"
-            } else {
-                "math inline"
-            };
-            output.push_str(&format!("<pre class=\"{class}\"><code>"));
-            output.push_str(&escape_text(source));
-            output.push_str("</code></pre>\n");
+            render_math_block(*display, source, output);
         }
         Block::Rule => output.push_str("<hr>\n"),
     }
@@ -270,6 +263,23 @@ fn render_flowchart_preview(preview: diagram::FlowchartPreview, output: &mut Str
     }
 
     output.push_str("</section>\n");
+}
+
+fn render_math_block(display: bool, source: &str, output: &mut String) {
+    if display && let Some(preview) = math::readable_preview(source) {
+        output.push_str("<div class=\"math-preview\">");
+        output.push_str(&escape_text(&preview));
+        output.push_str("</div>\n");
+    }
+
+    let class = if display {
+        "math display"
+    } else {
+        "math inline"
+    };
+    output.push_str(&format!("<pre class=\"{class}\"><code>"));
+    output.push_str(&escape_text(source));
+    output.push_str("</code></pre>\n");
 }
 
 fn render_table(
@@ -497,6 +507,9 @@ fn render_pdf_block(block: &Block, document_path: Option<&Path>, lines: &mut Vec
                 "inline math"
             };
             lines.push(pdf_line(label.to_owned(), 10).with_gap_after(2));
+            if *display && let Some(preview) = math::readable_preview(source) {
+                push_wrapped_pdf_lines_with_indent(&preview, 12, 14, PDF_BODY_WRAP_CHARS, lines);
+            }
             push_preformatted_pdf_lines(source, lines);
         }
         Block::Rule => lines.push(pdf_line("------------------------------".to_owned(), 10)),
@@ -1184,6 +1197,16 @@ const CSS: &str = r#"    :root {
     .math {
       border-left: 4px solid var(--math-accent);
     }
+    .math-preview {
+      margin: 1em 0 0.35em;
+      padding: 0.85em 1em;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--math-accent);
+      border-radius: 6px;
+      background: var(--panel-bg);
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--text);
+    }
     @media (max-width: 720px) {
       .paper {
         padding: 28px;
@@ -1248,6 +1271,17 @@ mod tests {
         assert!(html.contains("<span class=\"flowchart-label\">yes</span>"));
         assert!(html.contains("<span class=\"flowchart-node\">Done</span>"));
         assert!(html.contains("<pre class=\"source-panel diagram-panel\"><code class=\"language-mermaid\">flowchart LR"));
+    }
+
+    #[test]
+    fn exports_latex_readable_preview_html() {
+        let document = Document::from_source(r"$$ \frac{\alpha_1}{x^2} \to \infty $$");
+        let html = export_html(&document);
+
+        assert!(html.contains("<div class=\"math-preview\">(α₁) / (x²) → ∞</div>"));
+        assert!(html.contains(
+            r#"<pre class="math display"><code>\frac{\alpha_1}{x^2} \to \infty</code></pre>"#
+        ));
     }
 
     #[test]
@@ -1317,6 +1351,17 @@ mod tests {
         assert!(pdf_text.contains("(- [x] Done) Tj"));
         assert!(pdf_text.contains("(code: rust) Tj"));
         assert!(pdf_text.contains("(fn main\\(\\) {}) Tj"));
+    }
+
+    #[test]
+    fn exports_pdf_latex_readable_preview() {
+        let document = Document::from_source(r"$$ \frac{x}{y} + \sqrt{z} $$");
+        let pdf = export_pdf(&document);
+        let pdf_text = String::from_utf8_lossy(&pdf);
+
+        assert!(pdf_text.contains("(display math) Tj"));
+        assert!(pdf_text.contains("(\\(x\\) / \\(y\\) + ?\\(z\\)) Tj"));
+        assert!(pdf_text.contains("(\\\\frac{x}{y} + \\\\sqrt{z}) Tj"));
     }
 
     #[test]

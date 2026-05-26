@@ -36,7 +36,11 @@ or validate LaTeX syntax.
 - `paperview-tui::render` shows the readable preview above the original display
   math source when the helper can improve the source text and keeps inline math
   Markdown-shaped.
-- HTML export emits inline math spans as `code.math.inline`.
+- HTML export emits inline math spans as `code.math.inline` and shows readable
+  display-math previews above preserved display math source.
+- PDF export includes readable display-math preview text before preserved
+  display math source, subject to the current text-first PDF writer's ASCII font
+  limitations.
 
 ## Open Decisions
 
@@ -50,5 +54,6 @@ or validate LaTeX syntax.
   fractions, roots, Greek letters, arrows, set/logic operators, sums/integrals,
   spacing cleanup, vectors, and compact scripts.
 - TUI tests cover display math output.
+- Export tests cover readable display-math previews in HTML and PDF output.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.

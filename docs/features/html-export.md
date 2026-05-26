@@ -21,11 +21,12 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.html`.
   slug policy as the shared table of contents.
 - Exported HTML includes a standalone PaperView CSS theme with dark shell,
   cream paper surface, styled source panels, tables, task lists, media blocks,
-  blockquotes, math panels, Mermaid/source panels, and static Mermaid
-  flowchart previews.
+  blockquotes, math panels, readable display-math previews,
+  Mermaid/source panels, and static Mermaid flowchart previews.
 - Current output covers headings, paragraphs, blockquotes, code blocks,
   Mermaid/source diagram blocks with simple flowchart previews, image blocks,
-  tables, lists, task-list checkboxes, math blocks, and rules.
+  tables, lists, task-list checkboxes, math blocks with readable preview
+  parity for display math, and rules.
 - `paperview-tui export <file> --to html` loads the document, writes the HTML
   beside the source file, prints the output path, and exits without initializing
   Ratatui.
@@ -34,8 +35,9 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.html`.
 
 - HTML is the richer export backend; PDF export currently provides a basic
   text-first artifact.
-- Math export is source-preserving and Mermaid export includes static previews
-  only for the same simple flowcharts supported by GUI/TUI.
+- Math export is source-preserving with the same lightweight readable display
+  previews used by GUI/TUI; Mermaid export includes static previews only for the
+  same simple flowcharts supported by GUI/TUI.
 - External asset bundling, syntax highlighting, and template customization are
   deferred.
 - Existing files with the derived `.html` path are overwritten.

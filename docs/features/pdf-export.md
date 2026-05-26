@@ -22,7 +22,8 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.pdf`.
 - `paperview-core::export_pdf` writes a dependency-light PDF 1.4 document using
   built-in Helvetica text.
 - The first PDF backend preserves headings, paragraphs, lists, text-shaped
-  tables, code/math/diagram source blocks, rules, and image metadata text.
+  tables, code/math/diagram source blocks, readable display-math preview text,
+  rules, and image metadata text.
 - PDF output uses a larger title treatment, heading sizes and spacing, indented
   lists/source blocks, wrapped text, and vertical-space page breaks.
 - PDF tables render with padded columns, a header separator, basic alignment,
@@ -40,6 +41,9 @@ output path. For example, `docs/PRD.md` exports to `docs/PRD.pdf`.
 - The PDF backend is still text-first and does not perform rich typography,
   bitmap image embedding, syntax highlighting, Mermaid layout, or LaTeX
   typesetting.
+- The PDF writer currently uses built-in Helvetica and ASCII text escaping, so
+  readable math previews may degrade unsupported Unicode symbols until a richer
+  text/font backend lands.
 - Future PDF work can replace or augment this writer with a richer renderer if
   dependency weight, offline behavior, and cross-platform packaging stay
   acceptable.
