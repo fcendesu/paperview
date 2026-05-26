@@ -75,4 +75,4 @@ This document tracks the progress of features across the three workspace crates.
 | **Cold Startup Time** | 🏗️ | 2026-05-26 local baselines remain under 10ms for headless document pipeline and GUI/TUI app-state startup; platform event-loop/window timing still needed |
 | **Scrolling 60 FPS** | 🏗️ | `paperview-tui perf <file>` records deterministic rendered-line scroll workload; real frame timing still needed |
 | **Memory Footprint** | 🏗️ | `paperview-tui perf docs/PRD.md` estimated 17.0KiB against the < 100MB MVP target on 2026-05-26 |
-| **Zero-Dependency Build**| 🏗️ | Native Rust binaries with refreshed direct dependency and macOS arm64 release artifact baseline in `docs/quality/DEPENDENCIES.md`; Linux/Windows packaging checks still needed |
+| **Zero-Dependency Build**| 🏗️ | Native Rust binaries with refreshed direct dependency and macOS arm64 release artifact baseline in `docs/quality/DEPENDENCIES.md`; release checklist added in `docs/quality/RELEASE_CHECKLIST.md`; Linux/Windows packaging checks still needed |

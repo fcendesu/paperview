@@ -2,6 +2,9 @@
 
 This document is the verification source of truth for implementation work.
 
+For release-candidate validation, use `docs/quality/RELEASE_CHECKLIST.md` in
+addition to the implementation checks below.
+
 ## Required For Code Changes
 
 Run these before finishing any code change:
