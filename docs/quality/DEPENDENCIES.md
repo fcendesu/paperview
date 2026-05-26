@@ -61,6 +61,21 @@ Current local packaging baseline, recorded on 2026-05-25 from macOS arm64:
 | GUI | `target/release/paperview-gui` | Mach-O 64-bit executable arm64 | 17M |
 | TUI | `target/release/paperview-tui` | Mach-O 64-bit executable arm64 | 2.0M |
 
+Current local packaging baseline, refreshed on 2026-05-26 from macOS arm64
+with `rustc 1.95.0` and `cargo 1.95.0`:
+
+| Binary | Path | Format | Size | Bytes |
+| :--- | :--- | :--- | ---: | ---: |
+| GUI | `target/release/paperview-gui` | Mach-O 64-bit executable arm64 | 17M | 17,385,344 |
+| TUI | `target/release/paperview-tui` | Mach-O 64-bit executable arm64 | 2.0M | 2,090,224 |
+
+The 2026-05-26 release build completed with:
+
+```sh
+cargo tree --workspace --depth 1
+cargo build --release --workspace
+```
+
 ## Current Assessment
 
 - The project remains native Rust and avoids Electron, WebView, Node, Python,
