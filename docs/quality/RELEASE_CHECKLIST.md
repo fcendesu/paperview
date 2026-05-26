@@ -56,6 +56,15 @@ rm -f docs/PRD.html docs/PRD.pdf
   local links, search, TOC navigation, tabs, split view, Zen Mode, drag and
   drop, local image previews, and remote-image placeholder behavior.
 
+2026-05-26 local TUI interactive smoke status:
+
+- Passed reader startup, visible reader/TOC rendering, scrolling, search submit
+  with `n`/`N` navigation, Zen Mode toggle, split view with two documents,
+  open-path prompt opening `docs/TASKS.md` as a second tab, and clean quit.
+- Passed task-list toggle behavior on a disposable `/tmp` Markdown file and
+  removed the file afterward.
+- GUI interactive smoke remains open.
+
 ## Packaging Baseline
 
 - macOS arm64 release artifacts were refreshed on 2026-05-26 in
