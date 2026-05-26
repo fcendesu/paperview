@@ -23,13 +23,20 @@ pub fn readable_preview(source: &str) -> Option<String> {
 
     output = replace_frac(&output);
     output = replace_group_command(&output, "\\sqrt", "√");
+    output = replace_group_command(&output, "\\vec", "vec");
+    output = output.replace("\\leftarrow", "←");
+    output = output.replace("\\rightarrow", "→");
+    output = output.replace("\\leftrightarrow", "↔");
+    output = output.replace("\\left", "");
+    output = output.replace("\\right", "");
 
     for (from, to) in SYMBOLS {
         output = output.replace(from, to);
     }
 
-    output = replace_script_digits(&output, '^', superscript_digit);
-    output = replace_script_digits(&output, '_', subscript_digit);
+    output = output.replace("\\,", "");
+    output = replace_script(&output, '^', superscript_character);
+    output = replace_script(&output, '_', subscript_character);
     output = output.replace(['{', '}'], "");
     output = output.split_whitespace().collect::<Vec<_>>().join(" ");
 
@@ -100,27 +107,59 @@ fn braced_group(source: &str, start: usize) -> Option<(String, usize)> {
     None
 }
 
-fn replace_script_digits(source: &str, marker: char, convert: fn(char) -> Option<char>) -> String {
+fn replace_script(source: &str, marker: char, convert: fn(char) -> Option<char>) -> String {
     let mut output = String::new();
     let mut chars = source.chars().peekable();
 
     while let Some(character) = chars.next() {
-        if character == marker
-            && let Some(next) = chars.peek().copied()
+        if character != marker {
+            output.push(character);
+            continue;
+        }
+
+        if chars.peek() == Some(&'{') {
+            chars.next();
+            let mut converted = String::new();
+            let mut converted_all = true;
+
+            for script_character in chars.by_ref() {
+                if script_character == '}' {
+                    break;
+                }
+
+                if let Some(character) = convert(script_character) {
+                    converted.push(character);
+                } else {
+                    converted_all = false;
+                    converted.push(script_character);
+                }
+            }
+
+            if converted_all && !converted.is_empty() {
+                output.push_str(&converted);
+            } else {
+                output.push(marker);
+                output.push('{');
+                output.push_str(&converted);
+                output.push('}');
+            }
+            continue;
+        }
+
+        if let Some(next) = chars.peek().copied()
             && let Some(converted) = convert(next)
         {
             output.push(converted);
             chars.next();
-            continue;
+        } else {
+            output.push(character);
         }
-
-        output.push(character);
     }
 
     output
 }
 
-fn superscript_digit(character: char) -> Option<char> {
+fn superscript_character(character: char) -> Option<char> {
     match character {
         '0' => Some('⁰'),
         '1' => Some('¹'),
@@ -132,11 +171,18 @@ fn superscript_digit(character: char) -> Option<char> {
         '7' => Some('⁷'),
         '8' => Some('⁸'),
         '9' => Some('⁹'),
+        '+' => Some('⁺'),
+        '-' => Some('⁻'),
+        '=' => Some('⁼'),
+        '(' => Some('⁽'),
+        ')' => Some('⁾'),
+        'n' => Some('ⁿ'),
+        'i' => Some('ⁱ'),
         _ => None,
     }
 }
 
-fn subscript_digit(character: char) -> Option<char> {
+fn subscript_character(character: char) -> Option<char> {
     match character {
         '0' => Some('₀'),
         '1' => Some('₁'),
@@ -148,11 +194,44 @@ fn subscript_digit(character: char) -> Option<char> {
         '7' => Some('₇'),
         '8' => Some('₈'),
         '9' => Some('₉'),
+        '+' => Some('₊'),
+        '-' => Some('₋'),
+        '=' => Some('₌'),
+        '(' => Some('₍'),
+        ')' => Some('₎'),
+        'a' => Some('ₐ'),
+        'e' => Some('ₑ'),
+        'h' => Some('ₕ'),
+        'i' => Some('ᵢ'),
+        'j' => Some('ⱼ'),
+        'k' => Some('ₖ'),
+        'l' => Some('ₗ'),
+        'm' => Some('ₘ'),
+        'n' => Some('ₙ'),
+        'o' => Some('ₒ'),
+        'p' => Some('ₚ'),
+        'r' => Some('ᵣ'),
+        's' => Some('ₛ'),
+        't' => Some('ₜ'),
+        'u' => Some('ᵤ'),
+        'v' => Some('ᵥ'),
+        'x' => Some('ₓ'),
         _ => None,
     }
 }
 
 const SYMBOLS: &[(&str, &str)] = &[
+    ("\\varepsilon", "ε"),
+    ("\\vartheta", "ϑ"),
+    ("\\varphi", "φ"),
+    ("\\Gamma", "Γ"),
+    ("\\Delta", "Δ"),
+    ("\\Theta", "Θ"),
+    ("\\Lambda", "Λ"),
+    ("\\Pi", "Π"),
+    ("\\Sigma", "Σ"),
+    ("\\Phi", "Φ"),
+    ("\\Omega", "Ω"),
     ("\\alpha", "α"),
     ("\\beta", "β"),
     ("\\gamma", "γ"),
@@ -165,16 +244,48 @@ const SYMBOLS: &[(&str, &str)] = &[
     ("\\sigma", "σ"),
     ("\\phi", "φ"),
     ("\\omega", "ω"),
+    ("\\partial", "∂"),
+    ("\\nabla", "∇"),
     ("\\times", "×"),
     ("\\cdot", "·"),
+    ("\\div", "÷"),
+    ("\\pm", "±"),
+    ("\\mp", "∓"),
     ("\\leq", "≤"),
+    ("\\le", "≤"),
     ("\\geq", "≥"),
+    ("\\ge", "≥"),
     ("\\neq", "≠"),
+    ("\\ne", "≠"),
     ("\\approx", "≈"),
-    ("\\infty", "∞"),
+    ("\\equiv", "≡"),
+    ("\\propto", "∝"),
+    ("\\cup", "∪"),
+    ("\\cap", "∩"),
     ("\\sum", "Σ"),
+    ("\\prod", "Π"),
     ("\\int", "∫"),
+    ("\\oint", "∮"),
+    ("\\forall", "∀"),
+    ("\\exists", "∃"),
+    ("\\infty", "∞"),
+    ("\\notin", "∉"),
+    ("\\subseteq", "⊆"),
+    ("\\subset", "⊂"),
+    ("\\in", "∈"),
+    ("\\lim", "lim"),
+    ("\\sin", "sin"),
+    ("\\cos", "cos"),
+    ("\\tan", "tan"),
+    ("\\log", "log"),
+    ("\\ln", "ln"),
+    ("\\Rightarrow", "⇒"),
+    ("\\Leftarrow", "⇐"),
+    ("\\Leftrightarrow", "⇔"),
+    ("\\leftarrow", "←"),
+    ("\\leftrightarrow", "↔"),
     ("\\rightarrow", "→"),
+    ("\\mapsto", "↦"),
     ("\\to", "→"),
 ];
 
@@ -187,6 +298,18 @@ mod tests {
         assert_eq!(
             readable_preview(r"\frac{\alpha_1}{x^2} + \sqrt{y} \to \infty"),
             Some("(α₁) / (x²) + √(y) → ∞".to_owned())
+        );
+    }
+
+    #[test]
+    fn renders_readable_preview_for_academic_notation() {
+        assert_eq!(
+            readable_preview(r"\left( \sum_{i=1}^{10} x_i \right) \leq \int_0^\infty f(t) \, dt"),
+            Some("( Σᵢ₌₁¹⁰ xᵢ ) ≤ ∫₀^∞ f(t) dt".to_owned())
+        );
+        assert_eq!(
+            readable_preview(r"\nabla \cdot \vec{F} \Rightarrow \Delta x \notin A \subseteq B"),
+            Some("∇ · vec(F) ⇒ Δ x ∉ A ⊆ B".to_owned())
         );
     }
 

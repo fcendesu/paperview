@@ -9,7 +9,8 @@ PaperView preserves LaTeX math source emitted by `pulldown-cmark`.
 - Display math such as `$$ E = mc^2 $$` is represented as a dedicated parsed
   document block.
 - The GUI renders display math as a source-preserving math panel with a readable
-  Unicode-ish preview for common symbols, fractions, roots, and numeric scripts.
+  Unicode-ish preview for common symbols, fractions, roots, Greek letters,
+  arrows, set/logic operators, sums/integrals, and compact numeric scripts.
 - The TUI renders display math with `$$` delimiters and shows the same
   Unicode-ish readable preview when it improves the source.
 
@@ -22,7 +23,10 @@ or validate LaTeX syntax.
 - `paperview-core::parser::InlineSpan` marks inline math spans with `math: true`
   while preserving the visible `$...$` delimiters.
 - `paperview-core::parser::elements::math` owns math-source normalization and
-  the lightweight readable-preview transform.
+  the lightweight readable-preview transform, including common symbol
+  replacement, braced fraction/root/vector cleanup, LaTeX spacing command
+  cleanup, and single or braced compact script conversion where Unicode has
+  clear characters.
 - `pulldown-cmark` math events are enabled through the existing parser options.
 - Empty paragraph wrappers around standalone display math are discarded during
   parsing.
@@ -42,7 +46,9 @@ or validate LaTeX syntax.
 ## Verification
 
 - Parser tests cover inline math span metadata and display math blocks.
-- Core math tests cover readable preview generation.
+- Core math tests cover readable preview generation for common symbols,
+  fractions, roots, Greek letters, arrows, set/logic operators, sums/integrals,
+  spacing cleanup, vectors, and compact scripts.
 - TUI tests cover display math output.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.
