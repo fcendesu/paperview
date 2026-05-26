@@ -37,7 +37,7 @@ pub fn source(source: &str) -> String {
 pub fn flowchart_preview(source: &str) -> Option<FlowchartPreview> {
     let mut lines = source
         .lines()
-        .map(str::trim)
+        .filter_map(clean_line)
         .filter(|line| !line.is_empty() && !line.starts_with("%%"));
 
     let header = lines.next()?;
@@ -48,6 +48,7 @@ pub fn flowchart_preview(source: &str) -> Option<FlowchartPreview> {
 }
 
 fn parse_flowchart_header(line: &str) -> Option<FlowchartDirection> {
+    let line = line.trim_end_matches(';');
     let mut parts = line.split_whitespace();
     let keyword = parts.next()?;
 
@@ -81,6 +82,15 @@ fn parse_edge(line: &str) -> Option<FlowchartEdge> {
         to: parse_node(to),
         label,
     })
+}
+
+fn clean_line(line: &str) -> Option<&str> {
+    let line = line.trim();
+    let line = line
+        .split_once("%%")
+        .map_or(line, |(before_comment, _)| before_comment.trim());
+
+    (!line.is_empty()).then_some(line)
 }
 
 fn parse_labeled_edge(line: &str) -> Option<FlowchartEdge> {
@@ -149,13 +159,16 @@ fn clean_label(raw: &str) -> Option<String> {
 }
 
 fn parse_node(raw: &str) -> String {
-    let raw = raw.trim();
+    let raw = raw
+        .trim()
+        .split_once(":::")
+        .map_or(raw.trim(), |(node, _)| node.trim());
     let label_start = raw.find(['[', '(', '{']).unwrap_or(raw.len());
     let id = raw[..label_start].trim();
     let label = raw[label_start..].trim().trim_matches(|character: char| {
         matches!(
             character,
-            '[' | ']' | '(' | ')' | '{' | '}' | '"' | '\'' | ' '
+            '[' | ']' | '(' | ')' | '{' | '}' | '/' | '\\' | '"' | '\'' | ' '
         )
     });
 
@@ -219,6 +232,38 @@ mod tests {
                         from: "C".to_owned(),
                         to: "Done".to_owned(),
                         label: Some("fast".to_owned())
+                    }
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn parses_common_flowchart_node_shapes_and_comments() {
+        let preview = flowchart_preview(
+            "flowchart TD;\n  %% startup path\n  A((Start)):::entry --> B[/Input/] %% inline note\n  B --> C[(Store)]\n  C --> D{{Done}}",
+        )
+        .expect("flowchart preview");
+
+        assert_eq!(
+            preview,
+            FlowchartPreview {
+                direction: FlowchartDirection::TopDown,
+                edges: vec![
+                    FlowchartEdge {
+                        from: "Start".to_owned(),
+                        to: "Input".to_owned(),
+                        label: None
+                    },
+                    FlowchartEdge {
+                        from: "B".to_owned(),
+                        to: "Store".to_owned(),
+                        label: None
+                    },
+                    FlowchartEdge {
+                        from: "C".to_owned(),
+                        to: "Done".to_owned(),
+                        label: None
                     }
                 ]
             }
