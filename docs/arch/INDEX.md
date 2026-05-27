@@ -127,9 +127,10 @@ with Iced image widgets when the file exists.
 The inline-span implementation stores `InlineSpan` values for heading,
 paragraph, blockquote, list item, and table-cell content. Plain heading text is
 derived for document titles, TOC labels, slugs, and scroll geometry. GUI rich
-text attaches link metadata to inline link spans and resolves clicked relative
-targets against the active document before delegating to the OS opener. Clicked
-`#slug` links reuse the GUI TOC scroll path and update the active TOC item.
+text attaches link metadata to inline link spans. Clicked `#slug` links reuse
+the GUI TOC scroll path and update the active TOC item. Supported clicked local
+document links resolve relative to the active document and open as PaperView
+tabs; external and unsupported targets still delegate to the OS opener.
 
 The first in-document search implementation keeps source search in
 `paperview-core` through `Document::search` and line-based `SearchMatch` values.

@@ -108,11 +108,11 @@ keep the metadata fallback visible with restrained status text.
 
 Heading, paragraph, list, blockquote, and table-cell rich text currently renders
 bold, italic, inline code, and links. GUI links are visually accented and
-clickable. In-document GUI links jump to matching headings, while external and
-file links use the platform default opener. TUI links remain Markdown-shaped
-display text. Task-list items render as clickable checkbox markers in the GUI
-when source writeback is available and as Markdown-shaped `[x]` / `[ ]` markers
-in the TUI.
+clickable. In-document GUI links jump to matching headings, supported local
+document links open as PaperView tabs, and external links use the platform
+default opener. TUI links remain Markdown-shaped display text. Task-list items
+render as clickable checkbox markers in the GUI when source writeback is
+available and as Markdown-shaped `[x]` / `[ ]` markers in the TUI.
 
 ---
 

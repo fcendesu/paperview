@@ -75,8 +75,11 @@ rm -f docs/PRD.html docs/PRD.pdf
   rendering.
 - Cleaned up the temporary app wrapper, temporary image smoke files, and restored
   the original local PaperView history file after the smoke pass.
-- Still needs hands-on confirmation for drag/drop and local link click
-  navigation before calling the GUI interactive smoke fully complete.
+- Confirmed local link click navigation on 2026-05-27 with a temporary local
+  Markdown pair: clicking the relative link opened the target document as a new
+  active PaperView tab.
+- Still needs hands-on confirmation for drag/drop before calling the GUI
+  interactive smoke fully complete.
 
 ## Packaging Baseline
 

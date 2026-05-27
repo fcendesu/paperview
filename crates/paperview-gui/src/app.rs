@@ -14,7 +14,8 @@ use iced::{
 };
 use paperview_core::{
     Config, ConfigStore, Document, History, HistoryStore, OpenDocuments, SearchMatch, SplitResize,
-    SplitViewState, WatchEvent, ZenModeState, parser::Block, toggle_task_line_source, watch_file,
+    SplitViewState, SupportedFileType, WatchEvent, ZenModeState, parser::Block,
+    toggle_task_line_source, watch_file,
 };
 
 use crate::{history, navigation, reader, theme};
@@ -605,6 +606,11 @@ impl PaperView {
             return self.open_anchor_link(anchor);
         }
 
+        if let Some(path) = resolve_local_document_link(&target, self.documents.active()) {
+            self.open_path(path);
+            return Task::none();
+        }
+
         let resolved =
             resolve_link_target(&target, self.documents.active().and_then(Document::path));
 
@@ -1174,10 +1180,45 @@ fn resolve_link_target(target: &str, active_path: Option<&PathBuf>) -> String {
 
 fn is_absolute_link_target(target: &str) -> bool {
     target.starts_with('#')
-        || target.contains("://")
-        || target.starts_with("mailto:")
-        || target.starts_with("tel:")
+        || is_external_link_target(target)
         || PathBuf::from(target).is_absolute()
+}
+
+fn is_external_link_target(target: &str) -> bool {
+    target.contains("://") || target.starts_with("mailto:") || target.starts_with("tel:")
+}
+
+fn resolve_local_document_link(
+    target: &str,
+    active_document: Option<&Document>,
+) -> Option<PathBuf> {
+    let trimmed = target.trim();
+    if is_external_link_target(trimmed) || trimmed.is_empty() || trimmed.starts_with('#') {
+        return None;
+    }
+
+    let path_part = trimmed.split_once('#').map_or(trimmed, |(path, _)| path);
+    if path_part.is_empty() {
+        return None;
+    }
+
+    let path = PathBuf::from(path_part);
+    if !is_supported_document_path(&path) {
+        return None;
+    }
+
+    if path.is_absolute() {
+        return Some(path);
+    }
+
+    active_document
+        .and_then(Document::path)
+        .and_then(|active_path| active_path.parent())
+        .map(|parent| parent.join(path))
+}
+
+fn is_supported_document_path(path: &PathBuf) -> bool {
+    SupportedFileType::from_path(path).is_some()
 }
 
 fn open_link_target(target: String) -> Result<(), String> {
@@ -1437,8 +1478,9 @@ mod tests {
 
     use super::{
         Message, PaperView, SplitResize, is_split_divider_hit, normalized_scroll_progress,
-        open_link_target, reader, remote_image_placeholders, resolve_link_target, runtime_event,
-        search_scroll_progress, split_primary_width_from_cursor, title, update,
+        open_link_target, reader, remote_image_placeholders, resolve_link_target,
+        resolve_local_document_link, runtime_event, search_scroll_progress,
+        split_primary_width_from_cursor, title, update,
     };
 
     #[test]
@@ -2375,6 +2417,53 @@ mod tests {
         assert_eq!(resolve_link_target("#section", Some(&path)), "#section");
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn local_document_links_open_as_gui_tabs() {
+        let source = temp_doc(
+            "local-link-source.md",
+            "# Source\n\n[Target](local-link-target.md)",
+        );
+        let target = source
+            .parent()
+            .expect("source parent")
+            .join("local-link-target.md");
+        fs::write(&target, "# Target\n\nOpened in PaperView.").expect("write target document");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&source)], temp_store("link.toml"));
+
+        apply(
+            &mut state,
+            Message::OpenLink("local-link-target.md".to_owned()),
+        );
+
+        assert_eq!(state.documents.len(), 2);
+        assert_eq!(
+            state.documents.active().and_then(Document::path),
+            Some(&target)
+        );
+
+        fs::remove_file(source).expect("remove source document");
+        fs::remove_file(target).expect("remove target document");
+    }
+
+    #[test]
+    fn external_links_do_not_resolve_as_local_documents() {
+        let source = temp_doc("external-link-source.md", "# Source");
+        let state =
+            PaperView::from_args_with_store([OsString::from(&source)], temp_store("external.toml"));
+
+        assert_eq!(
+            resolve_local_document_link("https://example.com/guide.md", state.documents.active()),
+            None
+        );
+        assert_eq!(
+            resolve_local_document_link("mailto:team@example.com", state.documents.active()),
+            None
+        );
+
+        fs::remove_file(source).expect("remove source document");
     }
 
     #[test]
