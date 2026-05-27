@@ -65,6 +65,19 @@ rm -f docs/PRD.html docs/PRD.pdf
   removed the file afterward.
 - GUI interactive smoke remains open.
 
+2026-05-26 local GUI interactive smoke status:
+
+- Passed GUI launch through a temporary macOS app wrapper, reader startup,
+  visible history/sidebar/TOC/reader rendering, search highlighting with
+  previous/next navigation, TOC click navigation, history item opening,
+  tab display, split view with two open documents, Zen Mode toggle, local image
+  metadata rendering from an absolute document path, and remote-image placeholder
+  rendering.
+- Cleaned up the temporary app wrapper, temporary image smoke files, and restored
+  the original local PaperView history file after the smoke pass.
+- Still needs hands-on confirmation for drag/drop and local link click
+  navigation before calling the GUI interactive smoke fully complete.
+
 ## Packaging Baseline
 
 - macOS arm64 release artifacts were refreshed on 2026-05-26 in
