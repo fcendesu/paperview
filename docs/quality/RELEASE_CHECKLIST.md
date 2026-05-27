@@ -14,6 +14,11 @@ cargo test --workspace
 cargo build --release --workspace
 ```
 
+2026-05-27 local gate status:
+
+- Passed `cargo build --release --workspace` on macOS arm64 after the GUI local
+  document link fix.
+
 ## Smoke Commands
 
 Run the user-facing command surface against a repository document:
