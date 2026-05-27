@@ -83,8 +83,11 @@ rm -f docs/PRD.html docs/PRD.pdf
 - Confirmed local link click navigation on 2026-05-27 with a temporary local
   Markdown pair: clicking the relative link opened the target document as a new
   active PaperView tab.
-- Still needs hands-on confirmation for drag/drop before calling the GUI
-  interactive smoke fully complete.
+- Confirmed native GUI drag/drop on 2026-05-27 by dragging a temporary
+  `dropped.md` from Finder into the PaperView window and verifying it opened as
+  a new active tab.
+- GUI interactive smoke is complete for the documented v0.1 macOS arm64 local
+  checks.
 
 ## Packaging Baseline
 
