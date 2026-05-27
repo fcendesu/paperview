@@ -54,6 +54,31 @@ Run this before release packaging changes:
 cargo build --release --workspace
 ```
 
+## v0.1 Distribution Shape
+
+The v0.1 distribution shape is one compressed archive per verified platform.
+Each archive contains:
+
+- `paperview-gui`
+- `paperview-tui`
+- `README.md`
+- `LICENSE.md`
+
+The archive keeps GUI and TUI as separate native binaries in one package. This
+keeps the release simple, preserves the zero-runtime packaging goal, and avoids
+claiming installer behavior before it exists.
+
+Create the archive with:
+
+```sh
+scripts/package-release.sh
+```
+
+The script writes `target/dist/paperview-v0.1.0-<target-triple>.tar.gz`.
+Platform-native installers, macOS `.app`/DMG packaging, signing,
+notarization, Homebrew, and Linux/Windows package-manager metadata are deferred
+until after the first v0.1 archive release.
+
 Current local packaging baseline, recorded on 2026-05-25 from macOS arm64:
 
 | Binary | Path | Format | Size |
@@ -76,6 +101,22 @@ cargo tree --workspace --depth 1
 cargo build --release --workspace
 ```
 
+Current local v0.1 archive baseline, recorded on 2026-05-27 from macOS arm64:
+
+| Artifact | Path | Format | Size |
+| :--- | :--- | :--- | ---: |
+| Archive | `target/dist/paperview-v0.1.0-aarch64-apple-darwin.tar.gz` | gzip-compressed tar archive | 7.4M |
+| GUI | `target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-gui` | Mach-O 64-bit executable arm64 | 17M |
+| TUI | `target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-tui` | Mach-O 64-bit executable arm64 | 2.0M |
+
+The 2026-05-27 archive build completed with:
+
+```sh
+scripts/package-release.sh
+tar -tzf target/dist/paperview-v0.1.0-aarch64-apple-darwin.tar.gz
+file target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-gui target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-tui
+```
+
 ## Current Assessment
 
 - The project remains native Rust and avoids Electron, WebView, Node, Python,
@@ -89,8 +130,6 @@ cargo build --release --workspace
 
 ## Open Release Questions
 
-- Decide the final distribution format for GUI and TUI binaries.
-- Decide whether GUI and TUI ship as separate binaries or one package.
 - Repeat release binary size and platform packaging checks for Linux and
   Windows before v0.1.
 - Revisit any future rich rendering dependency against native/offline packaging

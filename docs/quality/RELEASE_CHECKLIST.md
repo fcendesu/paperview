@@ -93,12 +93,17 @@ rm -f docs/PRD.html docs/PRD.pdf
 - The release build should remain native Rust binaries with no Electron,
   WebView, Node, Python, browser-renderer, or external PDF-renderer runtime
   requirement.
+- v0.1 ships as one `.tar.gz` archive per verified platform containing
+  `paperview-gui`, `paperview-tui`, `README.md`, and `LICENSE.md`.
+- Create the v0.1 archive with `scripts/package-release.sh`; the script writes
+  `target/dist/paperview-v0.1.0-<target-triple>.tar.gz`.
+- Passed the v0.1 archive build on 2026-05-27 for macOS arm64. The archive
+  contained the GUI binary, TUI binary, README, and license.
 
 ## Open Platform Gaps
 
 - Repeat dependency and release artifact checks on Linux.
 - Repeat dependency and release artifact checks on Windows.
-- Decide final distribution shape for GUI and TUI binaries.
 - Measure real GUI native-window/event-loop startup timing.
 - Measure real terminal initialization/event-loop startup timing.
 - Measure real scroll/frame timing beyond the deterministic headless scroll

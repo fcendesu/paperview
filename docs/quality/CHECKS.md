@@ -43,6 +43,15 @@ cargo build --release --workspace
 Then record the produced GUI and TUI binary paths, platform format, and sizes in
 `docs/quality/DEPENDENCIES.md`.
 
+For the v0.1 archive shape, build the distributable package with:
+
+```sh
+scripts/package-release.sh
+```
+
+The script produces one `target/dist/paperview-v0.1.0-<target-triple>.tar.gz`
+archive containing the GUI binary, TUI binary, README, and license.
+
 ## Documentation
 
 After any `feat`, `fix`, or `refactor`, update:
