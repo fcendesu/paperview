@@ -18,6 +18,9 @@ cargo build --release --workspace
 
 - Passed `cargo build --release --workspace` on macOS arm64 after the GUI local
   document link fix.
+- Passed the final pre-tag audit on macOS arm64: `cargo fmt --all`,
+  `cargo clippy --workspace -- -D warnings`, `cargo test --workspace`, and
+  `scripts/package-release.sh`.
 
 ## Smoke Commands
 
