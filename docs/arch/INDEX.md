@@ -166,6 +166,12 @@ The first config implementation keeps TOML config path resolution and file
 creation in `paperview-core::ConfigStore`. The TUI binary exposes headless
 `config path` and `config edit` commands without initializing Ratatui.
 
+The Editing Mode foundation keeps source-editing state in
+`paperview-core::EditSession`. It owns the editable buffer, original source for
+dirty-state checks, optional file path, preview document generation, and
+file-backed save behavior. GUI and TUI frontends should render and mutate the
+buffer while delegating save and preview semantics to core.
+
 Split View shared behavior lives in `paperview-core::SplitViewState`. It owns
 the secondary-tab index, bounded primary-pane width, toggle/retarget rules, and
 side-pane cycling. GUI and TUI frontends keep only presentation-specific state

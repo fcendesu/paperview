@@ -1,5 +1,6 @@
 pub mod config;
 pub mod document;
+pub mod editing;
 pub mod export;
 pub mod history;
 pub mod open_documents;
@@ -12,6 +13,7 @@ pub mod zen_mode;
 
 pub use config::{Config, ConfigStore, ConfigStoreError, ThemePreference};
 pub use document::{Document, DocumentError, SupportedFileType, toggle_task_line_source};
+pub use editing::{EditSession, EditSessionError};
 pub use export::{
     ExportArtifact, ExportError, ExportFormat, ExportFormatParseError, export_document, export_html,
 };

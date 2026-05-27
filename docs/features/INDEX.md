@@ -10,6 +10,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Config Command](config-command.md) - headless config path and edit commands.
 - [Document Stats](document-stats.md) - headless document metadata and heading-structure report.
 - [Drag And Drop](drag-and-drop.md) - GUI native file-drop opening.
+- [Editing Mode](editing-mode.md) - active Phase 2 viewer/editor workflow.
 - [Hybrid Theme](hybrid-theme.md) - dark shell, cream reader surface, and GUI visual token contract.
 - [History Sidebar](history-sidebar.md) - shared recent-file model and first GUI history rail.
 - [HTML Export](html-export.md) - headless HTML export from the shared parsed document model.

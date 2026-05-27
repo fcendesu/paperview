@@ -120,19 +120,24 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
 - Live reload and file opening.
 - **Zen Mode:** A distraction-free UI state that hides sidebars and tabs.
 
-### Phase 2: Enhanced Functionality
+### Phase 2: Enhanced Functionality (Current Focus)
 - **Editing Mode:** Toggle between Viewer and Editor.
     - Split-pane live preview.
     - Basic Markdown syntax highlighting in the editor.
     - Save functionality (overwriting the source file).
-- **Global Search:** Ripgrep-powered search across the workspace.
-- **Export:** Support for HTML and PDF export.
+- **Global Search:** Ripgrep-powered search across the workspace. *(Implemented
+  through the TUI/headless workspace search command.)*
+- **Export:** Support for HTML and PDF export. *(Implemented for standalone HTML
+  and text-first PDF output.)*
 
-### Phase 3: Technical Advanced & Graph
-- LaTeX/Math support ($inline$ and $$block$$).
-- Full `.tex` support via Tectonic integration.
-- **Knowledge Graph:** Visual connections between linked Markdown files.
+### Phase 3: Technical Advanced & Presentation
+- LaTeX/Math support ($inline$ and $$block$$). *(Foundation implemented with
+  readable/source-preserving previews.)*
 - **Presentation Mode:** One-click conversion of headings/rules into slides.
+- Full `.tex` support via Tectonic integration is deferred out of the current
+  roadmap scope.
+- **Knowledge Graph** visual connections between linked Markdown files are
+  deferred out of the current roadmap scope.
 
 ### Phase 4: Long-term Explorations (Noted)
 - **Git-Integrated Viewer:** See diffs and blame history inline.

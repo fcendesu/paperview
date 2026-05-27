@@ -76,3 +76,23 @@ This document tracks the progress of features across the three workspace crates.
 | **Scrolling 60 FPS** | 🏗️ | `paperview-tui perf <file>` records deterministic rendered-line scroll workload; real frame timing still needed |
 | **Memory Footprint** | 🏗️ | `paperview-tui perf docs/PRD.md` estimated 17.0KiB against the < 100MB MVP target on 2026-05-26 |
 | **Zero-Dependency Build**| 🏗️ | Native Rust binaries with refreshed direct dependency and macOS arm64 release artifact baseline in `docs/quality/DEPENDENCIES.md`; release checklist added in `docs/quality/RELEASE_CHECKLIST.md`; Linux/Windows packaging checks still needed |
+
+## Phase 2: Enhanced Functionality
+
+| Feature | Core Logic | GUI (Iced) | TUI (Ratatui) |
+| :--- | :---: | :---: | :---: |
+| **Editing Mode** | 🏗️ | ⬜ | ⬜ |
+| **Global Search** | ✅ | ⬜ | ✅ |
+| **Export HTML/PDF** | ✅ | N/A | ✅ |
+
+## Phase 3: Technical Advanced & Presentation
+
+| Feature | Core Logic | GUI (Iced) | TUI (Ratatui) |
+| :--- | :---: | :---: | :---: |
+| **LaTeX/Math Foundation** | ✅ | ✅ | ✅ |
+| **Presentation Mode** | ⬜ | ⬜ | ⬜ |
+
+## Deferred Out Of Current Roadmap Scope
+
+- Full `.tex` support via Tectonic integration.
+- Knowledge Graph visual connections between linked Markdown files.
