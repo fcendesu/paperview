@@ -57,3 +57,6 @@ Out of scope:
   Graph work.
 - 2026-05-27: Added `paperview-core::EditSession` foundation with dirty-state
   tracking, live preview document generation, and file-backed save behavior.
+- 2026-05-27: Added the first GUI Editing Mode slice with header Edit/View and
+  Save actions, a source editor plus live preview layout, and focused GUI tests
+  for toggling and saving edits.

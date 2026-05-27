@@ -328,6 +328,19 @@ pub fn reader_backdrop() -> container::Style {
         .color(READER_TEXT)
 }
 
+pub fn editor_container() -> container::Style {
+    container::Style {
+        background: Some(Background::Color(SHELL_SURFACE)),
+        text_color: Some(SHELL_TEXT),
+        border: Border {
+            color: SHELL_BACKGROUND,
+            width: 1.0,
+            radius: border::radius(0),
+        },
+        ..container::Style::default()
+    }
+}
+
 pub fn paper_container() -> container::Style {
     container::Style {
         background: Some(Background::Color(READER_BACKGROUND)),

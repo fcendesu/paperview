@@ -8,13 +8,13 @@ use iced::{
     widget::{
         button, column, container, mouse_area,
         operation::{self, RelativeOffset},
-        responsive, row, text, text_input,
+        responsive, row, text, text_editor, text_input,
     },
     window,
 };
 use paperview_core::{
-    Config, ConfigStore, Document, History, HistoryStore, OpenDocuments, SearchMatch, SplitResize,
-    SplitViewState, SupportedFileType, WatchEvent, ZenModeState, parser::Block,
+    Config, ConfigStore, Document, EditSession, History, HistoryStore, OpenDocuments, SearchMatch,
+    SplitResize, SplitViewState, SupportedFileType, WatchEvent, ZenModeState, parser::Block,
     toggle_task_line_source, watch_file,
 };
 
@@ -41,6 +41,9 @@ pub struct PaperView {
     search_matches: Vec<SearchMatch>,
     search_selected_index: Option<usize>,
     remote_images: HashMap<String, reader::RemoteImage>,
+    edit_session: Option<EditSession>,
+    edit_content: text_editor::Content,
+    edit_preview: Option<Document>,
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +83,9 @@ pub enum Message {
     SearchQueryChanged(String),
     SearchNext,
     SearchPrevious,
+    ToggleEdit,
+    EditSource(text_editor::Action),
+    SaveEdit,
     ToggleTask(usize),
     SelectSplitTab(usize),
     SelectTab(usize),
@@ -149,6 +155,9 @@ impl PaperView {
                     search_matches: Vec::new(),
                     search_selected_index: None,
                     remote_images: HashMap::new(),
+                    edit_session: None,
+                    edit_content: text_editor::Content::new(),
+                    edit_preview: None,
                 }
             }
             [path] => {
@@ -180,6 +189,9 @@ impl PaperView {
                             search_matches: Vec::new(),
                             search_selected_index: None,
                             remote_images,
+                            edit_session: None,
+                            edit_content: text_editor::Content::new(),
+                            edit_preview: None,
                         }
                     }
                     Err(error) => Self {
@@ -199,6 +211,9 @@ impl PaperView {
                         search_matches: Vec::new(),
                         search_selected_index: None,
                         remote_images: HashMap::new(),
+                        edit_session: None,
+                        edit_content: text_editor::Content::new(),
+                        edit_preview: None,
                     },
                 }
             }
@@ -222,6 +237,9 @@ impl PaperView {
                     search_matches: Vec::new(),
                     search_selected_index: None,
                     remote_images: HashMap::new(),
+                    edit_session: None,
+                    edit_content: text_editor::Content::new(),
+                    edit_preview: None,
                 }
             }
         }
@@ -318,6 +336,9 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         }
         Message::SearchNext => return state.select_next_search_match(),
         Message::SearchPrevious => return state.select_previous_search_match(),
+        Message::ToggleEdit => state.toggle_edit(),
+        Message::EditSource(action) => state.edit_source(action),
+        Message::SaveEdit => state.save_edit(),
         Message::ToggleTask(line_index) => state.toggle_task(line_index),
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
@@ -335,6 +356,7 @@ impl PaperView {
                 save_history(&self.history_store, &self.history);
                 self.documents.open_or_activate(document);
                 self.status = Status::Loaded(path);
+                self.end_editing();
                 self.ensure_split_target();
                 self.sync_active_toc_to_top();
                 self.refresh_search_matches();
@@ -356,6 +378,7 @@ impl PaperView {
                     save_history(&self.history_store, &self.history);
                     self.documents.open_or_activate(document);
                     self.status = Status::Loaded(path);
+                    self.end_editing();
                     self.ensure_split_target();
                     self.sync_active_toc_to_top();
                     self.refresh_search_matches();
@@ -380,6 +403,7 @@ impl PaperView {
                     save_history(&self.history_store, &self.history);
                     self.documents.replace_active(document);
                     self.status = Status::Loaded(path);
+                    self.end_editing();
                     self.sync_active_toc_to_top();
                     self.refresh_search_matches();
                     self.track_remote_images();
@@ -434,6 +458,7 @@ impl PaperView {
     fn select_tab(&mut self, index: usize) {
         self.documents.select(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+        self.end_editing();
         self.ensure_split_target();
         self.sync_active_toc_to_top();
         self.refresh_search_matches();
@@ -443,6 +468,7 @@ impl PaperView {
     fn close_tab(&mut self, index: usize) {
         self.documents.close(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+        self.end_editing();
         self.ensure_split_target();
         self.sync_active_toc_to_top();
         self.refresh_search_matches();
@@ -459,6 +485,63 @@ impl PaperView {
         if self.split_view.secondary_index() != previous {
             self.track_remote_images();
         }
+    }
+
+    fn toggle_edit(&mut self) {
+        if self.edit_session.is_some() {
+            self.end_editing();
+            self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+            return;
+        }
+
+        let Some(document) = self.documents.active() else {
+            self.status = Status::Error("open a document before editing".to_owned());
+            return;
+        };
+
+        let session = EditSession::from_document(document);
+        self.edit_content = text_editor::Content::with_text(session.buffer());
+        self.edit_preview = Some(session.preview_document());
+        self.edit_session = Some(session);
+    }
+
+    fn edit_source(&mut self, action: text_editor::Action) {
+        self.edit_content.perform(action);
+        let Some(session) = &mut self.edit_session else {
+            return;
+        };
+
+        session.replace_buffer(self.edit_content.text());
+        self.edit_preview = Some(session.preview_document());
+    }
+
+    fn save_edit(&mut self) {
+        let Some(session) = &mut self.edit_session else {
+            self.status = Status::Error("enter Editing Mode before saving".to_owned());
+            return;
+        };
+
+        match session.save() {
+            Ok(document) => {
+                let path = document.path().cloned();
+                self.documents.replace_active(document);
+                self.edit_content = text_editor::Content::with_text(session.buffer());
+                self.edit_preview = Some(session.preview_document());
+                self.status = path.map_or(Status::Empty, Status::Loaded);
+                self.sync_active_toc_to_top();
+                self.refresh_search_matches();
+                self.track_remote_images();
+            }
+            Err(error) => {
+                self.status = Status::Error(error.to_string());
+            }
+        }
+    }
+
+    fn end_editing(&mut self) {
+        self.edit_session = None;
+        self.edit_content = text_editor::Content::new();
+        self.edit_preview = None;
     }
 
     fn toggle_task(&mut self, line_index: usize) {
@@ -1061,6 +1144,19 @@ pub fn style(_state: &PaperView, _theme: &iced::Theme) -> iced::theme::Style {
 pub fn view(state: &PaperView) -> Element<'_, Message> {
     let header = header(state);
     let body = match state.documents.active() {
+        Some(document) if state.edit_session.is_some() => {
+            let preview = state.edit_preview.as_ref().unwrap_or(document);
+            row![
+                history::view(&state.history),
+                editing_view(state, preview),
+                navigation::view(
+                    preview.parsed(),
+                    state.active_toc_block_index,
+                    Message::TocSelected
+                )
+            ]
+            .into()
+        }
         Some(document) if state.zen_mode.is_enabled() => {
             reader::view_with_search_and_remote_images(
                 document,
@@ -1111,6 +1207,52 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         .height(Fill)
         .style(|_| theme::shell_container(state.is_drag_hovered))
         .into()
+}
+
+fn editing_view<'a>(state: &'a PaperView, preview: &'a Document) -> Element<'a, Message> {
+    let dirty_label = state.edit_session.as_ref().map_or("Clean", |session| {
+        if session.is_dirty() {
+            "Unsaved"
+        } else {
+            "Saved"
+        }
+    });
+
+    let editor = column![
+        row![
+            text("Editor").size(14).color(theme::SHELL_TEXT),
+            text(dirty_label).size(12).color(theme::SHELL_TEXT_MUTED)
+        ]
+        .spacing(10),
+        text_editor(&state.edit_content)
+            .placeholder("Edit Markdown")
+            .on_action(Message::EditSource)
+            .padding(14)
+            .height(Fill)
+    ]
+    .spacing(10)
+    .padding(16)
+    .height(Fill);
+
+    row![
+        container(editor)
+            .width(Length::FillPortion(1))
+            .height(Fill)
+            .style(|_| theme::editor_container()),
+        container(reader::view_with_search_and_remote_images(
+            preview,
+            Some(Message::ReaderScrolled),
+            Message::OpenLink,
+            state.active_search_query(),
+            state.active_search_line(),
+            Some(Message::ToggleTask),
+            &state.remote_images
+        ))
+        .width(Length::FillPortion(1))
+        .height(Fill)
+    ]
+    .spacing(0)
+    .into()
 }
 
 fn split_reader<'a>(
@@ -1286,6 +1428,27 @@ fn header(state: &PaperView) -> Element<'_, Message> {
     } else {
         split_button
     };
+    let is_editing = state.edit_session.is_some();
+    let edit_button = button(text(if is_editing { "View" } else { "Edit" }).size(13))
+        .padding([7, 12])
+        .style(move |_, status| theme::header_action_button(is_editing, status));
+    let edit_button = if state.documents.active().is_some() {
+        edit_button.on_press(Message::ToggleEdit)
+    } else {
+        edit_button
+    };
+    let can_save = state
+        .edit_session
+        .as_ref()
+        .is_some_and(EditSession::is_dirty);
+    let save_button = button(text("Save").size(13))
+        .padding([7, 12])
+        .style(move |_, status| theme::header_action_button(false, status));
+    let save_button = if can_save {
+        save_button.on_press(Message::SaveEdit)
+    } else {
+        save_button
+    };
     let search_controls = search_controls(state);
 
     container(
@@ -1297,6 +1460,8 @@ fn header(state: &PaperView) -> Element<'_, Message> {
             .spacing(4)
             .width(Fill),
             search_controls,
+            edit_button,
+            save_button,
             split_button
         ]
         .spacing(12)
@@ -1470,6 +1635,7 @@ mod tests {
             Key, Location, Modifiers,
             key::{Code, Physical},
         },
+        widget::text_editor,
     };
     use paperview_core::{
         Config, ConfigStore, Document, History, HistoryStore, ThemePreference,
@@ -1768,6 +1934,55 @@ mod tests {
 
         fs::remove_file(first).expect("remove first test document");
         fs::remove_file(second).expect("remove second test document");
+    }
+
+    #[test]
+    fn edit_toggle_starts_session_for_active_document() {
+        let path = temp_doc("edit-toggle.md", "# Draft\n\nBody");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("edit.toml"));
+
+        apply(&mut state, Message::ToggleEdit);
+
+        let session = state.edit_session.as_ref().expect("edit session");
+        assert_eq!(session.buffer(), "# Draft\n\nBody");
+        assert!(!session.is_dirty());
+        assert_eq!(
+            state.edit_preview.as_ref().map(Document::title),
+            Some("Draft")
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn saving_edit_session_updates_active_document() {
+        let path = temp_doc("edit-save.md", "# Draft\n\nBody");
+        let mut state =
+            PaperView::from_args_with_store([OsString::from(&path)], temp_store("edit-save.toml"));
+
+        apply(&mut state, Message::ToggleEdit);
+        state
+            .edit_session
+            .as_mut()
+            .expect("edit session")
+            .replace_buffer("# Saved\n\nUpdated");
+        state.edit_content = text_editor::Content::with_text("# Saved\n\nUpdated");
+        apply(&mut state, Message::SaveEdit);
+
+        assert_eq!(state.documents.active().map(Document::title), Some("Saved"));
+        assert_eq!(
+            fs::read_to_string(&path).expect("read saved source"),
+            "# Saved\n\nUpdated"
+        );
+        assert!(
+            state
+                .edit_session
+                .as_ref()
+                .is_some_and(|session| !session.is_dirty())
+        );
+
+        fs::remove_file(path).expect("remove test document");
     }
 
     #[test]

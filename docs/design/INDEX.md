@@ -141,3 +141,8 @@ available and as Markdown-shaped `[x]` / `[ ]` markers in the TUI.
 - **Cursor:** Accent blue (`#58A6FF`) block or line cursor.
 - **Syntax Highlighting:** Minimalist scheme following the UI colors (Greys, Blues, and Whites).
 - **Split Pane:** Vertical divider between the raw Markdown text and the rendered "Paper" view.
+
+The first GUI Editing Mode slice uses the header `Edit` / `View` toggle and a
+dirty-state-aware `Save` action. While active, the main area becomes a
+two-column editor/preview workspace: a dark Markdown source editor on the left
+and the live PaperView preview on the right.
