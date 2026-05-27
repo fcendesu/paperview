@@ -79,6 +79,9 @@ Platform-native installers, macOS `.app`/DMG packaging, signing,
 notarization, Homebrew, and Linux/Windows package-manager metadata are deferred
 until after the first v0.1 archive release.
 
+The current verified v0.1 artifact scope is macOS arm64 only. Linux and Windows
+remain unverified until platform packaging checks are run on those targets.
+
 Current local packaging baseline, recorded on 2026-05-25 from macOS arm64:
 
 | Binary | Path | Format | Size |

@@ -91,6 +91,7 @@ rm -f docs/PRD.html docs/PRD.pdf
 
 ## Packaging Baseline
 
+- Draft v0.1 release notes live in `docs/RELEASE_NOTES.md`.
 - macOS arm64 release artifacts were refreshed on 2026-05-26 in
   `docs/quality/DEPENDENCIES.md`.
 - The release build should remain native Rust binaries with no Electron,
@@ -107,6 +108,8 @@ rm -f docs/PRD.html docs/PRD.pdf
 
 - Repeat dependency and release artifact checks on Linux.
 - Repeat dependency and release artifact checks on Windows.
+- Do not claim Linux or Windows v0.1 release support until those packaging
+  checks pass; the current verified artifact scope is macOS arm64 only.
 - Measure real GUI native-window/event-loop startup timing.
 - Measure real terminal initialization/event-loop startup timing.
 - Measure real scroll/frame timing beyond the deterministic headless scroll
