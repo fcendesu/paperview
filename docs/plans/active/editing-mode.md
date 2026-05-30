@@ -62,3 +62,6 @@ Out of scope:
   for toggling and saving edits.
 - 2026-05-30: Added GUI keyboard shortcuts: `Cmd/Ctrl+E` toggles Editing Mode
   and `Cmd/Ctrl+S` saves while editing.
+- 2026-05-30: Added lightweight GUI editor Markdown syntax styling for common
+  block markers, inline code, links, and emphasis without adding a new
+  dependency.

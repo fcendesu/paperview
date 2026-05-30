@@ -1,4 +1,5 @@
 mod app;
+mod editor_highlight;
 mod history;
 mod navigation;
 mod reader;

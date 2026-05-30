@@ -18,7 +18,10 @@ use paperview_core::{
     toggle_task_line_source, watch_file,
 };
 
-use crate::{history, navigation, reader, theme};
+use crate::{
+    editor_highlight::{MarkdownHighlighter, markdown_highlight_format},
+    history, navigation, reader, theme,
+};
 
 const SPLIT_DIVIDER_HIT_ZONE: f32 = 16.0;
 const MAX_REMOTE_IMAGE_BYTES: usize = 10 * 1024 * 1024;
@@ -1253,6 +1256,7 @@ fn editing_view<'a>(state: &'a PaperView, preview: &'a Document) -> Element<'a, 
         text_editor(&state.edit_content)
             .placeholder("Edit Markdown")
             .on_action(Message::EditSource)
+            .highlight_with::<MarkdownHighlighter>((), markdown_highlight_format)
             .padding(14)
             .height(Fill)
     ]
