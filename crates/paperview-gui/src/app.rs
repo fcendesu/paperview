@@ -1005,6 +1005,32 @@ fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Opt
         }) if modifiers.command()
             && key
                 .to_latin(physical_key)
+                .is_some_and(|character| character.eq_ignore_ascii_case(&'e')) =>
+        {
+            Some(Message::ToggleEdit)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.command()
+            && key
+                .to_latin(physical_key)
+                .is_some_and(|character| character.eq_ignore_ascii_case(&'s')) =>
+        {
+            Some(Message::SaveEdit)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.command()
+            && key
+                .to_latin(physical_key)
                 .is_some_and(|character| character == ']') =>
         {
             Some(Message::ResizeSplit(SplitResize::GrowPrimary))
@@ -2572,6 +2598,44 @@ mod tests {
         );
 
         assert!(matches!(message, Some(Message::ToggleSplit)));
+    }
+
+    #[test]
+    fn command_e_maps_to_edit_toggle() {
+        let message = runtime_event(
+            Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character("e".into()),
+                modified_key: Key::Character("e".into()),
+                physical_key: Physical::Code(Code::KeyE),
+                location: Location::Standard,
+                modifiers: Modifiers::COMMAND,
+                text: Some("e".into()),
+                repeat: false,
+            }),
+            iced::event::Status::Ignored,
+            iced::window::Id::unique(),
+        );
+
+        assert!(matches!(message, Some(Message::ToggleEdit)));
+    }
+
+    #[test]
+    fn command_s_maps_to_edit_save() {
+        let message = runtime_event(
+            Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character("s".into()),
+                modified_key: Key::Character("s".into()),
+                physical_key: Physical::Code(Code::KeyS),
+                location: Location::Standard,
+                modifiers: Modifiers::COMMAND,
+                text: Some("s".into()),
+                repeat: false,
+            }),
+            iced::event::Status::Ignored,
+            iced::window::Id::unique(),
+        );
+
+        assert!(matches!(message, Some(Message::SaveEdit)));
     }
 
     #[test]

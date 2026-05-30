@@ -60,3 +60,5 @@ Out of scope:
 - 2026-05-27: Added the first GUI Editing Mode slice with header Edit/View and
   Save actions, a source editor plus live preview layout, and focused GUI tests
   for toggling and saving edits.
+- 2026-05-30: Added GUI keyboard shortcuts: `Cmd/Ctrl+E` toggles Editing Mode
+  and `Cmd/Ctrl+S` saves while editing.

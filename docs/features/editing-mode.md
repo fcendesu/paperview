@@ -17,7 +17,9 @@ The intended user-facing behavior is:
 
 The first GUI slice exposes this behavior with an `Edit` / `View` header button,
 a `Save` header button that enables only when the edit buffer is dirty, and a
-two-pane editor/preview layout for the active document.
+two-pane editor/preview layout for the active document. The GUI also maps
+`Cmd+E` on macOS and `Ctrl+E` elsewhere to toggle Editing Mode, and `Cmd+S` on
+macOS or `Ctrl+S` elsewhere to save while editing.
 
 ## Implementation Notes
 
@@ -43,7 +45,6 @@ two-pane editor/preview layout for the active document.
 
 ## Open Decisions
 
-- Exact keyboard shortcut for toggling Editing Mode.
 - Whether the first TUI editor is a line-oriented buffer or an external-editor
   handoff.
 - How much Markdown syntax highlighting is needed for the first GUI editor
@@ -56,8 +57,8 @@ two-pane editor/preview layout for the active document.
 - Core tests cover edit-session creation, dirty-state tracking, live preview
   document generation, file-backed save behavior, and missing-path save
   rejection.
-- GUI tests cover toggling into editor mode and saving edited source back into
-  the active document.
+- GUI tests cover toggling into editor mode, saving edited source back into the
+  active document, and mapping edit/save keyboard shortcuts.
 - TUI tests should cover any edit-mode key flow once the TUI slice lands.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, focused tests, and

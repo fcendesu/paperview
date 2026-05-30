@@ -145,4 +145,6 @@ available and as Markdown-shaped `[x]` / `[ ]` markers in the TUI.
 The first GUI Editing Mode slice uses the header `Edit` / `View` toggle and a
 dirty-state-aware `Save` action. While active, the main area becomes a
 two-column editor/preview workspace: a dark Markdown source editor on the left
-and the live PaperView preview on the right.
+and the live PaperView preview on the right. The GUI uses `Cmd + E` on macOS
+or `Ctrl + E` elsewhere for the Edit/View toggle, and `Cmd + S` on macOS or
+`Ctrl + S` elsewhere for save.
