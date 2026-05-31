@@ -161,4 +161,5 @@ keeps the cursor line visible while editing long source files. Dirty buffers
 require confirmation before discard: the first destructive exit shows an
 unsaved-edits warning, and repeating the action confirms discard. `Ctrl + P`
 toggles the preview pane so the source editor can use the full available width
-on narrow terminals.
+on narrow terminals. The preview pane scrolls independently with
+`Ctrl + Up` / `Ctrl + Down` and `Ctrl + PageUp` / `Ctrl + PageDown`.

@@ -150,8 +150,9 @@ TUI controls:
 - In Editing Mode, arrow keys move the cursor, `Home` / `End` jump within the
   current line, `PageUp` / `PageDown` move by larger line chunks, `Backspace` /
   `Delete` remove text, `Ctrl+S` saves edits, `Ctrl+P` toggles the preview
-  pane, and `Esc` returns to the reader. Dirty edits require a second discard
-  action before `Esc`, tab switch, or tab close drops unsaved changes.
+  pane, `Ctrl+Up` / `Ctrl+Down` and `Ctrl+PageUp` / `Ctrl+PageDown` scroll the
+  preview, and `Esc` returns to the reader. Dirty edits require a second
+  discard action before `Esc`, tab switch, or tab close drops unsaved changes.
 - `q` / `Esc`: quit the current TUI view.
 
 The TUI highlights the active table-of-contents section while you scroll, can

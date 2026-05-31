@@ -80,3 +80,6 @@ Out of scope:
   and tab close, with focused tests for warning, confirmation, and save reset.
 - 2026-05-31: Added `Ctrl+P` TUI edit preview toggling for narrow terminals,
   with header status and focused visibility tests.
+- 2026-05-31: Added independent TUI edit preview scrolling with
+  `Ctrl+Up` / `Ctrl+Down` and `Ctrl+PageUp` / `Ctrl+PageDown`, including
+  clamping, reset, and hidden-preview tests.

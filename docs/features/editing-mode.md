@@ -34,9 +34,10 @@ move by larger line chunks, `Enter` inserts a newline, `Backspace` and
 document, `Ctrl+P` toggles the preview pane for narrow terminals, and `Esc`
 returns to the reader without saving unsaved edits. The TUI keeps editor
 scrolling separate from normal reader scrolling and clamps the editor viewport
-so the cursor line remains visible. When the edit buffer is dirty, `Esc`, tab
-switching, and tab close first warn about unsaved edits; the next discard
-action confirms and exits or proceeds.
+so the cursor line remains visible. The preview pane has independent scroll
+controls with `Ctrl+Up`, `Ctrl+Down`, `Ctrl+PageUp`, and `Ctrl+PageDown`. When
+the edit buffer is dirty, `Esc`, tab switching, and tab close first warn about
+unsaved edits; the next discard action confirms and exits or proceeds.
 
 ## Implementation Notes
 
@@ -68,6 +69,8 @@ action confirms and exits or proceeds.
   destructive exits require two explicit actions unless the user saves first.
 - The TUI preview pane is visible by default and can be hidden with `Ctrl+P`
   during editing so the source editor can use the full terminal width.
+- The TUI preview pane has its own scroll offset that clamps to the rendered
+  preview after edits and resets for each new edit session.
 
 ## Open Decisions
 
@@ -87,8 +90,9 @@ action confirms and exits or proceeds.
 - GUI highlighter tests cover block marker and inline syntax ranges.
 - TUI tests cover entering edit mode, dirty-state tracking, cursor movement,
   cursor-visible scrolling, insertion, deletion, UTF-8 cursor handling, live
-  preview refresh, preview visibility toggling, saving edits, dirty discard
-  confirmation, and closing edit mode without saving.
+  preview refresh, preview visibility toggling, independent preview scrolling,
+  saving edits, dirty discard confirmation, and closing edit mode without
+  saving.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, focused tests, and
   `cargo test --workspace` when frontend behavior changes.
