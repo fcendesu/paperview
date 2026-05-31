@@ -65,3 +65,6 @@ Out of scope:
 - 2026-05-30: Added lightweight GUI editor Markdown syntax styling for common
   block markers, inline code, links, and emphasis without adding a new
   dependency.
+- 2026-05-31: Added the first TUI Editing Mode slice with `e` to enter a
+  terminal source buffer, append/backspace editing, `Ctrl+S` save, `Esc` return
+  to reader, and focused TUI key-flow tests.

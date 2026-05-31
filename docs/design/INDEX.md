@@ -148,3 +148,10 @@ two-column editor/preview workspace: a dark Markdown source editor on the left
 and the live PaperView preview on the right. The GUI uses `Cmd + E` on macOS
 or `Ctrl + E` elsewhere for the Edit/View toggle, and `Cmd + S` on macOS or
 `Ctrl + S` elsewhere for save.
+
+The first TUI Editing Mode slice uses `e` from the reader to swap the rendered
+document pane for a bordered `Editor` source pane. The header shows dirty-state
+and save/exit hints while editing. `Ctrl + S` saves, `Esc` returns to the
+reader, and the initial terminal input model is intentionally limited to
+append, newline, and backspace until a richer cursor-addressable editor is
+introduced.

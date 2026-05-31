@@ -5,10 +5,11 @@ use std::{
     time::Duration,
 };
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use paperview_core::{
-    Config, ConfigStore, Document, FileEntry, FileWatcher, History, HistoryStore, OpenDocuments,
-    SearchMatch, SplitResize, SplitViewState, WatchEvent, WorkspaceSearchMatch, ZenModeState,
+    Config, ConfigStore, Document, EditSession, FileEntry, FileWatcher, History, HistoryStore,
+    OpenDocuments, SearchMatch, SplitResize, SplitViewState, WatchEvent, WorkspaceSearchMatch,
+    ZenModeState,
     parser::{Block as MarkdownBlock, TocItem},
     toggle_task_line_source, watch_file,
 };
@@ -108,6 +109,9 @@ struct ReaderApp {
     search_selected_index: Option<usize>,
     open_path_mode: OpenPathMode,
     open_path_input: String,
+    edit_mode: EditMode,
+    edit_session: Option<EditSession>,
+    edit_buffer: String,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
     _split_watcher: Option<FileWatcher>,
@@ -128,6 +132,12 @@ enum SearchMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OpenPathMode {
+    Inactive,
+    Editing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EditMode {
     Inactive,
     Editing,
 }
@@ -180,6 +190,9 @@ impl ReaderApp {
             search_selected_index: None,
             open_path_mode: OpenPathMode::Inactive,
             open_path_input: String::new(),
+            edit_mode: EditMode::Inactive,
+            edit_session: None,
+            edit_buffer: String::new(),
             _watcher: watcher,
             watch_receiver,
             _split_watcher: None,
@@ -212,11 +225,16 @@ impl ReaderApp {
                     self.handle_open_path_key(key.code);
                     continue;
                 }
+                if self.edit_mode == EditMode::Editing {
+                    self.handle_edit_key(key);
+                    continue;
+                }
 
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                     KeyCode::Char('/') => self.start_search(),
                     KeyCode::Char('o') => self.start_open_path(),
+                    KeyCode::Char('e') => self.start_editing(),
                     KeyCode::Char('n') => self.select_next_search_match(),
                     KeyCode::Char('N') => self.select_previous_search_match(),
                     KeyCode::Char(']') => self.select_next_tab(),
@@ -257,7 +275,10 @@ impl ReaderApp {
                 Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
             (main, Some(toc))
         };
-        let reader_areas = if self.split_view.is_enabled() && !self.zen_mode.is_enabled() {
+        let reader_areas = if self.split_view.is_enabled()
+            && !self.zen_mode.is_enabled()
+            && self.edit_mode == EditMode::Inactive
+        {
             let (primary_width, secondary_width) = self.split_widths();
             Layout::horizontal([
                 Constraint::Percentage(primary_width),
@@ -276,20 +297,31 @@ impl ReaderApp {
             header,
         );
 
-        frame.render_widget(
-            Paragraph::new(Text::from(document_text(
-                &self.document_lines,
-                self.search_highlights(),
-            )))
-            .block(Block::default().title("Reader").borders(Borders::ALL))
-            .style(theme::reader())
-            .scroll((self.scroll, 0))
-            .wrap(Wrap { trim: false }),
-            reader_areas[0],
-        );
+        if self.edit_mode == EditMode::Editing {
+            frame.render_widget(
+                Paragraph::new(Text::from(edit_buffer_text(&self.edit_buffer)))
+                    .block(Block::default().title("Editor").borders(Borders::ALL))
+                    .style(theme::reader())
+                    .scroll((self.scroll, 0))
+                    .wrap(Wrap { trim: false }),
+                reader_areas[0],
+            );
+        } else {
+            frame.render_widget(
+                Paragraph::new(Text::from(document_text(
+                    &self.document_lines,
+                    self.search_highlights(),
+                )))
+                .block(Block::default().title("Reader").borders(Borders::ALL))
+                .style(theme::reader())
+                .scroll((self.scroll, 0))
+                .wrap(Wrap { trim: false }),
+                reader_areas[0],
+            );
+        }
 
         if let Some(split_index) = self.split_view.secondary_index() {
-            if self.zen_mode.is_enabled() {
+            if self.zen_mode.is_enabled() || self.edit_mode == EditMode::Editing {
                 return;
             }
             let title = self
@@ -423,6 +455,86 @@ impl ReaderApp {
         self.open_path(PathBuf::from(path));
     }
 
+    fn start_editing(&mut self) {
+        let session = EditSession::from_document(self.active_document());
+        self.edit_buffer = session.buffer().to_owned();
+        self.edit_session = Some(session);
+        self.edit_mode = EditMode::Editing;
+        self.focus = ReaderFocus::Reader;
+        self.scroll = 0;
+        self.status = Some("Editing: type source, Enter newline, Ctrl+S save, Esc view".to_owned());
+    }
+
+    fn handle_edit_key(&mut self, key: KeyEvent) {
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(key.code, KeyCode::Char('s') | KeyCode::Char('S'))
+        {
+            self.save_edit();
+            return;
+        }
+
+        match key.code {
+            KeyCode::Esc => {
+                self.stop_editing();
+                self.status = Some("Editing Mode closed".to_owned());
+            }
+            KeyCode::Enter => self.push_edit_char('\n'),
+            KeyCode::Backspace => {
+                self.edit_buffer.pop();
+                self.refresh_edit_session();
+            }
+            KeyCode::Char(character)
+                if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
+            {
+                self.push_edit_char(character);
+            }
+            KeyCode::Char(_) => {}
+            _ => {}
+        }
+    }
+
+    fn push_edit_char(&mut self, character: char) {
+        self.edit_buffer.push(character);
+        self.refresh_edit_session();
+    }
+
+    fn refresh_edit_session(&mut self) {
+        if let Some(session) = &mut self.edit_session {
+            session.replace_buffer(self.edit_buffer.clone());
+        }
+    }
+
+    fn save_edit(&mut self) {
+        let Some(session) = &mut self.edit_session else {
+            self.status = Some("Enter Editing Mode before saving".to_owned());
+            return;
+        };
+
+        session.replace_buffer(self.edit_buffer.clone());
+        match session.save() {
+            Ok(document) => {
+                self.documents.replace_active(document);
+                self.load_active_document(false);
+                self.edit_session = self.documents.active().map(EditSession::from_document);
+                self.status = Some("Saved edits".to_owned());
+            }
+            Err(error) => {
+                self.status = Some(error.to_string());
+            }
+        }
+    }
+
+    fn stop_editing(&mut self) {
+        if self.edit_mode == EditMode::Inactive {
+            return;
+        }
+
+        self.edit_mode = EditMode::Inactive;
+        self.edit_session = None;
+        self.edit_buffer.clear();
+        self.load_active_document(false);
+    }
+
     fn open_path(&mut self, path: PathBuf) {
         match Document::open(&path) {
             Ok(document) => {
@@ -533,6 +645,14 @@ impl ReaderApp {
         if self.open_path_mode == OpenPathMode::Editing {
             return Some(format!("Open: {}", self.open_path_input));
         }
+        if self.edit_mode == EditMode::Editing {
+            let state = self.edit_session.as_ref().map_or("clean", |session| {
+                if session.is_dirty() { "dirty" } else { "clean" }
+            });
+            return Some(format!(
+                "Editing ({state}) - Ctrl+S save, Esc view, append-only first slice"
+            ));
+        }
 
         self.status.clone()
     }
@@ -562,7 +682,7 @@ impl ReaderApp {
             },
             Line::from(Span::styled(
                 self.header_status().unwrap_or_else(|| {
-                    "[o] open  [/] search  [Space] task  [z] zen  [\\] split  [</>] resize  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
+                    "[e] edit  [o] open  [/] search  [Space] task  [z] zen  [\\] split  [</>] resize  [{/}] side  [[/]] tabs  [x] close  [Tab] toc  [q] quit"
                         .to_owned()
                 }),
                 theme::shell_muted(),
@@ -596,6 +716,7 @@ impl ReaderApp {
             return;
         }
 
+        self.stop_editing();
         self.documents.select(index);
         self.ensure_split_target();
         self.load_active_document(true);
@@ -608,6 +729,7 @@ impl ReaderApp {
     }
 
     fn close_active_tab(&mut self) -> bool {
+        self.stop_editing();
         let Some(index) = self.documents.active_index() else {
             return true;
         };
@@ -1521,6 +1643,17 @@ fn document_text(lines: &[String], highlights: SearchHighlights<'_>) -> Vec<Line
         .collect()
 }
 
+fn edit_buffer_text(buffer: &str) -> Vec<Line<'static>> {
+    if buffer.is_empty() {
+        return vec![Line::from(Span::styled("", theme::shell_muted()))];
+    }
+
+    buffer
+        .split('\n')
+        .map(|line| Line::from(line.to_owned()))
+        .collect()
+}
+
 fn document_line(line: &str, query: &str, search_state: SearchLineState) -> Line<'static> {
     if search_state != SearchLineState::None {
         return highlighted_document_line(line, query, search_state);
@@ -1580,7 +1713,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use crossterm::event::KeyCode;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use paperview_core::{
         Config, ConfigStore, Document, FileEntry, HistoryStore, SearchMatch, ThemePreference,
         WorkspaceSearchMatch,
@@ -1588,7 +1721,7 @@ mod tests {
     use ratatui::style::Modifier;
 
     use super::{
-        DashboardApp, OpenPathMode, ReaderApp, ReaderFocus, SearchHighlights, SearchMode,
+        DashboardApp, EditMode, OpenPathMode, ReaderApp, ReaderFocus, SearchHighlights, SearchMode,
         WorkspaceSearchApp, clamp_search_selection, clamp_toc_selection, document_text, tab_line,
     };
     use crate::theme;
@@ -2325,6 +2458,67 @@ mod tests {
         fs::remove_file(second).expect("remove second document");
     }
 
+    #[test]
+    fn edit_mode_appends_and_saves_source() {
+        let path = temp_doc("tui-edit-save.md", "# Draft\n\nBody");
+        let mut app = ReaderApp::new(Document::open(&path).expect("open document"));
+
+        app.start_editing();
+        assert_eq!(app.edit_mode, EditMode::Editing);
+        assert!(
+            app.edit_session
+                .as_ref()
+                .is_some_and(|session| !session.is_dirty())
+        );
+
+        app.handle_edit_key(key(KeyCode::Enter));
+        for character in "Added".chars() {
+            app.handle_edit_key(key(KeyCode::Char(character)));
+        }
+
+        assert!(
+            app.edit_session
+                .as_ref()
+                .is_some_and(|session| session.is_dirty())
+        );
+
+        app.handle_edit_key(ctrl_key('s'));
+
+        assert_eq!(
+            fs::read_to_string(&path).expect("read saved source"),
+            "# Draft\n\nBody\nAdded"
+        );
+        assert_eq!(app.active_document().source(), "# Draft\n\nBody\nAdded");
+        assert_eq!(app.edit_mode, EditMode::Editing);
+        assert!(
+            app.edit_session
+                .as_ref()
+                .is_some_and(|session| !session.is_dirty())
+        );
+
+        fs::remove_file(path).expect("remove document");
+    }
+
+    #[test]
+    fn edit_mode_escape_closes_without_saving() {
+        let path = temp_doc("tui-edit-cancel.md", "# Draft\n\nBody");
+        let mut app = ReaderApp::new(Document::open(&path).expect("open document"));
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Char('x')));
+        app.handle_edit_key(key(KeyCode::Esc));
+
+        assert_eq!(app.edit_mode, EditMode::Inactive);
+        assert!(app.edit_session.is_none());
+        assert_eq!(
+            fs::read_to_string(&path).expect("read source"),
+            "# Draft\n\nBody"
+        );
+        assert_eq!(app.active_document().source(), "# Draft\n\nBody");
+
+        fs::remove_file(path).expect("remove document");
+    }
+
     fn temp_doc(name: &str, source: &str) -> std::path::PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -2335,5 +2529,13 @@ mod tests {
         fs::write(&path, source).expect("write test document");
 
         path
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    fn ctrl_key(character: char) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(character), KeyModifiers::CONTROL)
     }
 }
