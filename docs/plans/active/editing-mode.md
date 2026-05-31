@@ -74,3 +74,5 @@ Out of scope:
 - 2026-05-31: Added TUI live preview while editing by rendering
   `EditSession::preview_document` beside the source buffer and covering preview
   refresh before save in focused tests.
+- 2026-05-31: Added TUI editor viewport state with cursor-visible scrolling,
+  `PageUp` / `PageDown`, and focused tests for long edit buffers.

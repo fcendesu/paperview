@@ -28,10 +28,12 @@ The first TUI slice exposes Editing Mode with `e` from the reader. While
 editing, the active document source is shown beside a rendered preview pane
 generated from the edit buffer. The source pane marks the cursor with a
 reversed character. Typed characters insert at the cursor, arrow keys move the
-cursor, `Home` and `End` jump within the current line, `Enter` inserts a
-newline, `Backspace` and `Delete` remove source around the cursor, `Ctrl+S`
-saves the file-backed document, and `Esc` returns to the reader without saving
-unsaved edits.
+cursor, `Home` and `End` jump within the current line, `PageUp` and `PageDown`
+move by larger line chunks, `Enter` inserts a newline, `Backspace` and
+`Delete` remove source around the cursor, `Ctrl+S` saves the file-backed
+document, and `Esc` returns to the reader without saving unsaved edits. The
+TUI keeps editor scrolling separate from normal reader scrolling and clamps the
+editor viewport so the cursor line remains visible.
 
 ## Implementation Notes
 
@@ -57,6 +59,8 @@ unsaved edits.
 - The TUI editor uses a lightweight in-process source buffer with UTF-8-aware
   cursor movement, insertion, deletion, shared `EditSession` save behavior, and
   a live preview generated from `EditSession::preview_document`.
+- The TUI editor owns a separate source-scroll offset while editing so cursor
+  navigation does not mutate normal reader scroll state.
 
 ## Open Decisions
 
@@ -75,8 +79,8 @@ unsaved edits.
   active document, and mapping edit/save keyboard shortcuts.
 - GUI highlighter tests cover block marker and inline syntax ranges.
 - TUI tests cover entering edit mode, dirty-state tracking, cursor movement,
-  insertion, deletion, UTF-8 cursor handling, live preview refresh, saving
-  edits, and closing edit mode without saving.
+  cursor-visible scrolling, insertion, deletion, UTF-8 cursor handling, live
+  preview refresh, saving edits, and closing edit mode without saving.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, focused tests, and
   `cargo test --workspace` when frontend behavior changes.

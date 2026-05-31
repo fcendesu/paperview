@@ -23,6 +23,9 @@ use ratatui::{
 
 use crate::{render, theme};
 
+const EDIT_VIEWPORT_LINES: usize = 16;
+const EDIT_PAGE_LINES: usize = 12;
+
 pub fn run(document: Document) -> io::Result<()> {
     run_documents(vec![document])
 }
@@ -113,6 +116,7 @@ struct ReaderApp {
     edit_session: Option<EditSession>,
     edit_buffer: String,
     edit_cursor: usize,
+    edit_scroll: u16,
     edit_preview_lines: Vec<String>,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
@@ -196,6 +200,7 @@ impl ReaderApp {
             edit_session: None,
             edit_buffer: String::new(),
             edit_cursor: 0,
+            edit_scroll: 0,
             edit_preview_lines: Vec::new(),
             _watcher: watcher,
             watch_receiver,
@@ -313,7 +318,7 @@ impl ReaderApp {
                 )))
                 .block(Block::default().title("Editor").borders(Borders::ALL))
                 .style(theme::reader())
-                .scroll((self.scroll, 0))
+                .scroll((self.edit_scroll, 0))
                 .wrap(Wrap { trim: false }),
                 reader_areas[0],
             );
@@ -324,6 +329,7 @@ impl ReaderApp {
                 )))
                 .block(Block::default().title("Preview").borders(Borders::ALL))
                 .style(theme::reader())
+                .scroll((self.edit_scroll, 0))
                 .wrap(Wrap { trim: false }),
                 reader_areas[1],
             );
@@ -480,12 +486,15 @@ impl ReaderApp {
         let session = EditSession::from_document(self.active_document());
         self.edit_buffer = session.buffer().to_owned();
         self.edit_cursor = self.edit_buffer.len();
+        self.edit_scroll = 0;
         self.edit_session = Some(session);
         self.refresh_edit_preview();
+        self.ensure_edit_cursor_visible();
         self.edit_mode = EditMode::Editing;
         self.focus = ReaderFocus::Reader;
         self.scroll = 0;
-        self.status = Some("Editing: arrows move, type source, Ctrl+S save, Esc view".to_owned());
+        self.status =
+            Some("Editing: arrows/PageUp/PageDown move, Ctrl+S save, Esc view".to_owned());
     }
 
     fn handle_edit_key(&mut self, key: KeyEvent) {
@@ -508,6 +517,8 @@ impl ReaderApp {
             KeyCode::Right => self.move_edit_cursor_right(),
             KeyCode::Up => self.move_edit_cursor_vertical(-1),
             KeyCode::Down => self.move_edit_cursor_vertical(1),
+            KeyCode::PageUp => self.page_edit_cursor(-1),
+            KeyCode::PageDown => self.page_edit_cursor(1),
             KeyCode::Home => self.move_edit_cursor_to_line_start(),
             KeyCode::End => self.move_edit_cursor_to_line_end(),
             KeyCode::Char(character)
@@ -525,6 +536,7 @@ impl ReaderApp {
         self.edit_buffer.insert(self.edit_cursor, character);
         self.edit_cursor += character.len_utf8();
         self.refresh_edit_session();
+        self.ensure_edit_cursor_visible();
     }
 
     fn backspace_edit_char(&mut self) {
@@ -535,6 +547,7 @@ impl ReaderApp {
         self.edit_buffer.drain(previous..self.edit_cursor);
         self.edit_cursor = previous;
         self.refresh_edit_session();
+        self.ensure_edit_cursor_visible();
     }
 
     fn delete_edit_char(&mut self) {
@@ -544,28 +557,33 @@ impl ReaderApp {
         };
         self.edit_buffer.drain(self.edit_cursor..next);
         self.refresh_edit_session();
+        self.ensure_edit_cursor_visible();
     }
 
     fn move_edit_cursor_left(&mut self) {
         if let Some(previous) = previous_char_boundary(&self.edit_buffer, self.edit_cursor) {
             self.edit_cursor = previous;
+            self.ensure_edit_cursor_visible();
         }
     }
 
     fn move_edit_cursor_right(&mut self) {
         if let Some(next) = next_char_boundary(&self.edit_buffer, self.edit_cursor) {
             self.edit_cursor = next;
+            self.ensure_edit_cursor_visible();
         }
     }
 
     fn move_edit_cursor_to_line_start(&mut self) {
         let (line, _) = cursor_line_column(&self.edit_buffer, self.edit_cursor);
         self.edit_cursor = cursor_offset_for_line_column(&self.edit_buffer, line, 0);
+        self.ensure_edit_cursor_visible();
     }
 
     fn move_edit_cursor_to_line_end(&mut self) {
         let (line, _) = cursor_line_column(&self.edit_buffer, self.edit_cursor);
         self.edit_cursor = cursor_offset_for_line_end(&self.edit_buffer, line);
+        self.ensure_edit_cursor_visible();
     }
 
     fn move_edit_cursor_vertical(&mut self, delta: isize) {
@@ -577,6 +595,26 @@ impl ReaderApp {
                 .min(edit_line_count(&self.edit_buffer).saturating_sub(1))
         };
         self.edit_cursor = cursor_offset_for_line_column(&self.edit_buffer, target_line, column);
+        self.ensure_edit_cursor_visible();
+    }
+
+    fn page_edit_cursor(&mut self, direction: isize) {
+        let delta = direction.saturating_mul(EDIT_PAGE_LINES as isize);
+        self.move_edit_cursor_vertical(delta);
+    }
+
+    fn ensure_edit_cursor_visible(&mut self) {
+        let (line, _) = cursor_line_column(&self.edit_buffer, self.edit_cursor);
+        let current_scroll = usize::from(self.edit_scroll);
+        if line < current_scroll {
+            self.edit_scroll = line as u16;
+        } else if line >= current_scroll + EDIT_VIEWPORT_LINES {
+            self.edit_scroll = line.saturating_sub(EDIT_VIEWPORT_LINES - 1) as u16;
+        }
+
+        self.edit_scroll = self
+            .edit_scroll
+            .min(edit_max_scroll(&self.edit_buffer, EDIT_VIEWPORT_LINES));
     }
 
     fn refresh_edit_session(&mut self) {
@@ -622,6 +660,7 @@ impl ReaderApp {
         self.edit_session = None;
         self.edit_buffer.clear();
         self.edit_cursor = 0;
+        self.edit_scroll = 0;
         self.edit_preview_lines.clear();
         self.load_active_document(false);
     }
@@ -1864,6 +1903,12 @@ fn edit_line_count(buffer: &str) -> usize {
     buffer.split('\n').count().max(1)
 }
 
+fn edit_max_scroll(buffer: &str, viewport_lines: usize) -> u16 {
+    edit_line_count(buffer)
+        .saturating_sub(viewport_lines.max(1))
+        .min(usize::from(u16::MAX)) as u16
+}
+
 fn document_line(line: &str, query: &str, search_state: SearchLineState) -> Line<'static> {
     if search_state != SearchLineState::None {
         return highlighted_document_line(line, query, search_state);
@@ -1931,8 +1976,9 @@ mod tests {
     use ratatui::style::Modifier;
 
     use super::{
-        DashboardApp, EditMode, OpenPathMode, ReaderApp, ReaderFocus, SearchHighlights, SearchMode,
-        WorkspaceSearchApp, clamp_search_selection, clamp_toc_selection, document_text, tab_line,
+        DashboardApp, EDIT_VIEWPORT_LINES, EditMode, OpenPathMode, ReaderApp, ReaderFocus,
+        SearchHighlights, SearchMode, WorkspaceSearchApp, clamp_search_selection,
+        clamp_toc_selection, cursor_line_column, document_text, tab_line,
     };
     use crate::theme;
 
@@ -2804,6 +2850,41 @@ mod tests {
     }
 
     #[test]
+    fn edit_mode_scrolls_to_keep_cursor_visible() {
+        let source = numbered_lines(30);
+        let mut app = ReaderApp::new(Document::from_source(&source));
+
+        app.start_editing();
+        assert_eq!(app.scroll, 0);
+        assert!(app.edit_scroll > 0);
+        assert!(edit_cursor_line_is_visible(&app));
+
+        app.handle_edit_key(key(KeyCode::Home));
+        app.handle_edit_key(key(KeyCode::Char('X')));
+
+        assert!(edit_cursor_line_is_visible(&app));
+    }
+
+    #[test]
+    fn edit_mode_page_keys_move_cursor_and_scroll() {
+        let source = numbered_lines(40);
+        let mut app = ReaderApp::new(Document::from_source(&source));
+
+        app.start_editing();
+        let initial_cursor = app.edit_cursor;
+
+        app.handle_edit_key(key(KeyCode::PageUp));
+
+        assert!(app.edit_cursor < initial_cursor);
+        assert!(edit_cursor_line_is_visible(&app));
+
+        app.handle_edit_key(key(KeyCode::PageDown));
+
+        assert!(app.edit_cursor > 0);
+        assert!(edit_cursor_line_is_visible(&app));
+    }
+
+    #[test]
     fn edit_mode_close_clears_preview_lines() {
         let mut app = ReaderApp::new(Document::from_source("# Draft\n\nBody"));
 
@@ -2833,5 +2914,18 @@ mod tests {
 
     fn ctrl_key(character: char) -> KeyEvent {
         KeyEvent::new(KeyCode::Char(character), KeyModifiers::CONTROL)
+    }
+
+    fn numbered_lines(count: usize) -> String {
+        (0..count)
+            .map(|index| format!("line {index}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn edit_cursor_line_is_visible(app: &ReaderApp) -> bool {
+        let (cursor_line, _) = cursor_line_column(&app.edit_buffer, app.edit_cursor);
+        let scroll = usize::from(app.edit_scroll);
+        (scroll..scroll + EDIT_VIEWPORT_LINES).contains(&cursor_line)
     }
 }

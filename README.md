@@ -148,8 +148,8 @@ TUI controls:
 - In the dashboard, `Enter`: open the selected recent file.
 - In interactive workspace search, `Enter`: open the selected match near its line.
 - In Editing Mode, arrow keys move the cursor, `Home` / `End` jump within the
-  current line, `Backspace` / `Delete` remove text, `Ctrl+S` saves edits, and
-  `Esc` returns to the reader.
+  current line, `PageUp` / `PageDown` move by larger line chunks, `Backspace` /
+  `Delete` remove text, `Ctrl+S` saves edits, and `Esc` returns to the reader.
 - `q` / `Esc`: quit the current TUI view.
 
 The TUI highlights the active table-of-contents section while you scroll, can

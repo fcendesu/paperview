@@ -154,5 +154,7 @@ document pane for side-by-side bordered `Editor` and `Preview` panes. The
 preview is rendered from the active edit buffer before save. The header shows
 dirty-state and save/exit hints while editing. A reversed character marks the
 current cursor location, arrow keys move through the source, `Home` / `End`
-jump within the current line, `Backspace` and `Delete` edit around the cursor,
-`Ctrl + S` saves, and `Esc` returns to the reader.
+jump within the current line, `PageUp` / `PageDown` move by larger line chunks,
+`Backspace` and `Delete` edit around the cursor, `Ctrl + S` saves, and `Esc`
+returns to the reader. Editor scrolling is separate from reader scrolling and
+keeps the cursor line visible while editing long source files.
