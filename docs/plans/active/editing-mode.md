@@ -71,3 +71,6 @@ Out of scope:
 - 2026-05-31: Upgraded the TUI editor buffer with UTF-8-aware cursor movement,
   insertion at cursor, `Delete`, `Home` / `End`, vertical arrow movement, and
   focused cursor-editing tests.
+- 2026-05-31: Added TUI live preview while editing by rendering
+  `EditSession::preview_document` beside the source buffer and covering preview
+  refresh before save in focused tests.

@@ -25,12 +25,13 @@ inline code, links, and emphasis without adding a syntax-highlighting
 dependency.
 
 The first TUI slice exposes Editing Mode with `e` from the reader. While
-editing, the active document source is shown in a terminal editor pane with a
-cursor-highlighted character. Typed characters insert at the cursor, arrow
-keys move the cursor, `Home` and `End` jump within the current line, `Enter`
-inserts a newline, `Backspace` and `Delete` remove source around the cursor,
-`Ctrl+S` saves the file-backed document, and `Esc` returns to the reader
-without saving unsaved edits.
+editing, the active document source is shown beside a rendered preview pane
+generated from the edit buffer. The source pane marks the cursor with a
+reversed character. Typed characters insert at the cursor, arrow keys move the
+cursor, `Home` and `End` jump within the current line, `Enter` inserts a
+newline, `Backspace` and `Delete` remove source around the cursor, `Ctrl+S`
+saves the file-backed document, and `Esc` returns to the reader without saving
+unsaved edits.
 
 ## Implementation Notes
 
@@ -54,13 +55,14 @@ without saving unsaved edits.
 - `paperview-gui::editor_highlight` owns a small line-based Markdown highlighter
   for Iced's `text_editor::highlight_with` hook.
 - The TUI editor uses a lightweight in-process source buffer with UTF-8-aware
-  cursor movement, insertion, deletion, and shared `EditSession` save behavior.
+  cursor movement, insertion, deletion, shared `EditSession` save behavior, and
+  a live preview generated from `EditSession::preview_document`.
 
 ## Open Decisions
 
 - Whether the TUI should add richer editor affordances such as selection,
-  clipboard integration, and preview split, or hand advanced editing off to an
-  external editor.
+  clipboard integration, and independent preview scrolling, or hand advanced
+  editing off to an external editor.
 - Whether save should preserve scroll position exactly or reset to the edited
   preview's nearest heading.
 
@@ -73,8 +75,8 @@ without saving unsaved edits.
   active document, and mapping edit/save keyboard shortcuts.
 - GUI highlighter tests cover block marker and inline syntax ranges.
 - TUI tests cover entering edit mode, dirty-state tracking, cursor movement,
-  insertion, deletion, UTF-8 cursor handling, saving edits, and closing edit
-  mode without saving.
+  insertion, deletion, UTF-8 cursor handling, live preview refresh, saving
+  edits, and closing edit mode without saving.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, focused tests, and
   `cargo test --workspace` when frontend behavior changes.

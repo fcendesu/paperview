@@ -113,6 +113,7 @@ struct ReaderApp {
     edit_session: Option<EditSession>,
     edit_buffer: String,
     edit_cursor: usize,
+    edit_preview_lines: Vec<String>,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
     _split_watcher: Option<FileWatcher>,
@@ -195,6 +196,7 @@ impl ReaderApp {
             edit_session: None,
             edit_buffer: String::new(),
             edit_cursor: 0,
+            edit_preview_lines: Vec::new(),
             _watcher: watcher,
             watch_receiver,
             _split_watcher: None,
@@ -277,7 +279,11 @@ impl ReaderApp {
                 Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
             (main, Some(toc))
         };
-        let reader_areas = if self.split_view.is_enabled()
+        let reader_areas = if self.edit_mode == EditMode::Editing {
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .areas::<2>(main)
+                .to_vec()
+        } else if self.split_view.is_enabled()
             && !self.zen_mode.is_enabled()
             && self.edit_mode == EditMode::Inactive
         {
@@ -310,6 +316,16 @@ impl ReaderApp {
                 .scroll((self.scroll, 0))
                 .wrap(Wrap { trim: false }),
                 reader_areas[0],
+            );
+            frame.render_widget(
+                Paragraph::new(Text::from(document_text(
+                    &self.edit_preview_lines,
+                    SearchHighlights::default(),
+                )))
+                .block(Block::default().title("Preview").borders(Borders::ALL))
+                .style(theme::reader())
+                .wrap(Wrap { trim: false }),
+                reader_areas[1],
             );
         } else {
             frame.render_widget(
@@ -465,6 +481,7 @@ impl ReaderApp {
         self.edit_buffer = session.buffer().to_owned();
         self.edit_cursor = self.edit_buffer.len();
         self.edit_session = Some(session);
+        self.refresh_edit_preview();
         self.edit_mode = EditMode::Editing;
         self.focus = ReaderFocus::Reader;
         self.scroll = 0;
@@ -566,6 +583,13 @@ impl ReaderApp {
         if let Some(session) = &mut self.edit_session {
             session.replace_buffer(self.edit_buffer.clone());
         }
+        self.refresh_edit_preview();
+    }
+
+    fn refresh_edit_preview(&mut self) {
+        self.edit_preview_lines = self.edit_session.as_ref().map_or_else(Vec::new, |session| {
+            render::render_document_with_anchors(&session.preview_document()).lines
+        });
     }
 
     fn save_edit(&mut self) {
@@ -580,6 +604,7 @@ impl ReaderApp {
                 self.documents.replace_active(document);
                 self.load_active_document(false);
                 self.edit_session = self.documents.active().map(EditSession::from_document);
+                self.refresh_edit_preview();
                 self.status = Some("Saved edits".to_owned());
             }
             Err(error) => {
@@ -597,6 +622,7 @@ impl ReaderApp {
         self.edit_session = None;
         self.edit_buffer.clear();
         self.edit_cursor = 0;
+        self.edit_preview_lines.clear();
         self.load_active_document(false);
     }
 
@@ -2746,6 +2772,47 @@ mod tests {
         app.handle_edit_key(key(KeyCode::Char('X')));
 
         assert_eq!(app.edit_buffer, "aXé文");
+    }
+
+    #[test]
+    fn edit_mode_preview_updates_before_save() {
+        let path = temp_doc("tui-edit-preview.md", "# Draft\n\nBody");
+        let mut app = ReaderApp::new(Document::open(&path).expect("open document"));
+
+        app.start_editing();
+        assert!(app.edit_preview_lines.iter().any(|line| line == "# Draft"));
+
+        for character in "\n\n## Preview".chars() {
+            app.handle_edit_key(key(if character == '\n' {
+                KeyCode::Enter
+            } else {
+                KeyCode::Char(character)
+            }));
+        }
+
+        assert!(
+            app.edit_preview_lines
+                .iter()
+                .any(|line| line.contains("Preview"))
+        );
+        assert_eq!(
+            fs::read_to_string(&path).expect("read unsaved source"),
+            "# Draft\n\nBody"
+        );
+
+        fs::remove_file(path).expect("remove document");
+    }
+
+    #[test]
+    fn edit_mode_close_clears_preview_lines() {
+        let mut app = ReaderApp::new(Document::from_source("# Draft\n\nBody"));
+
+        app.start_editing();
+        assert!(!app.edit_preview_lines.is_empty());
+
+        app.handle_edit_key(key(KeyCode::Esc));
+
+        assert!(app.edit_preview_lines.is_empty());
     }
 
     fn temp_doc(name: &str, source: &str) -> std::path::PathBuf {

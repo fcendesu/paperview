@@ -161,8 +161,8 @@ standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports
 file-backed task checkbox toggles, case-insensitive in-document search with
-match navigation, highlighted match lines, and a first cursor-addressable
-Editing Mode source buffer for file-backed documents.
+match navigation, highlighted match lines, and a cursor-addressable Editing
+Mode source buffer with live rendered preview for file-backed documents.
 
 The headless stats command prints word, line, character, reading-time, and
 heading-structure metadata for a document, with `--json` for automation.
