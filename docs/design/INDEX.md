@@ -159,4 +159,6 @@ jump within the current line, `PageUp` / `PageDown` move by larger line chunks,
 returns to the reader. Editor scrolling is separate from reader scrolling and
 keeps the cursor line visible while editing long source files. Dirty buffers
 require confirmation before discard: the first destructive exit shows an
-unsaved-edits warning, and repeating the action confirms discard.
+unsaved-edits warning, and repeating the action confirms discard. `Ctrl + P`
+toggles the preview pane so the source editor can use the full available width
+on narrow terminals.

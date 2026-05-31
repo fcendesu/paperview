@@ -31,11 +31,12 @@ reversed character. Typed characters insert at the cursor, arrow keys move the
 cursor, `Home` and `End` jump within the current line, `PageUp` and `PageDown`
 move by larger line chunks, `Enter` inserts a newline, `Backspace` and
 `Delete` remove source around the cursor, `Ctrl+S` saves the file-backed
-document, and `Esc` returns to the reader without saving unsaved edits. The
-TUI keeps editor scrolling separate from normal reader scrolling and clamps the
-editor viewport so the cursor line remains visible. When the edit buffer is
-dirty, `Esc`, tab switching, and tab close first warn about unsaved edits; the
-next discard action confirms and exits or proceeds.
+document, `Ctrl+P` toggles the preview pane for narrow terminals, and `Esc`
+returns to the reader without saving unsaved edits. The TUI keeps editor
+scrolling separate from normal reader scrolling and clamps the editor viewport
+so the cursor line remains visible. When the edit buffer is dirty, `Esc`, tab
+switching, and tab close first warn about unsaved edits; the next discard
+action confirms and exits or proceeds.
 
 ## Implementation Notes
 
@@ -65,6 +66,8 @@ next discard action confirms and exits or proceeds.
   navigation does not mutate normal reader scroll state.
 - The TUI tracks a discard-confirmation flag for dirty edit buffers so
   destructive exits require two explicit actions unless the user saves first.
+- The TUI preview pane is visible by default and can be hidden with `Ctrl+P`
+  during editing so the source editor can use the full terminal width.
 
 ## Open Decisions
 
@@ -84,8 +87,8 @@ next discard action confirms and exits or proceeds.
 - GUI highlighter tests cover block marker and inline syntax ranges.
 - TUI tests cover entering edit mode, dirty-state tracking, cursor movement,
   cursor-visible scrolling, insertion, deletion, UTF-8 cursor handling, live
-  preview refresh, saving edits, dirty discard confirmation, and closing edit
-  mode without saving.
+  preview refresh, preview visibility toggling, saving edits, dirty discard
+  confirmation, and closing edit mode without saving.
 - Workspace verification should include `cargo fmt --all`,
   `cargo clippy --workspace -- -D warnings`, focused tests, and
   `cargo test --workspace` when frontend behavior changes.

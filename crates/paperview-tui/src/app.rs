@@ -118,6 +118,7 @@ struct ReaderApp {
     edit_cursor: usize,
     edit_scroll: u16,
     edit_preview_lines: Vec<String>,
+    edit_preview_visible: bool,
     edit_discard_pending: bool,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
@@ -203,6 +204,7 @@ impl ReaderApp {
             edit_cursor: 0,
             edit_scroll: 0,
             edit_preview_lines: Vec::new(),
+            edit_preview_visible: true,
             edit_discard_pending: false,
             _watcher: watcher,
             watch_receiver,
@@ -286,7 +288,7 @@ impl ReaderApp {
                 Layout::horizontal([Constraint::Min(50), Constraint::Length(32)]).areas(body);
             (main, Some(toc))
         };
-        let reader_areas = if self.edit_mode == EditMode::Editing {
+        let reader_areas = if self.edit_mode == EditMode::Editing && self.edit_preview_visible {
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas::<2>(main)
                 .to_vec()
@@ -324,17 +326,19 @@ impl ReaderApp {
                 .wrap(Wrap { trim: false }),
                 reader_areas[0],
             );
-            frame.render_widget(
-                Paragraph::new(Text::from(document_text(
-                    &self.edit_preview_lines,
-                    SearchHighlights::default(),
-                )))
-                .block(Block::default().title("Preview").borders(Borders::ALL))
-                .style(theme::reader())
-                .scroll((self.edit_scroll, 0))
-                .wrap(Wrap { trim: false }),
-                reader_areas[1],
-            );
+            if self.edit_preview_visible {
+                frame.render_widget(
+                    Paragraph::new(Text::from(document_text(
+                        &self.edit_preview_lines,
+                        SearchHighlights::default(),
+                    )))
+                    .block(Block::default().title("Preview").borders(Borders::ALL))
+                    .style(theme::reader())
+                    .scroll((self.edit_scroll, 0))
+                    .wrap(Wrap { trim: false }),
+                    reader_areas[1],
+                );
+            }
         } else {
             frame.render_widget(
                 Paragraph::new(Text::from(document_text(
@@ -489,6 +493,7 @@ impl ReaderApp {
         self.edit_buffer = session.buffer().to_owned();
         self.edit_cursor = self.edit_buffer.len();
         self.edit_scroll = 0;
+        self.edit_preview_visible = true;
         self.edit_discard_pending = false;
         self.edit_session = Some(session);
         self.refresh_edit_preview();
@@ -505,6 +510,12 @@ impl ReaderApp {
             && matches!(key.code, KeyCode::Char('s') | KeyCode::Char('S'))
         {
             self.save_edit();
+            return;
+        }
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(key.code, KeyCode::Char('p') | KeyCode::Char('P'))
+        {
+            self.toggle_edit_preview();
             return;
         }
 
@@ -608,6 +619,16 @@ impl ReaderApp {
         self.move_edit_cursor_vertical(delta);
     }
 
+    fn toggle_edit_preview(&mut self) {
+        self.edit_preview_visible = !self.edit_preview_visible;
+        let state = if self.edit_preview_visible {
+            "visible"
+        } else {
+            "hidden"
+        };
+        self.status = Some(format!("Editing preview {state}"));
+    }
+
     fn ensure_edit_cursor_visible(&mut self) {
         let (line, _) = cursor_line_column(&self.edit_buffer, self.edit_cursor);
         let current_scroll = usize::from(self.edit_scroll);
@@ -693,6 +714,7 @@ impl ReaderApp {
         self.edit_cursor = 0;
         self.edit_scroll = 0;
         self.edit_preview_lines.clear();
+        self.edit_preview_visible = true;
         self.edit_discard_pending = false;
         self.load_active_document(false);
     }
@@ -811,8 +833,13 @@ impl ReaderApp {
             let state = self.edit_session.as_ref().map_or("clean", |session| {
                 if session.is_dirty() { "dirty" } else { "clean" }
             });
+            let preview = if self.edit_preview_visible {
+                "preview on"
+            } else {
+                "preview off"
+            };
             return Some(format!(
-                "Editing ({state}) - arrows move, Ctrl+S save, Esc view"
+                "Editing ({state}, {preview}) - Ctrl+S save, Ctrl+P preview, Esc view"
             ));
         }
 
@@ -2834,6 +2861,41 @@ mod tests {
 
         assert_eq!(app.edit_mode, EditMode::Inactive);
         assert!(!app.edit_discard_pending);
+    }
+
+    #[test]
+    fn edit_mode_toggles_preview_visibility() {
+        let mut app = ReaderApp::new(Document::from_source("# Draft\n\nBody"));
+
+        app.start_editing();
+        assert!(app.edit_preview_visible);
+
+        app.handle_edit_key(ctrl_key('p'));
+
+        assert!(!app.edit_preview_visible);
+        assert!(
+            app.header_status()
+                .as_deref()
+                .is_some_and(|status| status.contains("preview off"))
+        );
+
+        app.handle_edit_key(ctrl_key('p'));
+
+        assert!(app.edit_preview_visible);
+    }
+
+    #[test]
+    fn edit_mode_preview_visibility_resets_on_new_session() {
+        let mut app = ReaderApp::new(Document::from_source("# Draft\n\nBody"));
+
+        app.start_editing();
+        app.handle_edit_key(ctrl_key('p'));
+        assert!(!app.edit_preview_visible);
+
+        app.handle_edit_key(key(KeyCode::Esc));
+        app.start_editing();
+
+        assert!(app.edit_preview_visible);
     }
 
     #[test]

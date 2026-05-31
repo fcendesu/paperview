@@ -78,3 +78,5 @@ Out of scope:
   `PageUp` / `PageDown`, and focused tests for long edit buffers.
 - 2026-05-31: Added TUI dirty-edit discard protection for `Esc`, tab switching,
   and tab close, with focused tests for warning, confirmation, and save reset.
+- 2026-05-31: Added `Ctrl+P` TUI edit preview toggling for narrow terminals,
+  with header status and focused visibility tests.
