@@ -147,7 +147,9 @@ TUI controls:
 - `n` / `N`: jump to the next or previous search match.
 - In the dashboard, `Enter`: open the selected recent file.
 - In interactive workspace search, `Enter`: open the selected match near its line.
-- In Editing Mode, `Ctrl+S`: save edits; `Esc`: return to the reader.
+- In Editing Mode, arrow keys move the cursor, `Home` / `End` jump within the
+  current line, `Backspace` / `Delete` remove text, `Ctrl+S` saves edits, and
+  `Esc` returns to the reader.
 - `q` / `Esc`: quit the current TUI view.
 
 The TUI highlights the active table-of-contents section while you scroll, can
@@ -159,7 +161,7 @@ standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.
 Task-list markers render as `- [x]` and `- [ ]` lines. The TUI also supports
 file-backed task checkbox toggles, case-insensitive in-document search with
-match navigation, highlighted match lines, and a first append/backspace
+match navigation, highlighted match lines, and a first cursor-addressable
 Editing Mode source buffer for file-backed documents.
 
 The headless stats command prints word, line, character, reading-time, and

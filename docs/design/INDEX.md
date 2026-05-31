@@ -149,9 +149,9 @@ and the live PaperView preview on the right. The GUI uses `Cmd + E` on macOS
 or `Ctrl + E` elsewhere for the Edit/View toggle, and `Cmd + S` on macOS or
 `Ctrl + S` elsewhere for save.
 
-The first TUI Editing Mode slice uses `e` from the reader to swap the rendered
+The TUI Editing Mode slice uses `e` from the reader to swap the rendered
 document pane for a bordered `Editor` source pane. The header shows dirty-state
-and save/exit hints while editing. `Ctrl + S` saves, `Esc` returns to the
-reader, and the initial terminal input model is intentionally limited to
-append, newline, and backspace until a richer cursor-addressable editor is
-introduced.
+and save/exit hints while editing. A reversed character marks the current
+cursor location, arrow keys move through the source, `Home` / `End` jump within
+the current line, `Backspace` and `Delete` edit around the cursor, `Ctrl + S`
+saves, and `Esc` returns to the reader.

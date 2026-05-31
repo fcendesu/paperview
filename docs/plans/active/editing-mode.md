@@ -68,3 +68,6 @@ Out of scope:
 - 2026-05-31: Added the first TUI Editing Mode slice with `e` to enter a
   terminal source buffer, append/backspace editing, `Ctrl+S` save, `Esc` return
   to reader, and focused TUI key-flow tests.
+- 2026-05-31: Upgraded the TUI editor buffer with UTF-8-aware cursor movement,
+  insertion at cursor, `Delete`, `Home` / `End`, vertical arrow movement, and
+  focused cursor-editing tests.

@@ -16,7 +16,7 @@ use paperview_core::{
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
-    style::Style,
+    style::{Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
@@ -112,6 +112,7 @@ struct ReaderApp {
     edit_mode: EditMode,
     edit_session: Option<EditSession>,
     edit_buffer: String,
+    edit_cursor: usize,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
     _split_watcher: Option<FileWatcher>,
@@ -193,6 +194,7 @@ impl ReaderApp {
             edit_mode: EditMode::Inactive,
             edit_session: None,
             edit_buffer: String::new(),
+            edit_cursor: 0,
             _watcher: watcher,
             watch_receiver,
             _split_watcher: None,
@@ -299,11 +301,14 @@ impl ReaderApp {
 
         if self.edit_mode == EditMode::Editing {
             frame.render_widget(
-                Paragraph::new(Text::from(edit_buffer_text(&self.edit_buffer)))
-                    .block(Block::default().title("Editor").borders(Borders::ALL))
-                    .style(theme::reader())
-                    .scroll((self.scroll, 0))
-                    .wrap(Wrap { trim: false }),
+                Paragraph::new(Text::from(edit_buffer_text(
+                    &self.edit_buffer,
+                    self.edit_cursor,
+                )))
+                .block(Block::default().title("Editor").borders(Borders::ALL))
+                .style(theme::reader())
+                .scroll((self.scroll, 0))
+                .wrap(Wrap { trim: false }),
                 reader_areas[0],
             );
         } else {
@@ -458,11 +463,12 @@ impl ReaderApp {
     fn start_editing(&mut self) {
         let session = EditSession::from_document(self.active_document());
         self.edit_buffer = session.buffer().to_owned();
+        self.edit_cursor = self.edit_buffer.len();
         self.edit_session = Some(session);
         self.edit_mode = EditMode::Editing;
         self.focus = ReaderFocus::Reader;
         self.scroll = 0;
-        self.status = Some("Editing: type source, Enter newline, Ctrl+S save, Esc view".to_owned());
+        self.status = Some("Editing: arrows move, type source, Ctrl+S save, Esc view".to_owned());
     }
 
     fn handle_edit_key(&mut self, key: KeyEvent) {
@@ -478,24 +484,82 @@ impl ReaderApp {
                 self.stop_editing();
                 self.status = Some("Editing Mode closed".to_owned());
             }
-            KeyCode::Enter => self.push_edit_char('\n'),
-            KeyCode::Backspace => {
-                self.edit_buffer.pop();
-                self.refresh_edit_session();
-            }
+            KeyCode::Enter => self.insert_edit_char('\n'),
+            KeyCode::Backspace => self.backspace_edit_char(),
+            KeyCode::Delete => self.delete_edit_char(),
+            KeyCode::Left => self.move_edit_cursor_left(),
+            KeyCode::Right => self.move_edit_cursor_right(),
+            KeyCode::Up => self.move_edit_cursor_vertical(-1),
+            KeyCode::Down => self.move_edit_cursor_vertical(1),
+            KeyCode::Home => self.move_edit_cursor_to_line_start(),
+            KeyCode::End => self.move_edit_cursor_to_line_end(),
             KeyCode::Char(character)
                 if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
             {
-                self.push_edit_char(character);
+                self.insert_edit_char(character);
             }
             KeyCode::Char(_) => {}
             _ => {}
         }
     }
 
-    fn push_edit_char(&mut self, character: char) {
-        self.edit_buffer.push(character);
+    fn insert_edit_char(&mut self, character: char) {
+        self.edit_cursor = clamp_to_char_boundary(&self.edit_buffer, self.edit_cursor);
+        self.edit_buffer.insert(self.edit_cursor, character);
+        self.edit_cursor += character.len_utf8();
         self.refresh_edit_session();
+    }
+
+    fn backspace_edit_char(&mut self) {
+        self.edit_cursor = clamp_to_char_boundary(&self.edit_buffer, self.edit_cursor);
+        let Some(previous) = previous_char_boundary(&self.edit_buffer, self.edit_cursor) else {
+            return;
+        };
+        self.edit_buffer.drain(previous..self.edit_cursor);
+        self.edit_cursor = previous;
+        self.refresh_edit_session();
+    }
+
+    fn delete_edit_char(&mut self) {
+        self.edit_cursor = clamp_to_char_boundary(&self.edit_buffer, self.edit_cursor);
+        let Some(next) = next_char_boundary(&self.edit_buffer, self.edit_cursor) else {
+            return;
+        };
+        self.edit_buffer.drain(self.edit_cursor..next);
+        self.refresh_edit_session();
+    }
+
+    fn move_edit_cursor_left(&mut self) {
+        if let Some(previous) = previous_char_boundary(&self.edit_buffer, self.edit_cursor) {
+            self.edit_cursor = previous;
+        }
+    }
+
+    fn move_edit_cursor_right(&mut self) {
+        if let Some(next) = next_char_boundary(&self.edit_buffer, self.edit_cursor) {
+            self.edit_cursor = next;
+        }
+    }
+
+    fn move_edit_cursor_to_line_start(&mut self) {
+        let (line, _) = cursor_line_column(&self.edit_buffer, self.edit_cursor);
+        self.edit_cursor = cursor_offset_for_line_column(&self.edit_buffer, line, 0);
+    }
+
+    fn move_edit_cursor_to_line_end(&mut self) {
+        let (line, _) = cursor_line_column(&self.edit_buffer, self.edit_cursor);
+        self.edit_cursor = cursor_offset_for_line_end(&self.edit_buffer, line);
+    }
+
+    fn move_edit_cursor_vertical(&mut self, delta: isize) {
+        let (line, column) = cursor_line_column(&self.edit_buffer, self.edit_cursor);
+        let target_line = if delta.is_negative() {
+            line.saturating_sub(delta.unsigned_abs())
+        } else {
+            line.saturating_add(delta as usize)
+                .min(edit_line_count(&self.edit_buffer).saturating_sub(1))
+        };
+        self.edit_cursor = cursor_offset_for_line_column(&self.edit_buffer, target_line, column);
     }
 
     fn refresh_edit_session(&mut self) {
@@ -532,6 +596,7 @@ impl ReaderApp {
         self.edit_mode = EditMode::Inactive;
         self.edit_session = None;
         self.edit_buffer.clear();
+        self.edit_cursor = 0;
         self.load_active_document(false);
     }
 
@@ -650,7 +715,7 @@ impl ReaderApp {
                 if session.is_dirty() { "dirty" } else { "clean" }
             });
             return Some(format!(
-                "Editing ({state}) - Ctrl+S save, Esc view, append-only first slice"
+                "Editing ({state}) - arrows move, Ctrl+S save, Esc view"
             ));
         }
 
@@ -1643,15 +1708,134 @@ fn document_text(lines: &[String], highlights: SearchHighlights<'_>) -> Vec<Line
         .collect()
 }
 
-fn edit_buffer_text(buffer: &str) -> Vec<Line<'static>> {
+fn edit_buffer_text(buffer: &str, cursor: usize) -> Vec<Line<'static>> {
     if buffer.is_empty() {
-        return vec![Line::from(Span::styled("", theme::shell_muted()))];
+        return vec![Line::from(Span::styled(
+            " ",
+            theme::reader().add_modifier(Modifier::REVERSED),
+        ))];
     }
 
+    let cursor = clamp_to_char_boundary(buffer, cursor);
+    let (cursor_line, cursor_column) = cursor_line_column(buffer, cursor);
     buffer
         .split('\n')
-        .map(|line| Line::from(line.to_owned()))
+        .enumerate()
+        .map(|(line_index, line)| {
+            if line_index == cursor_line {
+                edit_cursor_line(line, cursor_column)
+            } else {
+                Line::from(line.to_owned())
+            }
+        })
         .collect()
+}
+
+fn edit_cursor_line(line: &str, cursor_column: usize) -> Line<'static> {
+    let cursor_byte = line_byte_for_column(line, cursor_column);
+    let (before, rest) = line.split_at(cursor_byte);
+    let mut spans = vec![Span::raw(before.to_owned())];
+    if let Some(character) = rest.chars().next() {
+        let character_len = character.len_utf8();
+        spans.push(Span::styled(
+            character.to_string(),
+            theme::reader().add_modifier(Modifier::REVERSED),
+        ));
+        spans.push(Span::raw(rest[character_len..].to_owned()));
+    } else {
+        spans.push(Span::styled(
+            " ",
+            theme::reader().add_modifier(Modifier::REVERSED),
+        ));
+    }
+    Line::from(spans)
+}
+
+fn previous_char_boundary(buffer: &str, cursor: usize) -> Option<usize> {
+    let cursor = clamp_to_char_boundary(buffer, cursor);
+    (cursor > 0).then(|| {
+        buffer[..cursor]
+            .char_indices()
+            .next_back()
+            .map_or(0, |(index, _)| index)
+    })
+}
+
+fn next_char_boundary(buffer: &str, cursor: usize) -> Option<usize> {
+    let cursor = clamp_to_char_boundary(buffer, cursor);
+    buffer[cursor..]
+        .chars()
+        .next()
+        .map(|character| cursor + character.len_utf8())
+}
+
+fn clamp_to_char_boundary(buffer: &str, cursor: usize) -> usize {
+    let mut cursor = cursor.min(buffer.len());
+    while cursor > 0 && !buffer.is_char_boundary(cursor) {
+        cursor -= 1;
+    }
+    cursor
+}
+
+fn cursor_line_column(buffer: &str, cursor: usize) -> (usize, usize) {
+    let cursor = clamp_to_char_boundary(buffer, cursor);
+    let mut line = 0;
+    let mut column = 0;
+    for character in buffer[..cursor].chars() {
+        if character == '\n' {
+            line += 1;
+            column = 0;
+        } else {
+            column += 1;
+        }
+    }
+    (line, column)
+}
+
+fn cursor_offset_for_line_column(buffer: &str, target_line: usize, target_column: usize) -> usize {
+    let mut line = 0;
+    let mut column = 0;
+    for (index, character) in buffer.char_indices() {
+        if line == target_line && column == target_column {
+            return index;
+        }
+        if line == target_line && character == '\n' {
+            return index;
+        }
+        if character == '\n' {
+            line += 1;
+            column = 0;
+            if line > target_line {
+                return index;
+            }
+        } else {
+            column += 1;
+        }
+    }
+    buffer.len()
+}
+
+fn cursor_offset_for_line_end(buffer: &str, target_line: usize) -> usize {
+    let mut line = 0;
+    for (index, character) in buffer.char_indices() {
+        if line == target_line && character == '\n' {
+            return index;
+        }
+        if character == '\n' {
+            line += 1;
+        }
+    }
+    buffer.len()
+}
+
+fn line_byte_for_column(line: &str, target_column: usize) -> usize {
+    line.char_indices()
+        .nth(target_column)
+        .map_or(line.len(), |(index, _)| index)
+}
+
+fn edit_line_count(buffer: &str) -> usize {
+    buffer.split('\n').count().max(1)
 }
 
 fn document_line(line: &str, query: &str, search_state: SearchLineState) -> Line<'static> {
@@ -2517,6 +2701,51 @@ mod tests {
         assert_eq!(app.active_document().source(), "# Draft\n\nBody");
 
         fs::remove_file(path).expect("remove document");
+    }
+
+    #[test]
+    fn edit_mode_inserts_and_deletes_at_cursor() {
+        let mut app = ReaderApp::new(Document::from_source("abc"));
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Left));
+        app.handle_edit_key(key(KeyCode::Char('X')));
+        assert_eq!(app.edit_buffer, "abXc");
+
+        app.handle_edit_key(key(KeyCode::Left));
+        app.handle_edit_key(key(KeyCode::Backspace));
+        assert_eq!(app.edit_buffer, "aXc");
+
+        app.handle_edit_key(key(KeyCode::Delete));
+        assert_eq!(app.edit_buffer, "ac");
+    }
+
+    #[test]
+    fn edit_mode_moves_cursor_by_line() {
+        let mut app = ReaderApp::new(Document::from_source("one\ntwo\nthree"));
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Home));
+        app.handle_edit_key(key(KeyCode::Up));
+        app.handle_edit_key(key(KeyCode::Char('X')));
+        assert_eq!(app.edit_buffer, "one\nXtwo\nthree");
+
+        app.handle_edit_key(key(KeyCode::End));
+        app.handle_edit_key(key(KeyCode::Up));
+        app.handle_edit_key(key(KeyCode::Char('Y')));
+        assert_eq!(app.edit_buffer, "oneY\nXtwo\nthree");
+    }
+
+    #[test]
+    fn edit_mode_cursor_handles_multibyte_text() {
+        let mut app = ReaderApp::new(Document::from_source("aé文"));
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Left));
+        app.handle_edit_key(key(KeyCode::Left));
+        app.handle_edit_key(key(KeyCode::Char('X')));
+
+        assert_eq!(app.edit_buffer, "aXé文");
     }
 
     fn temp_doc(name: &str, source: &str) -> std::path::PathBuf {
