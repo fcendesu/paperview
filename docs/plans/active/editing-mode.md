@@ -76,3 +76,5 @@ Out of scope:
   refresh before save in focused tests.
 - 2026-05-31: Added TUI editor viewport state with cursor-visible scrolling,
   `PageUp` / `PageDown`, and focused tests for long edit buffers.
+- 2026-05-31: Added TUI dirty-edit discard protection for `Esc`, tab switching,
+  and tab close, with focused tests for warning, confirmation, and save reset.

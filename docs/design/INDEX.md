@@ -157,4 +157,6 @@ current cursor location, arrow keys move through the source, `Home` / `End`
 jump within the current line, `PageUp` / `PageDown` move by larger line chunks,
 `Backspace` and `Delete` edit around the cursor, `Ctrl + S` saves, and `Esc`
 returns to the reader. Editor scrolling is separate from reader scrolling and
-keeps the cursor line visible while editing long source files.
+keeps the cursor line visible while editing long source files. Dirty buffers
+require confirmation before discard: the first destructive exit shows an
+unsaved-edits warning, and repeating the action confirms discard.

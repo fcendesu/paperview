@@ -118,6 +118,7 @@ struct ReaderApp {
     edit_cursor: usize,
     edit_scroll: u16,
     edit_preview_lines: Vec<String>,
+    edit_discard_pending: bool,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
     _split_watcher: Option<FileWatcher>,
@@ -202,6 +203,7 @@ impl ReaderApp {
             edit_cursor: 0,
             edit_scroll: 0,
             edit_preview_lines: Vec::new(),
+            edit_discard_pending: false,
             _watcher: watcher,
             watch_receiver,
             _split_watcher: None,
@@ -487,6 +489,7 @@ impl ReaderApp {
         self.edit_buffer = session.buffer().to_owned();
         self.edit_cursor = self.edit_buffer.len();
         self.edit_scroll = 0;
+        self.edit_discard_pending = false;
         self.edit_session = Some(session);
         self.refresh_edit_preview();
         self.ensure_edit_cursor_visible();
@@ -507,8 +510,7 @@ impl ReaderApp {
 
         match key.code {
             KeyCode::Esc => {
-                self.stop_editing();
-                self.status = Some("Editing Mode closed".to_owned());
+                self.request_stop_editing();
             }
             KeyCode::Enter => self.insert_edit_char('\n'),
             KeyCode::Backspace => self.backspace_edit_char(),
@@ -532,6 +534,7 @@ impl ReaderApp {
     }
 
     fn insert_edit_char(&mut self, character: char) {
+        self.edit_discard_pending = false;
         self.edit_cursor = clamp_to_char_boundary(&self.edit_buffer, self.edit_cursor);
         self.edit_buffer.insert(self.edit_cursor, character);
         self.edit_cursor += character.len_utf8();
@@ -540,6 +543,7 @@ impl ReaderApp {
     }
 
     fn backspace_edit_char(&mut self) {
+        self.edit_discard_pending = false;
         self.edit_cursor = clamp_to_char_boundary(&self.edit_buffer, self.edit_cursor);
         let Some(previous) = previous_char_boundary(&self.edit_buffer, self.edit_cursor) else {
             return;
@@ -551,6 +555,7 @@ impl ReaderApp {
     }
 
     fn delete_edit_char(&mut self) {
+        self.edit_discard_pending = false;
         self.edit_cursor = clamp_to_char_boundary(&self.edit_buffer, self.edit_cursor);
         let Some(next) = next_char_boundary(&self.edit_buffer, self.edit_cursor) else {
             return;
@@ -643,12 +648,38 @@ impl ReaderApp {
                 self.load_active_document(false);
                 self.edit_session = self.documents.active().map(EditSession::from_document);
                 self.refresh_edit_preview();
+                self.edit_discard_pending = false;
                 self.status = Some("Saved edits".to_owned());
             }
             Err(error) => {
                 self.status = Some(error.to_string());
             }
         }
+    }
+
+    fn request_stop_editing(&mut self) -> bool {
+        if !self.edit_is_dirty() {
+            self.stop_editing();
+            self.status = Some("Editing Mode closed".to_owned());
+            return true;
+        }
+
+        if self.edit_discard_pending {
+            self.stop_editing();
+            self.status = Some("Discarded unsaved edits".to_owned());
+            return true;
+        }
+
+        self.edit_discard_pending = true;
+        self.status =
+            Some("Unsaved edits. Press Esc again to discard or Ctrl+S to save.".to_owned());
+        false
+    }
+
+    fn edit_is_dirty(&self) -> bool {
+        self.edit_session
+            .as_ref()
+            .is_some_and(EditSession::is_dirty)
     }
 
     fn stop_editing(&mut self) {
@@ -662,6 +693,7 @@ impl ReaderApp {
         self.edit_cursor = 0;
         self.edit_scroll = 0;
         self.edit_preview_lines.clear();
+        self.edit_discard_pending = false;
         self.load_active_document(false);
     }
 
@@ -846,6 +878,10 @@ impl ReaderApp {
             return;
         }
 
+        if self.edit_mode == EditMode::Editing && !self.request_stop_editing() {
+            return;
+        }
+
         self.stop_editing();
         self.documents.select(index);
         self.ensure_split_target();
@@ -859,6 +895,10 @@ impl ReaderApp {
     }
 
     fn close_active_tab(&mut self) -> bool {
+        if self.edit_mode == EditMode::Editing && !self.request_stop_editing() {
+            return false;
+        }
+
         self.stop_editing();
         let Some(index) = self.documents.active_index() else {
             return true;
@@ -2764,6 +2804,16 @@ mod tests {
         app.handle_edit_key(key(KeyCode::Char('x')));
         app.handle_edit_key(key(KeyCode::Esc));
 
+        assert_eq!(app.edit_mode, EditMode::Editing);
+        assert!(app.edit_discard_pending);
+        assert!(
+            app.status
+                .as_deref()
+                .is_some_and(|status| status.contains("Unsaved edits"))
+        );
+
+        app.handle_edit_key(key(KeyCode::Esc));
+
         assert_eq!(app.edit_mode, EditMode::Inactive);
         assert!(app.edit_session.is_none());
         assert_eq!(
@@ -2773,6 +2823,74 @@ mod tests {
         assert_eq!(app.active_document().source(), "# Draft\n\nBody");
 
         fs::remove_file(path).expect("remove document");
+    }
+
+    #[test]
+    fn edit_mode_clean_escape_closes_immediately() {
+        let mut app = ReaderApp::new(Document::from_source("# Draft\n\nBody"));
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Esc));
+
+        assert_eq!(app.edit_mode, EditMode::Inactive);
+        assert!(!app.edit_discard_pending);
+    }
+
+    #[test]
+    fn edit_mode_save_clears_discard_warning() {
+        let path = temp_doc("tui-edit-save-clears-discard.md", "# Draft\n\nBody");
+        let mut app = ReaderApp::new(Document::open(&path).expect("open document"));
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Char('x')));
+        app.handle_edit_key(key(KeyCode::Esc));
+        assert!(app.edit_discard_pending);
+
+        app.handle_edit_key(ctrl_key('s'));
+
+        assert!(!app.edit_discard_pending);
+        assert_eq!(app.edit_mode, EditMode::Editing);
+
+        fs::remove_file(path).expect("remove document");
+    }
+
+    #[test]
+    fn dirty_edit_blocks_tab_switch_until_confirmed() {
+        let first = Document::from_source("# First");
+        let second = Document::from_source("# Second");
+        let mut app = ReaderApp::new_documents(vec![first, second]);
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Char('x')));
+        app.select_next_tab();
+
+        assert_eq!(app.documents.active_index(), Some(0));
+        assert_eq!(app.edit_mode, EditMode::Editing);
+        assert!(app.edit_discard_pending);
+
+        app.select_next_tab();
+
+        assert_eq!(app.documents.active_index(), Some(1));
+        assert_eq!(app.edit_mode, EditMode::Inactive);
+    }
+
+    #[test]
+    fn dirty_edit_blocks_close_until_confirmed() {
+        let first = Document::from_source("# First");
+        let second = Document::from_source("# Second");
+        let mut app = ReaderApp::new_documents(vec![first, second]);
+
+        app.start_editing();
+        app.handle_edit_key(key(KeyCode::Char('x')));
+
+        assert!(!app.close_active_tab());
+        assert_eq!(app.documents.len(), 2);
+        assert_eq!(app.edit_mode, EditMode::Editing);
+        assert!(app.edit_discard_pending);
+
+        assert!(!app.close_active_tab());
+        assert_eq!(app.documents.len(), 1);
+        assert_eq!(app.edit_mode, EditMode::Inactive);
     }
 
     #[test]
