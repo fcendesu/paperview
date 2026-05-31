@@ -120,11 +120,12 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
 - Live reload and file opening.
 - **Zen Mode:** A distraction-free UI state that hides sidebars and tabs.
 
-### Phase 2: Enhanced Functionality (Current Focus)
+### Phase 2: Enhanced Functionality
 - **Editing Mode:** Toggle between Viewer and Editor.
     - Split-pane live preview.
     - Basic Markdown syntax highlighting in the editor.
     - Save functionality (overwriting the source file).
+    - Implemented across core, GUI, and TUI for Markdown-source editing.
 - **Global Search:** Ripgrep-powered search across the workspace. *(Implemented
   through the TUI/headless workspace search command.)*
 - **Export:** Support for HTML and PDF export. *(Implemented for standalone HTML

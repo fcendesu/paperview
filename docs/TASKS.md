@@ -81,7 +81,7 @@ This document tracks the progress of features across the three workspace crates.
 
 | Feature | Core Logic | GUI (Iced) | TUI (Ratatui) |
 | :--- | :---: | :---: | :---: |
-| **Editing Mode** | ✅ | 🏗️ | 🏗️ |
+| **Editing Mode** | ✅ | ✅ | ✅ |
 | **Global Search** | ✅ | ⬜ | ✅ |
 | **Export HTML/PDF** | ✅ | N/A | ✅ |
 

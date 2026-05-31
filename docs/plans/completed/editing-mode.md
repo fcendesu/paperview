@@ -83,3 +83,19 @@ Out of scope:
 - 2026-05-31: Added independent TUI edit preview scrolling with
   `Ctrl+Up` / `Ctrl+Down` and `Ctrl+PageUp` / `Ctrl+PageDown`, including
   clamping, reset, and hidden-preview tests.
+- 2026-05-31: Closed the Phase 2 Editing Mode plan as complete and moved the
+  record from `docs/plans/active/` to `docs/plans/completed/`.
+
+## Outcome
+
+Editing Mode is complete for the Phase 2 Markdown-source workflow. Core owns
+dirty tracking, preview generation, and file-backed save behavior. The GUI
+offers an explicit Edit/View workflow with save, live preview, keyboard
+shortcuts, and lightweight Markdown highlighting. The TUI offers a
+cursor-addressable source editor with live preview, preview visibility toggle,
+independent preview scrolling, cursor-visible editor scrolling, save behavior,
+and dirty-discard protection.
+
+Deferred follow-up work remains out of this plan's completion scope: full
+`.tex` editing or Tectonic integration, Knowledge Graph behavior, richer editor
+selection/clipboard affordances, and external-editor handoff.

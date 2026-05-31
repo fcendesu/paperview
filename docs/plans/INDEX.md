@@ -12,11 +12,12 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
-- [Editing Mode](active/editing-mode.md) - Phase 2 viewer/editor workflow with
-  live preview and save behavior.
+- None.
 
 ## Completed Plans
 
+- [Editing Mode](completed/editing-mode.md) - Phase 2 viewer/editor workflow
+  with live preview and save behavior across core, GUI, and TUI.
 - [GUI Iced Shell](completed/gui-iced-shell.md) - first native GUI window with optional file loading and simple reader widgets.
 - [Config Command](completed/config-command.md) - headless config path and edit commands.
 - [History Sidebar Foundation](completed/history-sidebar-foundation.md) - shared recent-file model and first GUI history rail.

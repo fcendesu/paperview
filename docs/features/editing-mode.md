@@ -2,7 +2,7 @@
 
 ## Current Behavior
 
-Editing Mode is the active Phase 2 focus. The first implementation slice adds
+Editing Mode is complete for the Phase 2 Markdown-source workflow. It provides
 shared core edit-session state so GUI and TUI frontends can add editing
 controls without each inventing save, dirty-state, or preview-refresh rules.
 
@@ -75,10 +75,15 @@ unsaved edits; the next discard action confirms and exits or proceeds.
 ## Open Decisions
 
 - Whether the TUI should add richer editor affordances such as selection,
-  clipboard integration, and independent preview scrolling, or hand advanced
-  editing off to an external editor.
+  clipboard integration, or external-editor handoff.
 - Whether save should preserve scroll position exactly or reset to the edited
   preview's nearest heading.
+
+## Completion Record
+
+- 2026-05-31: Phase 2 Editing Mode was closed as complete across core, GUI,
+  and TUI. Remaining ideas are follow-up polish or future feature scope rather
+  than blockers for the planned Editing Mode milestone.
 
 ## Verification Expectations
 
