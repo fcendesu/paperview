@@ -172,6 +172,12 @@ dirty-state checks, optional file path, preview document generation, and
 file-backed save behavior. GUI and TUI frontends should render and mutate the
 buffer while delegating save and preview semantics to core.
 
+The Presentation Mode foundation keeps slide-boundary logic in
+`paperview-core::presentation`. `PresentationDeck` turns Markdown source into
+ordered `Slide` values, preferring explicit thematic-rule separators and
+falling back to top-level headings. Slides preserve Markdown source so
+frontends can reuse the existing document rendering pipeline.
+
 Split View shared behavior lives in `paperview-core::SplitViewState`. It owns
 the secondary-tab index, bounded primary-pane width, toggle/retarget rules, and
 side-pane cycling. GUI and TUI frontends keep only presentation-specific state

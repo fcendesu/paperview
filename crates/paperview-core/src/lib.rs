@@ -5,6 +5,7 @@ pub mod export;
 pub mod history;
 pub mod open_documents;
 pub mod parser;
+pub mod presentation;
 pub mod search;
 pub mod split_view;
 pub mod stats;
@@ -19,6 +20,7 @@ pub use export::{
 };
 pub use history::{FileEntry, History, HistoryStore, HistoryStoreError};
 pub use open_documents::OpenDocuments;
+pub use presentation::{PresentationDeck, Slide, presentation_deck};
 pub use search::{
     SearchMatch, WorkspaceSearchError, WorkspaceSearchMatch, search_lines, search_workspace,
 };

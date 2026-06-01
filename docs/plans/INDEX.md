@@ -12,7 +12,8 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
-- None.
+- [Presentation Mode](active/presentation-mode.md) - Phase 3 Markdown-to-slides
+  workflow with shared deck generation and frontend navigation.
 
 ## Completed Plans
 

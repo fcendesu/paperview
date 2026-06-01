@@ -135,6 +135,7 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
 - LaTeX/Math support ($inline$ and $$block$$). *(Foundation implemented with
   readable/source-preserving previews.)*
 - **Presentation Mode:** One-click conversion of headings/rules into slides.
+  *(Core deck generation started.)*
 - Full `.tex` support via Tectonic integration is deferred out of the current
   roadmap scope.
 - **Knowledge Graph** visual connections between linked Markdown files are

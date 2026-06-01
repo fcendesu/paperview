@@ -22,6 +22,7 @@ This directory stores one specification file per major feature. Feature specs ar
 - [Mermaid Support](mermaid-support.md) - source-preserving Mermaid diagram foundation.
 - [PDF Export](pdf-export.md) - reserved PDF export command contract and unavailable-backend error.
 - [Performance Baseline](performance-baseline.md) - headless document load, parse, and TUI render timing report.
+- [Presentation Mode](presentation-mode.md) - Phase 3 Markdown-to-slides workflow.
 - [Ratatui Shell](ratatui-shell.md) - first interactive terminal reader shell.
 - [Scroll Synchronization](scroll-synchronization.md) - GUI reader scroll position highlights the active TOC section.
 - [Split View](split-view.md) - GUI side-by-side comparison of two open tabs.
