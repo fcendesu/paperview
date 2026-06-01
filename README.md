@@ -172,6 +172,10 @@ file-backed task checkbox toggles, case-insensitive in-document search with
 match navigation, highlighted match lines, and a cursor-addressable Editing
 Mode source buffer with live rendered preview for file-backed documents.
 
+The GUI can also enter Presentation Mode from the header `Present` button or
+`Cmd/Ctrl+P`, renders slides through the normal reader, and provides header
+previous/next controls plus `View` to return to reading.
+
 The headless stats command prints word, line, character, reading-time, and
 heading-structure metadata for a document, with `--json` for automation.
 The headless perf command prints document size, parse shape, rendered TUI line

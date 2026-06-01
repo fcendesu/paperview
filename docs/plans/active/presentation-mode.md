@@ -60,3 +60,7 @@ Out of scope:
   navigation, `Esc` exit, and focused TUI tests.
 - 2026-06-01: Added TUI presentation control polish with `Home` / `End`
   first/last slide jumps, `q` exit, a progress pane title, and focused tests.
+- 2026-06-01: Added the first GUI Presentation Mode slice with a `Present` /
+  `View` header toggle, `Cmd/Ctrl+P`, previous/next header controls, slide
+  rendering through the existing GUI reader, tab-strip hiding while presenting,
+  active-path preservation for slide resources, and focused GUI tests.

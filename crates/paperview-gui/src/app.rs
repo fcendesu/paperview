@@ -13,9 +13,9 @@ use iced::{
     window,
 };
 use paperview_core::{
-    Config, ConfigStore, Document, EditSession, History, HistoryStore, OpenDocuments, SearchMatch,
-    SplitResize, SplitViewState, SupportedFileType, WatchEvent, ZenModeState, parser::Block,
-    toggle_task_line_source, watch_file,
+    Config, ConfigStore, Document, EditSession, History, HistoryStore, OpenDocuments,
+    PresentationDeck, SearchMatch, SplitResize, SplitViewState, SupportedFileType, WatchEvent,
+    ZenModeState, parser::Block, presentation_deck, toggle_task_line_source, watch_file,
 };
 
 use crate::{
@@ -47,6 +47,9 @@ pub struct PaperView {
     edit_session: Option<EditSession>,
     edit_content: text_editor::Content,
     edit_preview: Option<Document>,
+    presentation_deck: Option<PresentationDeck>,
+    presentation_slide_index: usize,
+    presentation_document: Option<Document>,
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +92,9 @@ pub enum Message {
     ToggleEdit,
     EditSource(text_editor::Action),
     SaveEdit,
+    TogglePresentation,
+    PresentationNext,
+    PresentationPrevious,
     ToggleTask(usize),
     SelectSplitTab(usize),
     SelectTab(usize),
@@ -161,6 +167,9 @@ impl PaperView {
                     edit_session: None,
                     edit_content: text_editor::Content::new(),
                     edit_preview: None,
+                    presentation_deck: None,
+                    presentation_slide_index: 0,
+                    presentation_document: None,
                 }
             }
             [path] => {
@@ -195,6 +204,9 @@ impl PaperView {
                             edit_session: None,
                             edit_content: text_editor::Content::new(),
                             edit_preview: None,
+                            presentation_deck: None,
+                            presentation_slide_index: 0,
+                            presentation_document: None,
                         }
                     }
                     Err(error) => Self {
@@ -217,6 +229,9 @@ impl PaperView {
                         edit_session: None,
                         edit_content: text_editor::Content::new(),
                         edit_preview: None,
+                        presentation_deck: None,
+                        presentation_slide_index: 0,
+                        presentation_document: None,
                     },
                 }
             }
@@ -243,6 +258,9 @@ impl PaperView {
                     edit_session: None,
                     edit_content: text_editor::Content::new(),
                     edit_preview: None,
+                    presentation_deck: None,
+                    presentation_slide_index: 0,
+                    presentation_document: None,
                 }
             }
         }
@@ -342,6 +360,9 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::ToggleEdit => state.toggle_edit(),
         Message::EditSource(action) => state.edit_source(action),
         Message::SaveEdit => state.save_edit(),
+        Message::TogglePresentation => state.toggle_presentation(),
+        Message::PresentationNext => state.select_next_presentation_slide(),
+        Message::PresentationPrevious => state.select_previous_presentation_slide(),
         Message::ToggleTask(line_index) => state.toggle_task(line_index),
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
@@ -360,6 +381,7 @@ impl PaperView {
                 self.documents.open_or_activate(document);
                 self.status = Status::Loaded(path);
                 self.end_editing();
+                self.end_presentation();
                 self.ensure_split_target();
                 self.sync_active_toc_to_top();
                 self.refresh_search_matches();
@@ -382,6 +404,7 @@ impl PaperView {
                     self.documents.open_or_activate(document);
                     self.status = Status::Loaded(path);
                     self.end_editing();
+                    self.end_presentation();
                     self.ensure_split_target();
                     self.sync_active_toc_to_top();
                     self.refresh_search_matches();
@@ -407,6 +430,7 @@ impl PaperView {
                     self.documents.replace_active(document);
                     self.status = Status::Loaded(path);
                     self.end_editing();
+                    self.end_presentation();
                     self.sync_active_toc_to_top();
                     self.refresh_search_matches();
                     self.track_remote_images();
@@ -462,6 +486,7 @@ impl PaperView {
         self.documents.select(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         self.end_editing();
+        self.end_presentation();
         self.ensure_split_target();
         self.sync_active_toc_to_top();
         self.refresh_search_matches();
@@ -472,6 +497,7 @@ impl PaperView {
         self.documents.close(index);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         self.end_editing();
+        self.end_presentation();
         self.ensure_split_target();
         self.sync_active_toc_to_top();
         self.refresh_search_matches();
@@ -503,9 +529,81 @@ impl PaperView {
         };
 
         let session = EditSession::from_document(document);
+        self.end_presentation();
         self.edit_content = text_editor::Content::with_text(session.buffer());
         self.edit_preview = Some(session.preview_document());
         self.edit_session = Some(session);
+    }
+
+    fn toggle_presentation(&mut self) {
+        if self.presentation_deck.is_some() {
+            self.end_presentation();
+            self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+            return;
+        }
+
+        let Some(document) = self.documents.active() else {
+            self.status = Status::Error("open a document before presenting".to_owned());
+            return;
+        };
+
+        let deck = presentation_deck(document.source());
+        if deck.is_empty() {
+            self.status = Status::Error("presentation has no slides".to_owned());
+            return;
+        }
+
+        self.end_editing();
+        self.presentation_deck = Some(deck);
+        self.presentation_slide_index = 0;
+        self.refresh_presentation_document();
+    }
+
+    fn select_next_presentation_slide(&mut self) {
+        let Some(deck) = &self.presentation_deck else {
+            return;
+        };
+
+        if self.presentation_slide_index + 1 < deck.len() {
+            self.presentation_slide_index += 1;
+            self.refresh_presentation_document();
+        }
+    }
+
+    fn select_previous_presentation_slide(&mut self) {
+        if self.presentation_slide_index > 0 {
+            self.presentation_slide_index -= 1;
+            self.refresh_presentation_document();
+        }
+    }
+
+    fn refresh_presentation_document(&mut self) {
+        let active_path = self.active_path();
+        self.presentation_document = self
+            .presentation_deck
+            .as_ref()
+            .and_then(|deck| deck.slides().get(self.presentation_slide_index))
+            .map(|slide| {
+                let document = Document::from_source(slide.source());
+                match active_path.clone() {
+                    Some(path) => document.with_path(path),
+                    None => document,
+                }
+            });
+        self.active_toc_block_index = self
+            .presentation_document
+            .as_ref()
+            .and_then(|document| first_toc_block_index(document.parsed()));
+    }
+
+    fn end_presentation(&mut self) {
+        self.presentation_deck = None;
+        self.presentation_slide_index = 0;
+        self.presentation_document = None;
+        self.active_toc_block_index = self
+            .documents
+            .active()
+            .and_then(|document| first_toc_block_index(document.parsed()));
     }
 
     fn edit_source(&mut self, action: text_editor::Action) {
@@ -1021,6 +1119,19 @@ fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Opt
         }) if modifiers.command()
             && key
                 .to_latin(physical_key)
+                .is_some_and(|character| character.eq_ignore_ascii_case(&'p')) =>
+        {
+            Some(Message::TogglePresentation)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.command()
+            && key
+                .to_latin(physical_key)
                 .is_some_and(|character| character.eq_ignore_ascii_case(&'s')) =>
         {
             Some(Message::SaveEdit)
@@ -1186,6 +1297,21 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
             ]
             .into()
         }
+        Some(_) if state.presentation_deck.is_some() => {
+            let document = state
+                .presentation_document
+                .as_ref()
+                .expect("presentation document");
+            reader::view_with_search_and_remote_images(
+                document,
+                None::<fn(f32) -> Message>,
+                Message::OpenLink,
+                None,
+                None,
+                None,
+                &state.remote_images,
+            )
+        }
         Some(document) if state.zen_mode.is_enabled() => {
             reader::view_with_search_and_remote_images(
                 document,
@@ -1225,7 +1351,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         }
         None => empty_state(&state.status),
     };
-    let layout = if state.zen_mode.is_enabled() {
+    let layout = if state.zen_mode.is_enabled() || state.presentation_deck.is_some() {
         column![header, body].height(Fill)
     } else {
         column![header, tab_bar(state), body].height(Fill)
@@ -1433,14 +1559,26 @@ fn platform_open_command(target: &str) -> Command {
 }
 
 fn header(state: &PaperView) -> Element<'_, Message> {
-    let subtitle = match &state.status {
-        Status::Empty => format!(
-            "No document open - {}",
-            state.history_store.path().display()
-        ),
-        Status::Loaded(path) => path.display().to_string(),
-        Status::Hovering(path) => format!("Drop to open {}", path.display()),
-        Status::Error(error) => error.clone(),
+    let subtitle = if let Some(deck) = &state.presentation_deck {
+        let title = deck
+            .slides()
+            .get(state.presentation_slide_index)
+            .map_or("Untitled Slide", paperview_core::Slide::title);
+        format!(
+            "Slide {}/{} - {title}",
+            state.presentation_slide_index + 1,
+            deck.len()
+        )
+    } else {
+        match &state.status {
+            Status::Empty => format!(
+                "No document open - {}",
+                state.history_store.path().display()
+            ),
+            Status::Loaded(path) => path.display().to_string(),
+            Status::Hovering(path) => format!("Drop to open {}", path.display()),
+            Status::Error(error) => error.clone(),
+        }
     };
 
     let is_split_enabled = state.split_view.secondary_index().is_some();
@@ -1479,6 +1617,40 @@ fn header(state: &PaperView) -> Element<'_, Message> {
     } else {
         save_button
     };
+    let is_presenting = state.presentation_deck.is_some();
+    let present_button = button(text(if is_presenting { "View" } else { "Present" }).size(13))
+        .padding([7, 12])
+        .style(move |_, status| theme::header_action_button(is_presenting, status));
+    let present_button = if state.documents.active().is_some() {
+        present_button.on_press(Message::TogglePresentation)
+    } else {
+        present_button
+    };
+    let previous_slide = button(text("<").size(13))
+        .padding([7, 10])
+        .style(move |_, status| theme::header_action_button(false, status));
+    let previous_slide = if is_presenting && state.presentation_slide_index > 0 {
+        previous_slide.on_press(Message::PresentationPrevious)
+    } else {
+        previous_slide
+    };
+    let next_slide = button(text(">").size(13))
+        .padding([7, 10])
+        .style(move |_, status| theme::header_action_button(false, status));
+    let can_advance_presentation = state
+        .presentation_deck
+        .as_ref()
+        .is_some_and(|deck| state.presentation_slide_index + 1 < deck.len());
+    let next_slide = if can_advance_presentation {
+        next_slide.on_press(Message::PresentationNext)
+    } else {
+        next_slide
+    };
+    let presentation_controls = if is_presenting {
+        row![previous_slide, next_slide].spacing(6)
+    } else {
+        row![].spacing(0)
+    };
     let search_controls = search_controls(state);
 
     container(
@@ -1490,6 +1662,8 @@ fn header(state: &PaperView) -> Element<'_, Message> {
             .spacing(4)
             .width(Fill),
             search_controls,
+            presentation_controls,
+            present_button,
             edit_button,
             save_button,
             split_button
@@ -1980,6 +2154,96 @@ mod tests {
         assert_eq!(
             state.edit_preview.as_ref().map(Document::title),
             Some("Draft")
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn presentation_toggle_starts_deck_for_active_document() {
+        let path = temp_doc(
+            "gui-presentation-toggle.md",
+            "# Intro\n\nOpening.\n\n---\n\n# Next\n\nSecond.",
+        );
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("presentation-toggle.toml"),
+        );
+
+        apply(&mut state, Message::TogglePresentation);
+
+        assert_eq!(
+            state.presentation_deck.as_ref().map(|deck| deck.len()),
+            Some(2)
+        );
+        assert_eq!(state.presentation_slide_index, 0);
+        assert_eq!(
+            state.presentation_document.as_ref().map(Document::title),
+            Some("Intro")
+        );
+        assert_eq!(
+            state
+                .presentation_document
+                .as_ref()
+                .and_then(Document::path),
+            Some(&path)
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn presentation_navigation_clamps_between_slides() {
+        let path = temp_doc(
+            "gui-presentation-navigation.md",
+            "# One\n\n---\n\n# Two\n\n---\n\n# Three",
+        );
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("presentation-navigation.toml"),
+        );
+
+        apply(&mut state, Message::TogglePresentation);
+        apply(&mut state, Message::PresentationNext);
+        apply(&mut state, Message::PresentationNext);
+        apply(&mut state, Message::PresentationNext);
+
+        assert_eq!(state.presentation_slide_index, 2);
+        assert_eq!(
+            state.presentation_document.as_ref().map(Document::title),
+            Some("Three")
+        );
+
+        apply(&mut state, Message::PresentationPrevious);
+        apply(&mut state, Message::PresentationPrevious);
+        apply(&mut state, Message::PresentationPrevious);
+
+        assert_eq!(state.presentation_slide_index, 0);
+        assert_eq!(
+            state.presentation_document.as_ref().map(Document::title),
+            Some("One")
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn presentation_toggle_exits_to_reader() {
+        let path = temp_doc("gui-presentation-exit.md", "# Intro\n\n---\n\n# Next");
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("presentation-exit.toml"),
+        );
+
+        apply(&mut state, Message::TogglePresentation);
+        apply(&mut state, Message::TogglePresentation);
+
+        assert!(state.presentation_deck.is_none());
+        assert!(state.presentation_document.is_none());
+        assert_eq!(state.presentation_slide_index, 0);
+        assert_eq!(state.active_toc_block_index, Some(0));
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
         );
 
         fs::remove_file(path).expect("remove test document");
@@ -2621,6 +2885,25 @@ mod tests {
         );
 
         assert!(matches!(message, Some(Message::ToggleEdit)));
+    }
+
+    #[test]
+    fn command_p_maps_to_presentation_toggle() {
+        let message = runtime_event(
+            Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character("p".into()),
+                modified_key: Key::Character("p".into()),
+                physical_key: Physical::Code(Code::KeyP),
+                location: Location::Standard,
+                modifiers: Modifiers::COMMAND,
+                text: Some("p".into()),
+                repeat: false,
+            }),
+            iced::event::Status::Ignored,
+            iced::window::Id::unique(),
+        );
+
+        assert!(matches!(message, Some(Message::TogglePresentation)));
     }
 
     #[test]
