@@ -82,7 +82,7 @@ This document tracks the progress of features across the three workspace crates.
 | Feature | Core Logic | GUI (Iced) | TUI (Ratatui) |
 | :--- | :---: | :---: | :---: |
 | **Editing Mode** | ✅ | ✅ | ✅ |
-| **Global Search** | ✅ | ⬜ | ✅ |
+| **Global Search** | ✅ | ✅ | ✅ |
 | **Export HTML/PDF** | ✅ | N/A | ✅ |
 
 ## Phase 3: Technical Advanced & Presentation

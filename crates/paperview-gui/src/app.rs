@@ -8,19 +8,20 @@ use iced::{
     widget::{
         button, column, container, mouse_area,
         operation::{self, RelativeOffset},
-        responsive, row, text, text_editor, text_input,
+        responsive, row, scrollable, text, text_editor, text_input,
     },
     window,
 };
 use paperview_core::{
     Config, ConfigStore, Document, EditSession, History, HistoryStore, OpenDocuments,
     PresentationDeck, SearchMatch, SplitResize, SplitViewState, SupportedFileType, WatchEvent,
-    ZenModeState, parser::Block, presentation_deck, toggle_task_line_source, watch_file,
+    WorkspaceSearchMatch, ZenModeState, parser::Block, presentation_deck, search_workspace,
+    toggle_task_line_source, watch_file,
 };
 
 use crate::{
     editor_highlight::{MarkdownHighlighter, markdown_highlight_format},
-    history, navigation, reader, theme,
+    navigation, reader, theme,
 };
 
 const SPLIT_DIVIDER_HIT_ZONE: f32 = 16.0;
@@ -43,6 +44,10 @@ pub struct PaperView {
     search_query: String,
     search_matches: Vec<SearchMatch>,
     search_selected_index: Option<usize>,
+    workspace_search_query: String,
+    workspace_search_matches: Vec<WorkspaceSearchMatch>,
+    is_workspace_searching: bool,
+    workspace_search_error: Option<String>,
     remote_images: HashMap<String, reader::RemoteImage>,
     edit_session: Option<EditSession>,
     edit_content: text_editor::Content,
@@ -89,6 +94,10 @@ pub enum Message {
     SearchQueryChanged(String),
     SearchNext,
     SearchPrevious,
+    WorkspaceSearchQueryChanged(String),
+    SubmitWorkspaceSearch,
+    WorkspaceSearchFinished(Result<Vec<WorkspaceSearchMatch>, String>),
+    OpenWorkspaceSearchResult(usize),
     ToggleEdit,
     EditSource(text_editor::Action),
     SaveEdit,
@@ -166,6 +175,10 @@ impl PaperView {
                     search_query: String::new(),
                     search_matches: Vec::new(),
                     search_selected_index: None,
+                    workspace_search_query: String::new(),
+                    workspace_search_matches: Vec::new(),
+                    is_workspace_searching: false,
+                    workspace_search_error: None,
                     remote_images: HashMap::new(),
                     edit_session: None,
                     edit_content: text_editor::Content::new(),
@@ -203,6 +216,10 @@ impl PaperView {
                             search_query: String::new(),
                             search_matches: Vec::new(),
                             search_selected_index: None,
+                            workspace_search_query: String::new(),
+                            workspace_search_matches: Vec::new(),
+                            is_workspace_searching: false,
+                            workspace_search_error: None,
                             remote_images,
                             edit_session: None,
                             edit_content: text_editor::Content::new(),
@@ -228,6 +245,10 @@ impl PaperView {
                         search_query: String::new(),
                         search_matches: Vec::new(),
                         search_selected_index: None,
+                        workspace_search_query: String::new(),
+                        workspace_search_matches: Vec::new(),
+                        is_workspace_searching: false,
+                        workspace_search_error: None,
                         remote_images: HashMap::new(),
                         edit_session: None,
                         edit_content: text_editor::Content::new(),
@@ -257,6 +278,10 @@ impl PaperView {
                     search_query: String::new(),
                     search_matches: Vec::new(),
                     search_selected_index: None,
+                    workspace_search_query: String::new(),
+                    workspace_search_matches: Vec::new(),
+                    is_workspace_searching: false,
+                    workspace_search_error: None,
                     remote_images: HashMap::new(),
                     edit_session: None,
                     edit_content: text_editor::Content::new(),
@@ -360,6 +385,12 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         }
         Message::SearchNext => return state.select_next_search_match(),
         Message::SearchPrevious => return state.select_previous_search_match(),
+        Message::WorkspaceSearchQueryChanged(query) => state.update_workspace_search_query(query),
+        Message::SubmitWorkspaceSearch => return state.submit_workspace_search(),
+        Message::WorkspaceSearchFinished(result) => state.finish_workspace_search(result),
+        Message::OpenWorkspaceSearchResult(index) => {
+            return state.open_workspace_search_result(index);
+        }
         Message::ToggleEdit => state.toggle_edit(),
         Message::EditSource(action) => state.edit_source(action),
         Message::SaveEdit => state.save_edit(),
@@ -942,6 +973,71 @@ impl PaperView {
         (!query.is_empty()).then_some(query)
     }
 
+    fn update_workspace_search_query(&mut self, query: String) {
+        self.workspace_search_query = query;
+        self.workspace_search_error = None;
+
+        if self.workspace_search_query.trim().is_empty() {
+            self.workspace_search_matches.clear();
+            self.is_workspace_searching = false;
+        }
+    }
+
+    fn submit_workspace_search(&mut self) -> Task<Message> {
+        let query = self.workspace_search_query.trim().to_owned();
+        if query.is_empty() {
+            self.workspace_search_matches.clear();
+            self.workspace_search_error = None;
+            self.is_workspace_searching = false;
+            return Task::none();
+        }
+
+        self.is_workspace_searching = true;
+        self.workspace_search_error = None;
+
+        Task::perform(
+            run_workspace_search(query),
+            Message::WorkspaceSearchFinished,
+        )
+    }
+
+    fn finish_workspace_search(&mut self, result: Result<Vec<WorkspaceSearchMatch>, String>) {
+        self.is_workspace_searching = false;
+        match result {
+            Ok(matches) => {
+                self.workspace_search_matches = matches;
+                self.workspace_search_error = None;
+            }
+            Err(error) => {
+                self.workspace_search_matches.clear();
+                self.workspace_search_error = Some(error.clone());
+                self.status = Status::Error(error);
+            }
+        }
+    }
+
+    fn open_workspace_search_result(&mut self, index: usize) -> Task<Message> {
+        let Some(search_match) = self.workspace_search_matches.get(index).cloned() else {
+            return Task::none();
+        };
+        let path = absolute_workspace_match_path(search_match.path);
+        let line_index = search_match.line_number.saturating_sub(1);
+
+        self.open_path(path);
+        self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
+
+        operation::snap_to(
+            reader::ACTIVE_READER_SCROLLABLE_ID,
+            RelativeOffset {
+                x: 0.0,
+                y: self
+                    .documents
+                    .active()
+                    .map_or(0.0, |document| search_scroll_progress(document, line_index)),
+            },
+        )
+    }
+
     fn active_search_line(&self) -> Option<&str> {
         self.search_selected_index
             .and_then(|index| self.search_matches.get(index))
@@ -967,6 +1063,21 @@ fn clamp_search_selection(selection: Option<usize>, len: usize) -> Option<usize>
     } else {
         Some(selection.unwrap_or(0).min(len - 1))
     }
+}
+
+async fn run_workspace_search(query: String) -> Result<Vec<WorkspaceSearchMatch>, String> {
+    let root = std::env::current_dir().map_err(|error| format!("failed to read cwd: {error}"))?;
+    search_workspace(&query, root).map_err(|error| error.to_string())
+}
+
+fn absolute_workspace_match_path(path: PathBuf) -> PathBuf {
+    if path.is_absolute() {
+        return path;
+    }
+
+    std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(path)
 }
 
 fn split_primary_width_from_cursor(x: f32, width: f32, fallback: u16) -> u16 {
@@ -1399,7 +1510,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         Some(document) if state.edit_session.is_some() => {
             let preview = state.edit_preview.as_ref().unwrap_or(document);
             row![
-                history::view(&state.history),
+                left_sidebar(state),
                 editing_view(state, preview),
                 navigation::view(
                     preview.parsed(),
@@ -1451,7 +1562,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
             };
 
             row![
-                history::view(&state.history),
+                left_sidebar(state),
                 reader,
                 navigation::view(
                     document.parsed(),
@@ -1474,6 +1585,141 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
         .height(Fill)
         .style(|_| theme::shell_container(state.is_drag_hovered))
         .into()
+}
+
+fn left_sidebar(state: &PaperView) -> Element<'_, Message> {
+    container(scrollable(
+        column![history_section(state), workspace_search_section(state)].spacing(24),
+    ))
+    .width(300)
+    .height(Fill)
+    .padding([22, 18])
+    .style(|_| theme::history_container())
+    .into()
+}
+
+fn history_section(state: &PaperView) -> Element<'_, Message> {
+    let mut content = column![text("History").size(14).color(theme::SHELL_TEXT)].spacing(12);
+
+    if state.history.is_empty() {
+        content = content.push(
+            text("No recent files")
+                .size(12)
+                .color(theme::SHELL_TEXT_MUTED),
+        );
+    } else {
+        for entry in state.history.entries() {
+            content = content.push(
+                button(
+                    column![
+                        text(entry.title()).size(13).color(theme::SHELL_TEXT),
+                        text(entry.path().display().to_string())
+                            .size(11)
+                            .color(theme::SHELL_TEXT_MUTED)
+                    ]
+                    .spacing(3),
+                )
+                .padding([9, 10])
+                .width(Fill)
+                .style(|_, status| theme::history_item_button(status))
+                .on_press(Message::OpenHistory(entry.path().to_path_buf())),
+            );
+        }
+    }
+
+    content.into()
+}
+
+fn workspace_search_section(state: &PaperView) -> Element<'_, Message> {
+    let can_submit =
+        !state.workspace_search_query.trim().is_empty() && !state.is_workspace_searching;
+    let mut input = text_input("Workspace search", &state.workspace_search_query)
+        .padding([7, 10])
+        .size(13)
+        .width(Fill)
+        .style(theme::search_input)
+        .on_input(Message::WorkspaceSearchQueryChanged);
+
+    if can_submit {
+        input = input.on_submit(Message::SubmitWorkspaceSearch);
+    }
+
+    let search_button = button(
+        text(if state.is_workspace_searching {
+            "Searching"
+        } else {
+            "Find"
+        })
+        .size(13),
+    )
+    .padding([7, 12])
+    .style(move |_, status| theme::header_action_button(state.is_workspace_searching, status));
+    let search_button = if can_submit {
+        search_button.on_press(Message::SubmitWorkspaceSearch)
+    } else {
+        search_button
+    };
+
+    let summary = workspace_search_summary(state);
+    let mut content = column![
+        text("Workspace").size(14).color(theme::SHELL_TEXT),
+        row![input, search_button].spacing(6),
+        text(summary).size(12).color(theme::SHELL_TEXT_MUTED)
+    ]
+    .spacing(10);
+
+    if let Some(error) = &state.workspace_search_error {
+        content = content.push(text(error).size(12).color(theme::SHELL_TEXT_MUTED));
+    }
+
+    for (index, search_match) in state.workspace_search_matches.iter().take(20).enumerate() {
+        content = content.push(workspace_search_result(index, search_match));
+    }
+
+    content.into()
+}
+
+fn workspace_search_result(
+    index: usize,
+    search_match: &WorkspaceSearchMatch,
+) -> Element<'_, Message> {
+    let location = format!(
+        "{}:{}:{}",
+        search_match.path.display(),
+        search_match.line_number,
+        search_match.column
+    );
+
+    button(
+        column![
+            text(location).size(12).color(theme::SHELL_TEXT),
+            text(search_match.line.trim().to_owned())
+                .size(11)
+                .color(theme::SHELL_TEXT_MUTED)
+        ]
+        .spacing(3),
+    )
+    .padding([8, 10])
+    .width(Fill)
+    .style(|_, status| theme::history_item_button(status))
+    .on_press(Message::OpenWorkspaceSearchResult(index))
+    .into()
+}
+
+fn workspace_search_summary(state: &PaperView) -> String {
+    if state.is_workspace_searching {
+        return "Searching current workspace".to_owned();
+    }
+
+    if state.workspace_search_query.trim().is_empty() {
+        return "Search files with ripgrep".to_owned();
+    }
+
+    match state.workspace_search_matches.len() {
+        0 if state.workspace_search_error.is_none() => "No matches".to_owned(),
+        1 => "1 match".to_owned(),
+        len => format!("{len} matches"),
+    }
 }
 
 fn editing_view<'a>(state: &'a PaperView, preview: &'a Document) -> Element<'a, Message> {
@@ -1955,6 +2201,7 @@ mod tests {
     };
     use paperview_core::{
         Config, ConfigStore, Document, History, HistoryStore, ThemePreference,
+        WorkspaceSearchMatch,
         parser::{Block, parse_markdown},
     };
 
@@ -2203,6 +2450,82 @@ mod tests {
         assert_eq!(search_scroll_progress(&document, 0), 0.0);
         assert!(search_scroll_progress(&document, 1) > 0.3);
         assert_eq!(search_scroll_progress(&document, usize::MAX), 1.0);
+    }
+
+    #[test]
+    fn workspace_search_query_clears_results_when_empty() {
+        let mut state = PaperView::from_args_with_store([], temp_store("workspace-empty.toml"));
+        state.workspace_search_matches = vec![WorkspaceSearchMatch {
+            path: std::path::PathBuf::from("README.md"),
+            line_number: 1,
+            column: 1,
+            line: "PaperView".to_owned(),
+        }];
+        state.is_workspace_searching = true;
+        state.workspace_search_error = Some("old error".to_owned());
+
+        apply(
+            &mut state,
+            Message::WorkspaceSearchQueryChanged("   ".to_owned()),
+        );
+
+        assert!(state.workspace_search_matches.is_empty());
+        assert!(!state.is_workspace_searching);
+        assert!(state.workspace_search_error.is_none());
+    }
+
+    #[test]
+    fn workspace_search_finished_records_matches_and_errors() {
+        let mut state = PaperView::from_args_with_store([], temp_store("workspace-finished.toml"));
+        let search_match = WorkspaceSearchMatch {
+            path: std::path::PathBuf::from("README.md"),
+            line_number: 2,
+            column: 4,
+            line: "PaperView".to_owned(),
+        };
+
+        apply(
+            &mut state,
+            Message::WorkspaceSearchFinished(Ok(vec![search_match.clone()])),
+        );
+
+        assert_eq!(state.workspace_search_matches, vec![search_match]);
+        assert!(!state.is_workspace_searching);
+        assert!(state.workspace_search_error.is_none());
+
+        apply(
+            &mut state,
+            Message::WorkspaceSearchFinished(Err("rg exploded".to_owned())),
+        );
+
+        assert!(state.workspace_search_matches.is_empty());
+        assert_eq!(state.workspace_search_error.as_deref(), Some("rg exploded"));
+        assert!(matches!(state.status, super::Status::Error(ref error) if error == "rg exploded"));
+    }
+
+    #[test]
+    fn workspace_search_result_opens_document_near_match() {
+        let path = temp_doc(
+            "workspace-result-open.md",
+            "# First\n\nOne.\n\n# Second\n\nNeedle.\n\n# Third",
+        );
+        let mut state =
+            PaperView::from_args_with_store([], temp_store("workspace-result-open.toml"));
+        state.workspace_search_matches = vec![WorkspaceSearchMatch {
+            path: path.clone(),
+            line_number: 6,
+            column: 1,
+            line: "Needle.".to_owned(),
+        }];
+
+        let _task = update(&mut state, Message::OpenWorkspaceSearchResult(0));
+
+        assert_eq!(state.documents.active().map(Document::title), Some("First"));
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
+        );
+
+        fs::remove_file(path).expect("remove test document");
     }
 
     #[test]

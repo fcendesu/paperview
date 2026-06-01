@@ -127,7 +127,8 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
     - Save functionality (overwriting the source file).
     - Implemented across core, GUI, and TUI for Markdown-source editing.
 - **Global Search:** Ripgrep-powered search across the workspace. *(Implemented
-  through the TUI/headless workspace search command.)*
+  through the TUI/headless workspace search command and the GUI left-rail
+  workspace search panel.)*
 - **Export:** Support for HTML and PDF export. *(Implemented for standalone HTML
   and text-first PDF output.)*
 

@@ -189,6 +189,8 @@ Mode, Split View width, and the current `hybrid` theme preference in that
 config file.
 The workspace search command prints ripgrep-backed `path:line:column` results
 without launching the TUI, or opens a Ratatui result picker with `--interactive`.
+The GUI left rail also includes workspace search; submit a query with `Find` or
+Enter, then click a result to open the matched file near its source line.
 The export command writes standalone PaperView-styled HTML with heading anchors
 or a text-first PDF with basic layout beside the source document and prints the
 generated path.

@@ -124,6 +124,10 @@ available and as Markdown-shaped `[x]` / `[ ]` markers in the TUI.
 - **Search:** The GUI header includes a compact document search field with
   previous/next controls, match count, highlighted rendered matches in the
   active reader, and a stronger warm active highlight for the selected match.
+  The GUI left rail includes a workspace search panel below History with a
+  compact input, `Find` action, result count/status text, and clickable
+  `path:line:column` result rows with line previews. Result rows open the
+  matched file near the source line.
   The TUI uses `/` for search entry, reports match position in the header, and
   highlights matched reader lines.
 

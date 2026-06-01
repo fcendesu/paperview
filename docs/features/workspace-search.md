@@ -23,18 +23,26 @@ The command accepts:
 Results print as `path:line:column: text`. If there are no matches, the command prints `No matches`.
 In interactive mode, results are listed with their source location and line preview. `j`/`k` or arrow keys move through matches, `Enter` opens the selected file near the matched source line, and `q`/`Esc` exits the result picker.
 
+The GUI exposes workspace search in the left rail below History. Users enter a
+query, submit it with `Find` or Enter, and see ripgrep-backed `path:line:column`
+matches with line previews. Clicking a result opens the file as a tab and
+scrolls near the matched source line.
+
 ## Implementation Notes
 
 - `paperview-core::search_workspace` invokes `rg` with parseable vimgrep output.
 - `WorkspaceSearchMatch` stores path, line number, column, and matched line text.
 - `paperview-tui search <query> [path]` formats results without initializing Ratatui.
 - `paperview-tui search <query> [path] --interactive` initializes Ratatui with a search-result list and reuses the reader view when a result is opened.
+- `paperview-gui` reuses the same core search model through an Iced task and
+  renders result rows in the left shell rail.
 - Empty queries return no matches.
 
 ## Decisions And Gaps
 
 - Ripgrep must be installed and available as `rg`.
 - Interactive result opening scrolls near the matched source line; exact rendered-line mapping is deferred.
+- GUI result opening uses the same near-line scroll approximation.
 - Result parsing uses ripgrep's vimgrep output shape.
 
 ## Verification Expectations
@@ -44,6 +52,7 @@ Run focused checks with:
 ```sh
 cargo test -p paperview-core search
 cargo test -p paperview-tui search
+cargo test -p paperview-gui workspace_search
 cargo run -p paperview-tui -- search PaperView docs
 cargo run -p paperview-tui -- search PaperView docs --interactive
 ```

@@ -16,6 +16,8 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Completed Plans
 
+- [GUI Global Search](completed/gui-global-search.md) - Iced access to the
+  ripgrep-backed workspace search model.
 - [Presentation Mode](completed/presentation-mode.md) - Phase 3
   Markdown-to-slides workflow with shared deck generation and frontend
   navigation.
