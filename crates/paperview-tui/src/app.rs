@@ -8,10 +8,10 @@ use std::{
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use paperview_core::{
     Config, ConfigStore, Document, EditSession, FileEntry, FileWatcher, History, HistoryStore,
-    OpenDocuments, SearchMatch, SplitResize, SplitViewState, WatchEvent, WorkspaceSearchMatch,
-    ZenModeState,
+    OpenDocuments, PresentationDeck, SearchMatch, SplitResize, SplitViewState, WatchEvent,
+    WorkspaceSearchMatch, ZenModeState,
     parser::{Block as MarkdownBlock, TocItem},
-    toggle_task_line_source, watch_file,
+    presentation_deck, toggle_task_line_source, watch_file,
 };
 use ratatui::{
     DefaultTerminal, Frame,
@@ -121,6 +121,10 @@ struct ReaderApp {
     edit_preview_scroll: u16,
     edit_preview_visible: bool,
     edit_discard_pending: bool,
+    presentation_mode: PresentationMode,
+    presentation_deck: Option<PresentationDeck>,
+    presentation_slide_index: usize,
+    presentation_lines: Vec<String>,
     _watcher: Option<FileWatcher>,
     watch_receiver: Option<Receiver<WatchEvent>>,
     _split_watcher: Option<FileWatcher>,
@@ -149,6 +153,12 @@ enum OpenPathMode {
 enum EditMode {
     Inactive,
     Editing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PresentationMode {
+    Inactive,
+    Presenting,
 }
 
 impl ReaderApp {
@@ -208,6 +218,10 @@ impl ReaderApp {
             edit_preview_scroll: 0,
             edit_preview_visible: true,
             edit_discard_pending: false,
+            presentation_mode: PresentationMode::Inactive,
+            presentation_deck: None,
+            presentation_slide_index: 0,
+            presentation_lines: Vec::new(),
             _watcher: watcher,
             watch_receiver,
             _split_watcher: None,
@@ -244,12 +258,17 @@ impl ReaderApp {
                     self.handle_edit_key(key);
                     continue;
                 }
+                if self.presentation_mode == PresentationMode::Presenting {
+                    self.handle_presentation_key(key.code);
+                    continue;
+                }
 
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                     KeyCode::Char('/') => self.start_search(),
                     KeyCode::Char('o') => self.start_open_path(),
                     KeyCode::Char('e') => self.start_editing(),
+                    KeyCode::Char('p') => self.start_presentation(),
                     KeyCode::Char('n') => self.select_next_search_match(),
                     KeyCode::Char('N') => self.select_previous_search_match(),
                     KeyCode::Char(']') => self.select_next_tab(),
@@ -283,7 +302,9 @@ impl ReaderApp {
     fn draw(&self, frame: &mut Frame) {
         let [header, body] =
             Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).areas(frame.area());
-        let (main, toc) = if self.zen_mode.is_enabled() {
+        let (main, toc) = if self.zen_mode.is_enabled()
+            || self.presentation_mode == PresentationMode::Presenting
+        {
             (body, None)
         } else {
             let [main, toc] =
@@ -297,6 +318,7 @@ impl ReaderApp {
         } else if self.split_view.is_enabled()
             && !self.zen_mode.is_enabled()
             && self.edit_mode == EditMode::Inactive
+            && self.presentation_mode == PresentationMode::Inactive
         {
             let (primary_width, secondary_width) = self.split_widths();
             Layout::horizontal([
@@ -341,6 +363,18 @@ impl ReaderApp {
                     reader_areas[1],
                 );
             }
+        } else if self.presentation_mode == PresentationMode::Presenting {
+            frame.render_widget(
+                Paragraph::new(Text::from(document_text(
+                    &self.presentation_lines,
+                    SearchHighlights::default(),
+                )))
+                .block(Block::default().title("Presentation").borders(Borders::ALL))
+                .style(theme::reader())
+                .scroll((self.scroll, 0))
+                .wrap(Wrap { trim: false }),
+                reader_areas[0],
+            );
         } else {
             frame.render_widget(
                 Paragraph::new(Text::from(document_text(
@@ -356,7 +390,10 @@ impl ReaderApp {
         }
 
         if let Some(split_index) = self.split_view.secondary_index() {
-            if self.zen_mode.is_enabled() || self.edit_mode == EditMode::Editing {
+            if self.zen_mode.is_enabled()
+                || self.edit_mode == EditMode::Editing
+                || self.presentation_mode == PresentationMode::Presenting
+            {
                 return;
             }
             let title = self
@@ -801,6 +838,87 @@ impl ReaderApp {
             clamp_search_selection(self.search_selected_index, self.search_matches.len());
     }
 
+    fn start_presentation(&mut self) {
+        let deck = presentation_deck(self.active_document().source());
+        if deck.is_empty() {
+            self.status = Some("Presentation has no slides".to_owned());
+            return;
+        }
+
+        self.presentation_deck = Some(deck);
+        self.presentation_slide_index = 0;
+        self.presentation_mode = PresentationMode::Presenting;
+        self.focus = ReaderFocus::Reader;
+        self.scroll = 0;
+        self.refresh_presentation_slide();
+        self.status =
+            Some("Presentation Mode: Space/Right/n next, Left/b previous, Esc exits".to_owned());
+    }
+
+    fn handle_presentation_key(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => self.stop_presentation(),
+            KeyCode::Right | KeyCode::Char(' ') | KeyCode::Char('n') => {
+                self.select_next_presentation_slide();
+            }
+            KeyCode::Left | KeyCode::Char('b') => self.select_previous_presentation_slide(),
+            KeyCode::Char('g') => self.scroll = 0,
+            KeyCode::Char('G') => self.scroll = self.max_presentation_scroll(),
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.scroll = self
+                    .scroll
+                    .saturating_add(1)
+                    .min(self.max_presentation_scroll());
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.scroll = self.scroll.saturating_sub(1);
+            }
+            _ => {}
+        }
+    }
+
+    fn select_next_presentation_slide(&mut self) {
+        let Some(deck) = &self.presentation_deck else {
+            return;
+        };
+        if self.presentation_slide_index + 1 < deck.len() {
+            self.presentation_slide_index += 1;
+            self.refresh_presentation_slide();
+        }
+    }
+
+    fn select_previous_presentation_slide(&mut self) {
+        if self.presentation_slide_index > 0 {
+            self.presentation_slide_index -= 1;
+            self.refresh_presentation_slide();
+        }
+    }
+
+    fn refresh_presentation_slide(&mut self) {
+        self.presentation_lines = self
+            .presentation_deck
+            .as_ref()
+            .and_then(|deck| deck.slides().get(self.presentation_slide_index))
+            .map_or_else(Vec::new, |slide| {
+                render::render_document_with_anchors(&Document::from_source(slide.source())).lines
+            });
+        self.scroll = 0;
+    }
+
+    fn stop_presentation(&mut self) {
+        self.presentation_mode = PresentationMode::Inactive;
+        self.presentation_deck = None;
+        self.presentation_slide_index = 0;
+        self.presentation_lines.clear();
+        self.scroll = 0;
+        self.status = Some("Presentation Mode closed".to_owned());
+        self.sync_split_scroll();
+    }
+
+    fn max_presentation_scroll(&self) -> u16 {
+        self.presentation_lines.len().saturating_sub(1) as u16
+    }
+
     fn select_next_search_match(&mut self) {
         if self.search_matches.is_empty() {
             return;
@@ -870,6 +988,20 @@ impl ReaderApp {
             };
             return Some(format!(
                 "Editing ({state}, {preview}) - Ctrl+S save, Ctrl+P preview, Esc view"
+            ));
+        }
+        if self.presentation_mode == PresentationMode::Presenting {
+            let Some(deck) = &self.presentation_deck else {
+                return Some("Presentation Mode".to_owned());
+            };
+            let title = deck
+                .slides()
+                .get(self.presentation_slide_index)
+                .map_or("Untitled Slide", paperview_core::Slide::title);
+            return Some(format!(
+                "Slide {}/{} - {title} - Space/Right next, Left previous, Esc view",
+                self.presentation_slide_index + 1,
+                deck.len()
             ));
         }
 
@@ -2088,8 +2220,8 @@ mod tests {
     use ratatui::style::Modifier;
 
     use super::{
-        DashboardApp, EDIT_VIEWPORT_LINES, EditMode, OpenPathMode, ReaderApp, ReaderFocus,
-        SearchHighlights, SearchMode, WorkspaceSearchApp, clamp_search_selection,
+        DashboardApp, EDIT_VIEWPORT_LINES, EditMode, OpenPathMode, PresentationMode, ReaderApp,
+        ReaderFocus, SearchHighlights, SearchMode, WorkspaceSearchApp, clamp_search_selection,
         clamp_toc_selection, cursor_line_column, document_text, edit_preview_max_scroll, tab_line,
     };
     use crate::theme;
@@ -2631,6 +2763,73 @@ mod tests {
 
         app.select_previous_search_match();
         assert_eq!(app.search_selected_index, Some(1));
+    }
+
+    #[test]
+    fn presentation_mode_enters_and_renders_first_slide() {
+        let mut app = ReaderApp::new(Document::from_source("# Intro\n\nWelcome\n\n---\n\n# Next"));
+
+        app.start_presentation();
+
+        assert_eq!(app.presentation_mode, PresentationMode::Presenting);
+        assert_eq!(app.presentation_slide_index, 0);
+        assert_eq!(
+            app.presentation_deck.as_ref().map(|deck| deck.len()),
+            Some(2)
+        );
+        assert!(app.presentation_lines.iter().any(|line| line == "# Intro"));
+        assert!(
+            app.header_status()
+                .as_deref()
+                .is_some_and(|status| status.contains("Slide 1/2 - Intro"))
+        );
+    }
+
+    #[test]
+    fn presentation_mode_navigates_and_clamps_slides() {
+        let mut app = ReaderApp::new(Document::from_source(
+            "# One\n\n---\n\n# Two\n\n---\n\n# Three",
+        ));
+
+        app.start_presentation();
+        app.handle_presentation_key(KeyCode::Right);
+        assert_eq!(app.presentation_slide_index, 1);
+        assert!(app.presentation_lines.iter().any(|line| line == "# Two"));
+
+        app.handle_presentation_key(KeyCode::Char('n'));
+        app.handle_presentation_key(KeyCode::Right);
+        assert_eq!(app.presentation_slide_index, 2);
+        assert!(app.presentation_lines.iter().any(|line| line == "# Three"));
+
+        app.handle_presentation_key(KeyCode::Left);
+        assert_eq!(app.presentation_slide_index, 1);
+
+        app.handle_presentation_key(KeyCode::Char('b'));
+        app.handle_presentation_key(KeyCode::Left);
+        assert_eq!(app.presentation_slide_index, 0);
+    }
+
+    #[test]
+    fn presentation_mode_space_advances_slide() {
+        let mut app = ReaderApp::new(Document::from_source("# One\n\n---\n\n# Two"));
+
+        app.start_presentation();
+        app.handle_presentation_key(KeyCode::Char(' '));
+
+        assert_eq!(app.presentation_slide_index, 1);
+    }
+
+    #[test]
+    fn presentation_mode_escape_exits_to_reader() {
+        let mut app = ReaderApp::new(Document::from_source("# Intro\n\n---\n\n# Next"));
+
+        app.start_presentation();
+        app.handle_presentation_key(KeyCode::Esc);
+
+        assert_eq!(app.presentation_mode, PresentationMode::Inactive);
+        assert!(app.presentation_deck.is_none());
+        assert!(app.presentation_lines.is_empty());
+        assert_eq!(app.scroll, 0);
     }
 
     #[test]

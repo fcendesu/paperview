@@ -18,9 +18,10 @@ The current deck generation rules are:
 - Ignore empty slide chunks caused by leading, repeated, or trailing
   separators.
 
-The intended user-facing milestone is a viewer-first presentation surface:
-open a Markdown document, enter Presentation Mode explicitly, move between
-slides, and render each slide with PaperView's existing Markdown support.
+The first TUI slice exposes Presentation Mode with `p` from the reader. It
+renders the active slide with PaperView's existing terminal Markdown renderer,
+uses `Space`, `Right`, or `n` for the next slide, `Left` or `b` for the
+previous slide, and `Esc` to return to the normal reader.
 
 ## Implementation Notes
 
@@ -29,8 +30,8 @@ slides, and render each slide with PaperView's existing Markdown support.
 - `Slide` stores a display title and the Markdown source for that slide.
 - Frontends should stay thin: they own presentation navigation, layout, and
   shortcuts while core owns slide boundaries and titles.
-- The first frontend slice should prove the shared model in TUI before adding
-  GUI presentation chrome.
+- The first frontend slice proves the shared model in TUI before adding GUI
+  presentation chrome.
 
 ## Open Decisions
 
@@ -44,8 +45,8 @@ slides, and render each slide with PaperView's existing Markdown support.
 
 - Core tests cover explicit rule splitting, H1 fallback splitting, plain
   one-slide documents, empty separator chunks, and empty source.
-- TUI tests should cover entering Presentation Mode and moving between slides
-  once the first TUI slice lands.
+- TUI tests cover entering Presentation Mode, rendering the first slide,
+  next/previous navigation, bounds clamping, `Space` advance, and exit.
 - GUI tests should cover presentation entry and navigation once GUI support
   lands.
 - Workspace verification should include `cargo fmt --all`,

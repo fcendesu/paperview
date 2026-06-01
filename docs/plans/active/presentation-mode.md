@@ -55,3 +55,6 @@ Out of scope:
 - 2026-06-01: Added `paperview-core::presentation` with `PresentationDeck`,
   `Slide`, explicit rule splitting, top-level-heading fallback, title
   derivation, and focused core tests.
+- 2026-06-01: Added the first TUI Presentation Mode slice with `p` to enter,
+  slide rendering through the existing TUI Markdown renderer, next/previous
+  navigation, `Esc` exit, and focused TUI tests.

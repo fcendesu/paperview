@@ -134,6 +134,7 @@ TUI controls:
 - `g`: jump to top in the reader.
 - `G`: jump to bottom in the reader.
 - `e`: enter Editing Mode for the active document.
+- `p`: enter Presentation Mode for the active document.
 - `Space`: toggle a task checkbox at the current reader line for file-backed documents.
 - `[` / `]`: switch to the previous or next tab.
 - `\`: toggle Split View when multiple tabs are open.
@@ -147,6 +148,8 @@ TUI controls:
 - `n` / `N`: jump to the next or previous search match.
 - In the dashboard, `Enter`: open the selected recent file.
 - In interactive workspace search, `Enter`: open the selected match near its line.
+- In Presentation Mode, `Space` / `Right` / `n`: next slide; `Left` / `b`:
+  previous slide; `Esc`: return to the reader.
 - In Editing Mode, arrow keys move the cursor, `Home` / `End` jump within the
   current line, `PageUp` / `PageDown` move by larger line chunks, `Backspace` /
   `Delete` remove text, `Ctrl+S` saves edits, `Ctrl+P` toggles the preview
@@ -158,7 +161,8 @@ TUI controls:
 The TUI highlights the active table-of-contents section while you scroll, can
 jump through headings from the TOC, can switch between open document tabs, can
 compare two tabs in Split View, toggle a focused Zen Mode, and close the active
-tab. It preserves LaTeX display math with readable previews plus Mermaid
+tab. It can enter a slide-focused Presentation Mode generated from Markdown
+rules or top-level headings. It preserves LaTeX display math with readable previews plus Mermaid
 diagram source with simple flowchart previews. Markdown tables render as aligned plain text, and
 standalone images render as Markdown image text. Heading, paragraph, list,
 blockquote, and table-cell inline styling renders in Markdown-shaped text.

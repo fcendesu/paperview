@@ -163,3 +163,13 @@ unsaved-edits warning, and repeating the action confirms discard. `Ctrl + P`
 toggles the preview pane so the source editor can use the full available width
 on narrow terminals. The preview pane scrolls independently with
 `Ctrl + Up` / `Ctrl + Down` and `Ctrl + PageUp` / `Ctrl + PageDown`.
+
+## 6. Presentation Mode
+
+- **Concept:** A focused slide reader generated from Markdown headings or
+  thematic-rule slide breaks.
+- **TUI:** Uses `p` from the reader to enter Presentation Mode. The active
+  slide uses the normal terminal Markdown renderer inside a full-width
+  presentation pane. `Space`, `Right`, and `n` advance; `Left` and `b` move
+  backward; `Esc` returns to the reader. The header shows the slide position
+  and title.
