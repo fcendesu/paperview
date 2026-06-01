@@ -12,11 +12,13 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
-- [Presentation Mode](active/presentation-mode.md) - Phase 3 Markdown-to-slides
-  workflow with shared deck generation and frontend navigation.
+- None.
 
 ## Completed Plans
 
+- [Presentation Mode](completed/presentation-mode.md) - Phase 3
+  Markdown-to-slides workflow with shared deck generation and frontend
+  navigation.
 - [Editing Mode](completed/editing-mode.md) - Phase 2 viewer/editor workflow
   with live preview and save behavior across core, GUI, and TUI.
 - [GUI Iced Shell](completed/gui-iced-shell.md) - first native GUI window with optional file loading and simple reader widgets.

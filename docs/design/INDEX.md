@@ -177,5 +177,6 @@ on narrow terminals. The preview pane scrolls independently with
 - **GUI:** Uses the header `Present` button or `Cmd/Ctrl+P` to enter
   Presentation Mode. The active slide uses the normal GUI reader renderer in a
   focused layout without the tab strip. Header previous/next controls navigate
-  bounded slides, the subtitle shows slide position and title, and `View`
-  returns to the normal reader.
+  bounded slides, `Space`, `Right`, and `n` advance, `Left` and `b` move
+  backward, `Home` and `End` jump to bounds, `Esc` exits, the subtitle shows
+  slide position and title, and `View` returns to the normal reader.

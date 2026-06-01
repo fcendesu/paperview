@@ -95,6 +95,9 @@ pub enum Message {
     TogglePresentation,
     PresentationNext,
     PresentationPrevious,
+    PresentationFirst,
+    PresentationLast,
+    PresentationExit,
     ToggleTask(usize),
     SelectSplitTab(usize),
     SelectTab(usize),
@@ -363,6 +366,9 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::TogglePresentation => state.toggle_presentation(),
         Message::PresentationNext => state.select_next_presentation_slide(),
         Message::PresentationPrevious => state.select_previous_presentation_slide(),
+        Message::PresentationFirst => state.select_first_presentation_slide(),
+        Message::PresentationLast => state.select_last_presentation_slide(),
+        Message::PresentationExit => state.exit_presentation(),
         Message::ToggleTask(line_index) => state.toggle_task(line_index),
         Message::SelectSplitTab(index) => state.select_split_tab(index),
         Message::SelectTab(index) => state.select_tab(index),
@@ -574,6 +580,31 @@ impl PaperView {
         if self.presentation_slide_index > 0 {
             self.presentation_slide_index -= 1;
             self.refresh_presentation_document();
+        }
+    }
+
+    fn select_first_presentation_slide(&mut self) {
+        if self.presentation_deck.is_some() && self.presentation_slide_index > 0 {
+            self.presentation_slide_index = 0;
+            self.refresh_presentation_document();
+        }
+    }
+
+    fn select_last_presentation_slide(&mut self) {
+        let Some(deck) = &self.presentation_deck else {
+            return;
+        };
+        let last_index = deck.len().saturating_sub(1);
+        if self.presentation_slide_index != last_index {
+            self.presentation_slide_index = last_index;
+            self.refresh_presentation_document();
+        }
+    }
+
+    fn exit_presentation(&mut self) {
+        if self.presentation_deck.is_some() {
+            self.end_presentation();
+            self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
         }
     }
 
@@ -1161,6 +1192,87 @@ fn runtime_event(event: Event, _status: EventStatus, _window: window::Id) -> Opt
                 .is_some_and(|character| character == '[') =>
         {
             Some(Message::ResizeSplit(SplitResize::ShrinkPrimary))
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.is_empty()
+            && matches!(
+                key,
+                keyboard::Key::Named(
+                    keyboard::key::Named::ArrowRight | keyboard::key::Named::Space
+                )
+            ) =>
+        {
+            Some(Message::PresentationNext)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.is_empty()
+            && key
+                .to_latin(physical_key)
+                .is_some_and(|character| character.eq_ignore_ascii_case(&'n')) =>
+        {
+            Some(Message::PresentationNext)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.is_empty()
+            && matches!(key, keyboard::Key::Named(keyboard::key::Named::ArrowLeft)) =>
+        {
+            Some(Message::PresentationPrevious)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            physical_key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.is_empty()
+            && key
+                .to_latin(physical_key)
+                .is_some_and(|character| character.eq_ignore_ascii_case(&'b')) =>
+        {
+            Some(Message::PresentationPrevious)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.is_empty()
+            && matches!(key, keyboard::Key::Named(keyboard::key::Named::Home)) =>
+        {
+            Some(Message::PresentationFirst)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.is_empty()
+            && matches!(key, keyboard::Key::Named(keyboard::key::Named::End)) =>
+        {
+            Some(Message::PresentationLast)
+        }
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key,
+            modifiers,
+            repeat: false,
+            ..
+        }) if modifiers.is_empty()
+            && matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) =>
+        {
+            Some(Message::PresentationExit)
         }
         _ => None,
     }
@@ -1837,7 +1949,7 @@ mod tests {
         Event,
         keyboard::{
             Key, Location, Modifiers,
-            key::{Code, Physical},
+            key::{Code, Named, Physical},
         },
         widget::text_editor,
     };
@@ -2228,6 +2340,37 @@ mod tests {
     }
 
     #[test]
+    fn presentation_first_last_navigation_jumps_between_bounds() {
+        let path = temp_doc(
+            "gui-presentation-first-last.md",
+            "# One\n\n---\n\n# Two\n\n---\n\n# Three",
+        );
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("presentation-first-last.toml"),
+        );
+
+        apply(&mut state, Message::TogglePresentation);
+        apply(&mut state, Message::PresentationLast);
+
+        assert_eq!(state.presentation_slide_index, 2);
+        assert_eq!(
+            state.presentation_document.as_ref().map(Document::title),
+            Some("Three")
+        );
+
+        apply(&mut state, Message::PresentationFirst);
+
+        assert_eq!(state.presentation_slide_index, 0);
+        assert_eq!(
+            state.presentation_document.as_ref().map(Document::title),
+            Some("One")
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
     fn presentation_toggle_exits_to_reader() {
         let path = temp_doc("gui-presentation-exit.md", "# Intro\n\n---\n\n# Next");
         let mut state = PaperView::from_args_with_store(
@@ -2242,6 +2385,33 @@ mod tests {
         assert!(state.presentation_document.is_none());
         assert_eq!(state.presentation_slide_index, 0);
         assert_eq!(state.active_toc_block_index, Some(0));
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
+        );
+
+        fs::remove_file(path).expect("remove test document");
+    }
+
+    #[test]
+    fn presentation_exit_message_only_exits_when_presenting() {
+        let path = temp_doc(
+            "gui-presentation-exit-message.md",
+            "# Intro\n\n---\n\n# Next",
+        );
+        let mut state = PaperView::from_args_with_store(
+            [OsString::from(&path)],
+            temp_store("presentation-exit-message.toml"),
+        );
+
+        apply(&mut state, Message::PresentationExit);
+
+        assert!(state.presentation_deck.is_none());
+
+        apply(&mut state, Message::TogglePresentation);
+        apply(&mut state, Message::PresentationExit);
+
+        assert!(state.presentation_deck.is_none());
+        assert!(state.presentation_document.is_none());
         assert!(
             matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
         );
@@ -2904,6 +3074,78 @@ mod tests {
         );
 
         assert!(matches!(message, Some(Message::TogglePresentation)));
+    }
+
+    #[test]
+    fn presentation_keys_map_to_slide_navigation() {
+        let key_message = |key, code| {
+            runtime_event(
+                Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                    key,
+                    modified_key: Key::Unidentified,
+                    physical_key: Physical::Code(code),
+                    location: Location::Standard,
+                    modifiers: Modifiers::NONE,
+                    text: None,
+                    repeat: false,
+                }),
+                iced::event::Status::Ignored,
+                iced::window::Id::unique(),
+            )
+        };
+
+        assert!(matches!(
+            key_message(Key::Named(Named::ArrowRight), Code::ArrowRight),
+            Some(Message::PresentationNext)
+        ));
+        assert!(matches!(
+            key_message(Key::Named(Named::Space), Code::Space),
+            Some(Message::PresentationNext)
+        ));
+        assert!(matches!(
+            key_message(Key::Named(Named::ArrowLeft), Code::ArrowLeft),
+            Some(Message::PresentationPrevious)
+        ));
+        assert!(matches!(
+            key_message(Key::Named(Named::Home), Code::Home),
+            Some(Message::PresentationFirst)
+        ));
+        assert!(matches!(
+            key_message(Key::Named(Named::End), Code::End),
+            Some(Message::PresentationLast)
+        ));
+        assert!(matches!(
+            key_message(Key::Named(Named::Escape), Code::Escape),
+            Some(Message::PresentationExit)
+        ));
+    }
+
+    #[test]
+    fn presentation_letter_keys_map_to_slide_navigation() {
+        let character_message = |character: &str, code| {
+            runtime_event(
+                Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                    key: Key::Character(character.into()),
+                    modified_key: Key::Character(character.into()),
+                    physical_key: Physical::Code(code),
+                    location: Location::Standard,
+                    modifiers: Modifiers::NONE,
+                    text: Some(character.into()),
+                    repeat: false,
+                }),
+                iced::event::Status::Ignored,
+                iced::window::Id::unique(),
+            )
+        };
+
+        assert!(matches!(
+            character_message("n", Code::KeyN),
+            Some(Message::PresentationNext)
+        ));
+        assert!(matches!(
+            character_message("b", Code::KeyB),
+            Some(Message::PresentationPrevious)
+        ));
     }
 
     #[test]

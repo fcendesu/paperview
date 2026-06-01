@@ -64,3 +64,7 @@ Out of scope:
   `View` header toggle, `Cmd/Ctrl+P`, previous/next header controls, slide
   rendering through the existing GUI reader, tab-strip hiding while presenting,
   active-path preservation for slide resources, and focused GUI tests.
+- 2026-06-01: Added GUI presentation keyboard parity for `Space`, `Right`,
+  `n`, `Left`, `b`, `Home`, `End`, and `Esc`, plus focused routing and
+  navigation tests. Presentation Mode is complete for the current roadmap
+  scope.

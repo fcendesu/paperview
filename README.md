@@ -174,7 +174,9 @@ Mode source buffer with live rendered preview for file-backed documents.
 
 The GUI can also enter Presentation Mode from the header `Present` button or
 `Cmd/Ctrl+P`, renders slides through the normal reader, and provides header
-previous/next controls plus `View` to return to reading.
+previous/next controls plus `View` to return to reading. While presenting,
+`Space`, `Right`, or `n` advances; `Left` or `b` goes back; `Home` and `End`
+jump to the first or last slide; `Esc` exits.
 
 The headless stats command prints word, line, character, reading-time, and
 heading-structure metadata for a document, with `--json` for automation.
