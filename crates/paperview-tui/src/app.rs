@@ -369,7 +369,11 @@ impl ReaderApp {
                     &self.presentation_lines,
                     SearchHighlights::default(),
                 )))
-                .block(Block::default().title("Presentation").borders(Borders::ALL))
+                .block(
+                    Block::default()
+                        .title(self.presentation_pane_title())
+                        .borders(Borders::ALL),
+                )
                 .style(theme::reader())
                 .scroll((self.scroll, 0))
                 .wrap(Wrap { trim: false }),
@@ -857,11 +861,13 @@ impl ReaderApp {
 
     fn handle_presentation_key(&mut self, key: KeyCode) {
         match key {
-            KeyCode::Esc => self.stop_presentation(),
+            KeyCode::Esc | KeyCode::Char('q') => self.stop_presentation(),
             KeyCode::Right | KeyCode::Char(' ') | KeyCode::Char('n') => {
                 self.select_next_presentation_slide();
             }
             KeyCode::Left | KeyCode::Char('b') => self.select_previous_presentation_slide(),
+            KeyCode::Home => self.select_first_presentation_slide(),
+            KeyCode::End => self.select_last_presentation_slide(),
             KeyCode::Char('g') => self.scroll = 0,
             KeyCode::Char('G') => self.scroll = self.max_presentation_scroll(),
             KeyCode::Char('j') | KeyCode::Down => {
@@ -877,6 +883,19 @@ impl ReaderApp {
         }
     }
 
+    fn presentation_pane_title(&self) -> String {
+        self.presentation_deck.as_ref().map_or_else(
+            || "Presentation".to_owned(),
+            |deck| {
+                format!(
+                    "Presentation {} / {}",
+                    self.presentation_slide_index + 1,
+                    deck.len()
+                )
+            },
+        )
+    }
+
     fn select_next_presentation_slide(&mut self) {
         let Some(deck) = &self.presentation_deck else {
             return;
@@ -890,6 +909,24 @@ impl ReaderApp {
     fn select_previous_presentation_slide(&mut self) {
         if self.presentation_slide_index > 0 {
             self.presentation_slide_index -= 1;
+            self.refresh_presentation_slide();
+        }
+    }
+
+    fn select_first_presentation_slide(&mut self) {
+        if self.presentation_slide_index != 0 {
+            self.presentation_slide_index = 0;
+            self.refresh_presentation_slide();
+        }
+    }
+
+    fn select_last_presentation_slide(&mut self) {
+        let Some(deck) = &self.presentation_deck else {
+            return;
+        };
+        let last_index = deck.len().saturating_sub(1);
+        if self.presentation_slide_index != last_index {
+            self.presentation_slide_index = last_index;
             self.refresh_presentation_slide();
         }
     }
@@ -2820,7 +2857,27 @@ mod tests {
     }
 
     #[test]
-    fn presentation_mode_escape_exits_to_reader() {
+    fn presentation_mode_home_end_jump_between_bounds() {
+        let mut app = ReaderApp::new(Document::from_source(
+            "# One\n\n---\n\n# Two\n\n---\n\n# Three",
+        ));
+
+        app.start_presentation();
+        app.handle_presentation_key(KeyCode::End);
+
+        assert_eq!(app.presentation_slide_index, 2);
+        assert!(app.presentation_lines.iter().any(|line| line == "# Three"));
+        assert_eq!(app.presentation_pane_title(), "Presentation 3 / 3");
+
+        app.handle_presentation_key(KeyCode::Home);
+
+        assert_eq!(app.presentation_slide_index, 0);
+        assert!(app.presentation_lines.iter().any(|line| line == "# One"));
+        assert_eq!(app.presentation_pane_title(), "Presentation 1 / 3");
+    }
+
+    #[test]
+    fn presentation_mode_escape_and_q_exit_to_reader() {
         let mut app = ReaderApp::new(Document::from_source("# Intro\n\n---\n\n# Next"));
 
         app.start_presentation();
@@ -2830,6 +2887,11 @@ mod tests {
         assert!(app.presentation_deck.is_none());
         assert!(app.presentation_lines.is_empty());
         assert_eq!(app.scroll, 0);
+
+        app.start_presentation();
+        app.handle_presentation_key(KeyCode::Char('q'));
+
+        assert_eq!(app.presentation_mode, PresentationMode::Inactive);
     }
 
     #[test]

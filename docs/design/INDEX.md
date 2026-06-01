@@ -171,5 +171,6 @@ on narrow terminals. The preview pane scrolls independently with
 - **TUI:** Uses `p` from the reader to enter Presentation Mode. The active
   slide uses the normal terminal Markdown renderer inside a full-width
   presentation pane. `Space`, `Right`, and `n` advance; `Left` and `b` move
-  backward; `Esc` returns to the reader. The header shows the slide position
-  and title.
+  backward; `Home` and `End` jump to the first and last slide; `Esc` and `q`
+  return to the reader. The header shows the slide position and title, and the
+  presentation pane title shows compact progress.

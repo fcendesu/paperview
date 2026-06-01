@@ -58,3 +58,5 @@ Out of scope:
 - 2026-06-01: Added the first TUI Presentation Mode slice with `p` to enter,
   slide rendering through the existing TUI Markdown renderer, next/previous
   navigation, `Esc` exit, and focused TUI tests.
+- 2026-06-01: Added TUI presentation control polish with `Home` / `End`
+  first/last slide jumps, `q` exit, a progress pane title, and focused tests.

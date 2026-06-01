@@ -149,7 +149,8 @@ TUI controls:
 - In the dashboard, `Enter`: open the selected recent file.
 - In interactive workspace search, `Enter`: open the selected match near its line.
 - In Presentation Mode, `Space` / `Right` / `n`: next slide; `Left` / `b`:
-  previous slide; `Esc`: return to the reader.
+  previous slide; `Home` / `End`: first or last slide; `Esc` / `q`: return to
+  the reader.
 - In Editing Mode, arrow keys move the cursor, `Home` / `End` jump within the
   current line, `PageUp` / `PageDown` move by larger line chunks, `Backspace` /
   `Delete` remove text, `Ctrl+S` saves edits, `Ctrl+P` toggles the preview

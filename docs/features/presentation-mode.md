@@ -21,7 +21,9 @@ The current deck generation rules are:
 The first TUI slice exposes Presentation Mode with `p` from the reader. It
 renders the active slide with PaperView's existing terminal Markdown renderer,
 uses `Space`, `Right`, or `n` for the next slide, `Left` or `b` for the
-previous slide, and `Esc` to return to the normal reader.
+previous slide, `Home` and `End` to jump to the first or last slide, and `Esc`
+or `q` to return to the normal reader. The presentation pane title shows slide
+progress, and the header shows the current slide title.
 
 ## Implementation Notes
 
@@ -46,7 +48,8 @@ previous slide, and `Esc` to return to the normal reader.
 - Core tests cover explicit rule splitting, H1 fallback splitting, plain
   one-slide documents, empty separator chunks, and empty source.
 - TUI tests cover entering Presentation Mode, rendering the first slide,
-  next/previous navigation, bounds clamping, `Space` advance, and exit.
+  next/previous navigation, bounds clamping, `Space` advance, first/last slide
+  jumps, progress title text, and exit.
 - GUI tests should cover presentation entry and navigation once GUI support
   lands.
 - Workspace verification should include `cargo fmt --all`,
