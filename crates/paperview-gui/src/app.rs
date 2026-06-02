@@ -99,6 +99,7 @@ pub enum Message {
         source: PathBuf,
         result: Result<PathBuf, String>,
     },
+    OpenCompiledTex(PathBuf),
     RemoteImageLoaded {
         url: String,
         result: Result<Vec<u8>, String>,
@@ -410,6 +411,9 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::TexCompileFinished { source, result } => {
             state.finish_tex_compile(source, result);
         }
+        Message::OpenCompiledTex(output) => {
+            return state.open_compiled_tex(output);
+        }
         Message::RemoteImageLoaded { url, result } => {
             let image =
                 result.map_or_else(reader::RemoteImage::Failed, reader::RemoteImage::Loaded);
@@ -504,6 +508,16 @@ impl PaperView {
                 self.status = Status::Error(error);
             }
         }
+    }
+
+    fn open_compiled_tex(&self, output: PathBuf) -> Task<Message> {
+        Task::perform(
+            async move { open_link_target(output.display().to_string()) },
+            |result| match result {
+                Ok(()) => Message::LinkOpened,
+                Err(error) => Message::LinkOpenFailed(error),
+            },
+        )
     }
 
     fn open_dropped_files(&mut self, paths: impl IntoIterator<Item = PathBuf>) -> Task<Message> {
@@ -2110,6 +2124,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
     } else {
         row![].spacing(0)
     };
+    let compiled_tex_controls = compiled_tex_controls(&state.status);
     let search_controls = search_controls(state);
 
     container(
@@ -2121,6 +2136,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
             .spacing(4)
             .width(Fill),
             search_controls,
+            compiled_tex_controls,
             presentation_controls,
             present_button,
             edit_button,
@@ -2134,6 +2150,25 @@ fn header(state: &PaperView) -> Element<'_, Message> {
     .width(Fill)
     .style(|_| theme::header_container())
     .into()
+}
+
+fn compiled_tex_controls(status: &Status) -> Element<'_, Message> {
+    let Some(output) = compiled_tex_output_path(status) else {
+        return row![].spacing(0).into();
+    };
+
+    button(text("Open PDF").size(13))
+        .padding([7, 12])
+        .on_press(Message::OpenCompiledTex(output))
+        .style(move |_, status| theme::header_action_button(false, status))
+        .into()
+}
+
+fn compiled_tex_output_path(status: &Status) -> Option<PathBuf> {
+    match status {
+        Status::CompiledTex { output, .. } => Some(output.clone()),
+        _ => None,
+    }
 }
 
 fn search_controls(state: &PaperView) -> Element<'_, Message> {
@@ -2312,10 +2347,10 @@ mod tests {
     };
 
     use super::{
-        Message, PaperView, SplitResize, compile_tex_for_gui, is_split_divider_hit,
-        normalized_scroll_progress, open_link_target, reader, remote_image_placeholders,
-        resolve_link_target, resolve_local_document_link, runtime_event, search_scroll_progress,
-        split_primary_width_from_cursor, title, update,
+        Message, PaperView, SplitResize, Status, compile_tex_for_gui, compiled_tex_output_path,
+        is_split_divider_hit, normalized_scroll_progress, open_link_target, reader,
+        remote_image_placeholders, resolve_link_target, resolve_local_document_link, runtime_event,
+        search_scroll_progress, split_primary_width_from_cursor, title, update,
     };
 
     #[test]
@@ -2723,6 +2758,25 @@ mod tests {
 
         fs::remove_file(tex_path).expect("remove tex fixture");
         fs::remove_file(config_path).expect("remove config");
+    }
+
+    #[test]
+    fn compiled_tex_output_action_only_appears_after_success() {
+        let source = PathBuf::from("paper.tex");
+        let output = PathBuf::from(".paperview/tex/paper.pdf");
+
+        assert_eq!(compiled_tex_output_path(&Status::Empty), None);
+        assert_eq!(
+            compiled_tex_output_path(&Status::CompilingTex(source.clone())),
+            None
+        );
+        assert_eq!(
+            compiled_tex_output_path(&Status::CompiledTex {
+                source,
+                output: output.clone(),
+            }),
+            Some(output)
+        );
     }
 
     #[cfg(unix)]

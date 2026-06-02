@@ -110,3 +110,6 @@ Out of scope for the first slice:
   Explicit output paths remain supported in the core API.
 - 2026-06-02: Added `paperview-tui tex clean <file.tex|dir>` for removing a
   single managed PDF artifact or a directory-level `.paperview/tex/` cache.
+- 2026-06-02: Added a GUI `Open PDF` header action after successful `.tex`
+  compilation so users can reopen the managed PDF artifact from the compiled
+  status.
