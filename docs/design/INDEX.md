@@ -83,6 +83,7 @@ allows.
     - Hierarchical numbering (1., 1.1, etc.).
     - Active section highlighted in accent blue.
 - **"Bookmarks":**
+    - Planned, not implemented yet.
     - List of saved files.
     - Blue bookmark icon + Filename + Badge for page/count.
 

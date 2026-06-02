@@ -81,6 +81,8 @@ The application should feel **fast, quiet, focused, and native.**
 - **Table of Contents:** Auto-generated from Markdown headers.
 - **Scroll Sync:** Highlights current section in TOC during scrolling.
 - **Search:** In-document text search.
+- **Bookmarks:** Planned persistent document-location bookmarks for returning
+  to important files, headings, or reading positions.
 
 ### 7.4 CLI & Interaction Model
 PaperView provides a context-aware CLI and a suite of "headless" tools.

@@ -17,7 +17,7 @@ PaperView follows the **Elm Architecture (TEA)** provided by Iced:
 struct PaperView {
     layout: LayoutMode,
     history: Vec<FileEntry>,
-    bookmarks: Vec<Bookmark>,
+    bookmarks: Vec<Bookmark>, // Planned; not implemented yet.
     ui_state: UIState,
 }
 

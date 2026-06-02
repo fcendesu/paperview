@@ -85,6 +85,7 @@ This document tracks the progress of features across the three workspace crates.
 | **Editing Mode** | ✅ | ✅ | ✅ |
 | **Global Search** | ✅ | ✅ | ✅ |
 | **Export HTML/PDF** | ✅ | N/A | ✅ |
+| **Bookmarks** | ⬜ | ⬜ | ⬜ |
 
 ## Phase 3: Technical Advanced & Presentation
 
