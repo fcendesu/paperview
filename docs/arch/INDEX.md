@@ -170,6 +170,12 @@ optional Tectonic compiler path used by headless `.tex` compilation. The TUI
 binary exposes headless `config path` and `config edit` commands without
 initializing Ratatui.
 
+The first `.tex` document path keeps LaTeX sources out of `Document::open`.
+`paperview-core::compile_tex` owns Tectonic invocation and PDF artifact
+validation. The TUI exposes this as `tex compile`; the GUI uses the same compile
+path for `.tex` launch, drag-and-drop, and local links, then delegates the
+generated PDF to the platform opener until embedded PDF preview exists.
+
 The Editing Mode foundation keeps source-editing state in
 `paperview-core::EditSession`. It owns the editable buffer, original source for
 dirty-state checks, optional file path, preview document generation, and

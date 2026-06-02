@@ -91,7 +91,7 @@ This document tracks the progress of features across the three workspace crates.
 | Feature | Core Logic | GUI (Iced) | TUI (Ratatui) |
 | :--- | :---: | :---: | :---: |
 | **LaTeX/Math Foundation** | ✅ | ✅ | ✅ |
-| **Tectonic `.tex` Support** | 🏗️ | ⬜ | 🏗️ |
+| **Tectonic `.tex` Support** | 🏗️ | 🏗️ | 🏗️ |
 | **Presentation Mode** | ✅ | ✅ | ✅ |
 
 ## Deferred Out Of Current Roadmap Scope

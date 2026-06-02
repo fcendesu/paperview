@@ -21,6 +21,8 @@ The current first implementation slice:
   `cargo run -p paperview-tui -- tex compile <file.tex>`.
 - Supports `--open` on that command to open the generated PDF with the platform
   opener after a successful compile.
+- GUI launch, drag-and-drop, and local-link open flows compile `.tex` files and
+  open the generated PDF externally as the first desktop preview behavior.
 - Honors the optional `tex_compiler_path` config setting when the Tectonic
   executable lives outside `PATH`.
 - Includes `docs/fixtures/minimal.tex` as a local smoke fixture for manual
@@ -56,6 +58,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   diagnostics when the compiler reports them.
 - The `--open` option delegates the generated PDF artifact to the existing
   platform opener helper. It does not embed PDF rendering in PaperView.
+- GUI `.tex` opening uses the same external-open behavior for now and reports
+  the source/output artifact path in the shell status text.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
 - Generated PDFs and Tectonic byproducts under `docs/fixtures/` are ignored so
@@ -76,8 +80,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   otherwise falls back to the default `tectonic` executable name.
 - Decide how to handle multi-file LaTeX projects that use `\input`,
   `\include`, images, bibliographies, or custom style files.
-- Decide whether GUI preview should also expose an external-open action before
-  embedded PDF/page preview lands.
+- Decide how embedded GUI PDF/page preview should work after the external-open
+  bridge.
 - Full Markdown math formula rendering remains separate from full `.tex`
   document compilation.
 

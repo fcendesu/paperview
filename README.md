@@ -149,6 +149,9 @@ If Tectonic is installed somewhere else, add this to the PaperView config file:
 tex_compiler_path = "/path/to/tectonic"
 ```
 
+The GUI also accepts `.tex` files on launch, drag-and-drop, or local document
+links. It compiles them through Tectonic and opens the generated PDF externally.
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.

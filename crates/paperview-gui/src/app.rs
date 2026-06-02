@@ -1,4 +1,11 @@
-use std::{collections::HashMap, ffi::OsString, fs, path::PathBuf, process::Command, sync::mpsc};
+use std::{
+    collections::HashMap,
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::mpsc,
+};
 
 use iced::{
     Element, Event, Fill, Length, Subscription, Task,
@@ -61,6 +68,7 @@ pub struct PaperView {
 enum Status {
     Empty,
     Loaded(PathBuf),
+    CompiledTex { source: PathBuf, output: PathBuf },
     Hovering(PathBuf),
     Error(String),
 }
@@ -159,38 +167,33 @@ impl PaperView {
             [] => {
                 let history = load_history(&history_store);
 
-                Self {
-                    config: config.clone(),
-                    config_store: config_store.clone(),
-                    documents: OpenDocuments::new(),
+                Self::new_empty(
+                    config,
+                    config_store,
                     history,
                     history_store,
-                    status: Status::Empty,
-                    is_drag_hovered: false,
                     zen_mode,
-                    split_view: SplitViewState::new(split_primary_width),
-                    split_drag_cursor: None,
-                    is_split_dragging: false,
-                    active_toc_block_index: None,
-                    search_query: String::new(),
-                    search_matches: Vec::new(),
-                    search_selected_index: None,
-                    workspace_search_query: String::new(),
-                    workspace_search_matches: Vec::new(),
-                    is_workspace_searching: false,
-                    workspace_search_error: None,
-                    remote_images: HashMap::new(),
-                    edit_session: None,
-                    edit_content: text_editor::Content::new(),
-                    edit_preview: None,
-                    presentation_deck: None,
-                    presentation_slide_index: 0,
-                    presentation_document: None,
-                }
+                    split_primary_width,
+                    Status::Empty,
+                )
             }
             [path] => {
                 let path = PathBuf::from(path);
                 let mut history = load_history(&history_store);
+
+                if is_tex_document_path(&path) {
+                    let mut state = Self::new_empty(
+                        config,
+                        config_store,
+                        history,
+                        history_store,
+                        zen_mode,
+                        split_primary_width,
+                        Status::Empty,
+                    );
+                    state.open_tex_path(path, true);
+                    return state;
+                }
 
                 match Document::open(&path) {
                     Ok(document) => {
@@ -229,68 +232,69 @@ impl PaperView {
                             presentation_document: None,
                         }
                     }
-                    Err(error) => Self {
-                        config: config.clone(),
-                        config_store: config_store.clone(),
-                        documents: OpenDocuments::new(),
+                    Err(error) => Self::new_empty(
+                        config,
+                        config_store,
                         history,
                         history_store,
-                        status: Status::Error(error.to_string()),
-                        is_drag_hovered: false,
                         zen_mode,
-                        split_view: SplitViewState::new(split_primary_width),
-                        split_drag_cursor: None,
-                        is_split_dragging: false,
-                        active_toc_block_index: None,
-                        search_query: String::new(),
-                        search_matches: Vec::new(),
-                        search_selected_index: None,
-                        workspace_search_query: String::new(),
-                        workspace_search_matches: Vec::new(),
-                        is_workspace_searching: false,
-                        workspace_search_error: None,
-                        remote_images: HashMap::new(),
-                        edit_session: None,
-                        edit_content: text_editor::Content::new(),
-                        edit_preview: None,
-                        presentation_deck: None,
-                        presentation_slide_index: 0,
-                        presentation_document: None,
-                    },
+                        split_primary_width,
+                        Status::Error(error.to_string()),
+                    ),
                 }
             }
             _ => {
                 let history = load_history(&history_store);
 
-                Self {
-                    config: config.clone(),
-                    config_store: config_store.clone(),
-                    documents: OpenDocuments::new(),
+                Self::new_empty(
+                    config,
+                    config_store,
                     history,
                     history_store,
-                    status: Status::Error("usage: paperview-gui [file]".to_owned()),
-                    is_drag_hovered: false,
                     zen_mode,
-                    split_view: SplitViewState::new(split_primary_width),
-                    split_drag_cursor: None,
-                    is_split_dragging: false,
-                    active_toc_block_index: None,
-                    search_query: String::new(),
-                    search_matches: Vec::new(),
-                    search_selected_index: None,
-                    workspace_search_query: String::new(),
-                    workspace_search_matches: Vec::new(),
-                    is_workspace_searching: false,
-                    workspace_search_error: None,
-                    remote_images: HashMap::new(),
-                    edit_session: None,
-                    edit_content: text_editor::Content::new(),
-                    edit_preview: None,
-                    presentation_deck: None,
-                    presentation_slide_index: 0,
-                    presentation_document: None,
-                }
+                    split_primary_width,
+                    Status::Error("usage: paperview-gui [file]".to_owned()),
+                )
             }
+        }
+    }
+
+    fn new_empty(
+        config: Config,
+        config_store: ConfigStore,
+        history: History,
+        history_store: HistoryStore,
+        zen_mode: ZenModeState,
+        split_primary_width: u16,
+        status: Status,
+    ) -> Self {
+        Self {
+            config,
+            config_store,
+            documents: OpenDocuments::new(),
+            history,
+            history_store,
+            status,
+            is_drag_hovered: false,
+            zen_mode,
+            split_view: SplitViewState::new(split_primary_width),
+            split_drag_cursor: None,
+            is_split_dragging: false,
+            active_toc_block_index: None,
+            search_query: String::new(),
+            search_matches: Vec::new(),
+            search_selected_index: None,
+            workspace_search_query: String::new(),
+            workspace_search_matches: Vec::new(),
+            is_workspace_searching: false,
+            workspace_search_error: None,
+            remote_images: HashMap::new(),
+            edit_session: None,
+            edit_content: text_editor::Content::new(),
+            edit_preview: None,
+            presentation_deck: None,
+            presentation_slide_index: 0,
+            presentation_document: None,
         }
     }
 }
@@ -325,6 +329,7 @@ impl Status {
         match self {
             Self::Empty => "empty",
             Self::Loaded(_) => "loaded",
+            Self::CompiledTex { .. } => "compiled_tex",
             Self::Hovering(_) => "hovering",
             Self::Error(_) => "error",
         }
@@ -411,6 +416,15 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
 
 impl PaperView {
     fn open_path(&mut self, path: PathBuf) {
+        if is_tex_document_path(&path) {
+            self.open_tex_path(path, true);
+            return;
+        }
+
+        self.open_reader_path(path);
+    }
+
+    fn open_reader_path(&mut self, path: PathBuf) {
         match Document::open(&path) {
             Ok(document) => {
                 self.history.record_document(&document);
@@ -430,26 +444,29 @@ impl PaperView {
         }
     }
 
+    fn open_tex_path(&mut self, path: PathBuf, open_after_compile: bool) {
+        match compile_tex_for_gui(&path, &self.config, open_after_compile) {
+            Ok(output) => {
+                self.status = Status::CompiledTex {
+                    source: path,
+                    output,
+                };
+                self.end_editing();
+                self.end_presentation();
+            }
+            Err(error) => {
+                self.status = Status::Error(error);
+            }
+        }
+    }
+
     fn open_dropped_files(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
         let mut last_error = None;
 
         for path in paths {
-            match Document::open(&path) {
-                Ok(document) => {
-                    self.history.record_document(&document);
-                    save_history(&self.history_store, &self.history);
-                    self.documents.open_or_activate(document);
-                    self.status = Status::Loaded(path);
-                    self.end_editing();
-                    self.end_presentation();
-                    self.ensure_split_target();
-                    self.sync_active_toc_to_top();
-                    self.refresh_search_matches();
-                    self.track_remote_images();
-                }
-                Err(error) => {
-                    last_error = Some(error.to_string());
-                }
+            self.open_path(path);
+            if let Status::Error(error) = &self.status {
+                last_error = Some(error.clone());
             }
         }
 
@@ -1877,6 +1894,30 @@ fn is_supported_document_path(path: &PathBuf) -> bool {
     SupportedFileType::from_path(path).is_some()
 }
 
+fn is_tex_document_path(path: &Path) -> bool {
+    SupportedFileType::from_path(path) == Some(SupportedFileType::Tex)
+}
+
+fn compile_tex_for_gui(
+    path: &Path,
+    config: &Config,
+    open_after_compile: bool,
+) -> Result<PathBuf, String> {
+    let mut input = paperview_core::TexCompileInput::new(path);
+    if let Some(compiler_path) = &config.tex_compiler_path {
+        input = input.with_compiler_path(compiler_path);
+    }
+
+    let artifact = paperview_core::compile_tex(&input).map_err(|error| error.to_string())?;
+    let output_path = artifact.output_path().to_path_buf();
+
+    if open_after_compile {
+        open_link_target(output_path.display().to_string())?;
+    }
+
+    Ok(output_path)
+}
+
 fn open_link_target(target: String) -> Result<(), String> {
     if target.trim().is_empty() {
         return Err("cannot open an empty link".to_owned());
@@ -1934,6 +1975,9 @@ fn header(state: &PaperView) -> Element<'_, Message> {
                 state.history_store.path().display()
             ),
             Status::Loaded(path) => path.display().to_string(),
+            Status::CompiledTex { source, output } => {
+                format!("Compiled {} -> {}", source.display(), output.display())
+            }
             Status::Hovering(path) => format!("Drop to open {}", path.display()),
             Status::Error(error) => error.clone(),
         }
@@ -2157,6 +2201,7 @@ fn empty_state(status: &Status) -> Element<'_, Message> {
             "Launch with paperview-gui <file> to preview the native reader shell.",
         ),
         Status::Loaded(_) => ("Document loaded", ""),
+        Status::CompiledTex { .. } => ("LaTeX compiled", "Generated PDF opened externally."),
         Status::Hovering(_) => (
             "Drop to open",
             "Release the file to preview it in PaperView.",
@@ -2185,9 +2230,12 @@ fn empty_state(status: &Status) -> Element<'_, Message> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
     use std::{
         ffi::OsString,
         fs,
+        path::PathBuf,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -2206,9 +2254,9 @@ mod tests {
     };
 
     use super::{
-        Message, PaperView, SplitResize, is_split_divider_hit, normalized_scroll_progress,
-        open_link_target, reader, remote_image_placeholders, resolve_link_target,
-        resolve_local_document_link, runtime_event, search_scroll_progress,
+        Message, PaperView, SplitResize, compile_tex_for_gui, is_split_divider_hit,
+        normalized_scroll_progress, open_link_target, reader, remote_image_placeholders,
+        resolve_link_target, resolve_local_document_link, runtime_event, search_scroll_progress,
         split_primary_width_from_cursor, title, update,
     };
 
@@ -2553,6 +2601,64 @@ mod tests {
         );
 
         fs::remove_file(path).expect("remove test document");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gui_tex_compile_uses_configured_compiler() {
+        let stem = unique_test_stem("gui-tex-compile");
+        let tex_path = std::env::temp_dir().join(format!("{stem}.tex"));
+        let compiler_path = fake_tectonic_compiler(&stem);
+        fs::write(&tex_path, "\\documentclass{article}").expect("write tex fixture");
+
+        let output = compile_tex_for_gui(
+            &tex_path,
+            &Config {
+                tex_compiler_path: Some(compiler_path.clone()),
+                ..Config::default()
+            },
+            false,
+        )
+        .expect("compile tex");
+
+        assert_eq!(output, tex_path.with_extension("pdf"));
+        assert!(output.exists());
+
+        fs::remove_file(tex_path).expect("remove tex fixture");
+        fs::remove_file(output).expect("remove pdf fixture");
+        fs::remove_file(compiler_path).expect("remove fake compiler");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dropped_tex_file_compiles_and_sets_status() {
+        let stem = unique_test_stem("gui-drop-tex");
+        let tex_path = std::env::temp_dir().join(format!("{stem}.tex"));
+        let compiler_path = fake_tectonic_compiler(&stem);
+        let history_store = temp_store("gui-drop-tex-history.toml");
+        let config_path = temp_doc("gui-drop-tex-config.toml", "");
+        let config_store = ConfigStore::new(&config_path);
+        fs::write(&tex_path, "\\documentclass{article}").expect("write tex fixture");
+        config_store
+            .save(&Config {
+                tex_compiler_path: Some(compiler_path.clone()),
+                ..Config::default()
+            })
+            .expect("save config");
+        let mut state = PaperView::from_args_with_stores([], history_store, config_store);
+
+        state.open_tex_path(tex_path.clone(), false);
+
+        assert_eq!(state.documents.len(), 0);
+        assert!(
+            matches!(state.status, super::Status::CompiledTex { ref source, ref output }
+                if source == &tex_path && output == &tex_path.with_extension("pdf"))
+        );
+
+        fs::remove_file(tex_path.with_extension("pdf")).expect("remove pdf fixture");
+        fs::remove_file(tex_path).expect("remove tex fixture");
+        fs::remove_file(compiler_path).expect("remove fake compiler");
+        fs::remove_file(config_path).expect("remove config");
     }
 
     #[test]
@@ -3680,5 +3786,46 @@ mod tests {
         fs::write(&path, source).expect("write test document");
 
         path
+    }
+
+    fn unique_test_stem(prefix: &str) -> String {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after Unix epoch")
+            .as_nanos();
+
+        format!("paperview-{prefix}-{nanos}")
+    }
+
+    #[cfg(unix)]
+    fn fake_tectonic_compiler(stem: &str) -> PathBuf {
+        let compiler_path = std::env::temp_dir().join(format!("{stem}-tectonic"));
+        let script = r#"#!/bin/sh
+set -eu
+outdir=""
+input=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --outdir)
+      outdir="$2"
+      shift 2
+      ;;
+    *)
+      input="$1"
+      shift
+      ;;
+  esac
+done
+stem=$(basename "$input" .tex)
+printf 'fake pdf' > "$outdir/$stem.pdf"
+printf 'compiled from fake gui tectonic'
+"#;
+        fs::write(&compiler_path, script).expect("write fake compiler");
+        let mut permissions = fs::metadata(&compiler_path)
+            .expect("read fake compiler metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&compiler_path, permissions).expect("set fake compiler executable");
+        compiler_path
     }
 }

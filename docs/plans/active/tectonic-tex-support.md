@@ -96,3 +96,7 @@ Out of scope for the first slice:
 - 2026-06-02: Added `--open` to `paperview-tui tex compile` so a successful
   compile can hand the generated PDF to the platform opener. Embedded GUI/TUI
   PDF preview remains open.
+- 2026-06-02: Added the first GUI `.tex` open behavior for launch,
+  drag-and-drop, and local document links: compile through Tectonic, open the
+  generated PDF externally, and report source/output paths in GUI status.
+  Embedded GUI/TUI PDF preview remains open.

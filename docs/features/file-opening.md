@@ -13,7 +13,7 @@ Unsupported extensions are rejected before disk reads. Supported files are read 
 
 Core also recognizes `.tex` as a supported compiled-document file type for the
 Tectonic plan, but `.tex` files are not opened through `Document::open` or
-parsed as Markdown. They must go through the explicit `.tex` compile path.
+parsed as Markdown. They go through the explicit `.tex` compile path.
 
 ## Implementation Notes
 
@@ -24,7 +24,9 @@ parsed as Markdown. They must go through the explicit `.tex` compile path.
 - File read errors preserve the source path and underlying `std::io::Error`.
 - `paperview-tui [file]` loads one file into an interactive Ratatui terminal shell.
 - `paperview-gui [file]` opens a native Iced window and renders the loaded document. Launching without a file shows an empty state.
-- GUI drag-and-drop uses the same `Document::open` path as launch and history open flows.
+- GUI `.tex` launch/drop/link flows compile through Tectonic and open the
+  generated PDF externally instead of creating a Markdown reader tab.
+- GUI drag-and-drop uses the same file-opening path as launch and history open flows.
 
 ## Open Decisions
 
