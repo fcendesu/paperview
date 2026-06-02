@@ -143,6 +143,13 @@ successful compile:
 cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex --open
 ```
 
+Clean generated `.tex` artifacts:
+
+```sh
+cargo run -p paperview-tui -- tex clean docs/fixtures/minimal.tex
+cargo run -p paperview-tui -- tex clean docs/fixtures
+```
+
 If Tectonic is installed somewhere else, add this to the PaperView config file:
 
 ```toml

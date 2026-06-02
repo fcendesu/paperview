@@ -76,6 +76,9 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
         {
             tex_compile_command(PathBuf::from(path), true).map(|report| println!("{report}"))
         }
+        [command, action, path] if command == "tex" && action == "clean" => {
+            tex_clean_command(PathBuf::from(path)).map(|report| println!("{report}"))
+        }
         [command, action] if command == "config" && action == "path" => {
             println!(
                 "{}",
@@ -137,7 +140,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 }
 
 fn usage_text() -> String {
-    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui config path\n       paperview-tui config edit"
+    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui tex clean <file.tex|dir>\n       paperview-tui config path\n       paperview-tui config edit"
         .to_owned()
 }
 
@@ -219,6 +222,34 @@ fn tex_compile_input(
         input.with_compiler_path(compiler_path)
     } else {
         input
+    }
+}
+
+fn tex_clean_command(path: PathBuf) -> Result<String, String> {
+    let target = tex_clean_target(&path);
+
+    if target.is_file() {
+        fs::remove_file(&target)
+            .map_err(|error| format!("failed to remove {}: {error}", target.display()))?;
+        return Ok(format!("Removed {}", target.display()));
+    }
+
+    if target.is_dir() {
+        fs::remove_dir_all(&target)
+            .map_err(|error| format!("failed to remove {}: {error}", target.display()))?;
+        return Ok(format!("Removed {}", target.display()));
+    }
+
+    Ok(format!("Nothing to clean at {}", target.display()))
+}
+
+fn tex_clean_target(path: &Path) -> PathBuf {
+    if paperview_core::SupportedFileType::from_path(path)
+        == Some(paperview_core::SupportedFileType::Tex)
+    {
+        paperview_core::tex_pdf_artifact_path(path)
+    } else {
+        path.join(".paperview").join("tex")
     }
 }
 
@@ -726,7 +757,13 @@ fn workspace_search_text(matches: &[paperview_core::WorkspaceSearchMatch]) -> St
 
 #[cfg(test)]
 mod tests {
-    use std::{env, ffi::OsString, fs, path::PathBuf, time::Duration};
+    use std::{
+        env,
+        ffi::OsString,
+        fs,
+        path::{Path, PathBuf},
+        time::Duration,
+    };
 
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
@@ -734,8 +771,8 @@ mod tests {
         LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, StartupPerfReport,
         StartupTarget, config_path_text, export_path, format_bytes, format_duration,
         is_reserved_command, measure_perf, measure_startup, open_documents, perf_text, run,
-        startup_perf_text, stats_json_text, stats_text, tex_compile_input, tex_compile_text,
-        workspace_search_text,
+        startup_perf_text, stats_json_text, stats_text, tex_clean_command, tex_clean_target,
+        tex_compile_input, tex_compile_text, workspace_search_text,
     };
 
     #[test]
@@ -945,11 +982,63 @@ mod tests {
     }
 
     #[test]
+    fn derives_tex_clean_targets() {
+        assert_eq!(
+            tex_clean_target(Path::new("docs/resume.tex")),
+            PathBuf::from("docs/.paperview/tex/resume.pdf")
+        );
+        assert_eq!(
+            tex_clean_target(Path::new("docs")),
+            PathBuf::from("docs/.paperview/tex")
+        );
+    }
+
+    #[test]
+    fn cleans_tex_file_artifact() {
+        let path = env::temp_dir().join(format!("paperview-clean-test-{}.tex", std::process::id()));
+        let artifact = paperview_core::tex_pdf_artifact_path(&path);
+        fs::create_dir_all(artifact.parent().expect("artifact parent"))
+            .expect("create artifact parent");
+        fs::write(&path, "\\documentclass{article}").expect("write tex fixture");
+        fs::write(&artifact, "%PDF fake").expect("write pdf artifact");
+
+        let report = tex_clean_command(path.clone()).expect("clean tex artifact");
+
+        assert_eq!(report, format!("Removed {}", artifact.display()));
+        assert!(!artifact.exists());
+
+        fs::remove_file(path).expect("remove tex fixture");
+        fs::remove_dir_all(
+            artifact
+                .parent()
+                .and_then(Path::parent)
+                .expect("paperview cache parent"),
+        )
+        .expect("remove cache directory");
+    }
+
+    #[test]
+    fn cleans_tex_directory_cache() {
+        let root = env::temp_dir().join(format!("paperview-clean-dir-test-{}", std::process::id()));
+        let cache = root.join(".paperview/tex");
+        fs::create_dir_all(&cache).expect("create cache");
+        fs::write(cache.join("resume.pdf"), "%PDF fake").expect("write pdf artifact");
+
+        let report = tex_clean_command(root.clone()).expect("clean tex directory");
+
+        assert_eq!(report, format!("Removed {}", cache.display()));
+        assert!(!cache.exists());
+
+        fs::remove_dir_all(root).expect("remove root");
+    }
+
+    #[test]
     fn tex_command_requires_compile_subcommand() {
         let error =
             run([OsString::from("tex")]).expect_err("tex command should require subcommand");
 
         assert!(error.contains("paperview-tui tex compile <file.tex> [--open]"));
+        assert!(error.contains("paperview-tui tex clean <file.tex|dir>"));
     }
 
     #[test]

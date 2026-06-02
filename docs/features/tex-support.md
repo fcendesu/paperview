@@ -22,6 +22,8 @@ The current first implementation slice:
   `cargo run -p paperview-tui -- tex compile <file.tex>`.
 - Supports `--open` on that command to open the generated PDF with the platform
   opener after a successful compile.
+- Adds a headless `tex clean <file.tex|dir>` command for removing generated
+  `.paperview/tex/` artifacts.
 - GUI launch, drag-and-drop, and local-link open flows compile `.tex` files and
   open the generated PDF externally as the first desktop preview behavior.
   GUI compilation runs through Iced tasks so the app can show `Compiling ...`
@@ -59,6 +61,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   compiling during `Document::open`.
 - The headless command prints the generated PDF path and includes Tectonic
   diagnostics when the compiler reports them.
+- `tex clean <file.tex>` removes that file's managed PDF artifact. `tex clean
+  <dir>` removes `<dir>/.paperview/tex/`.
 - The `--open` option delegates the generated PDF artifact to the existing
   platform opener helper. It does not embed PDF rendering in PaperView.
 - GUI `.tex` opening uses the same external-open behavior for now and reports

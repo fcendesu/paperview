@@ -108,3 +108,5 @@ Out of scope for the first slice:
 - 2026-06-02: Moved the default generated `.tex` PDF path from beside the
   source file to `.paperview/tex/<name>.pdf` under the source file's directory.
   Explicit output paths remain supported in the core API.
+- 2026-06-02: Added `paperview-tui tex clean <file.tex|dir>` for removing a
+  single managed PDF artifact or a directory-level `.paperview/tex/` cache.
