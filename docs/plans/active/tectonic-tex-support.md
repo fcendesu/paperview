@@ -78,9 +78,8 @@ Out of scope for the first slice:
   path handling.
 - 2026-06-02: Added `paperview-tui tex compile <file.tex>` as the first
   headless entrypoint over the core Tectonic adapter. The command prints the
-  generated PDF path and compiler diagnostics when available. Bundling/config
-  policy, GUI/TUI preview behavior, and a real Tectonic smoke fixture remain
-  open.
+  generated PDF path and compiler diagnostics when available. Bundling policy,
+  GUI/TUI preview behavior, and a real Tectonic smoke fixture remain open.
 - 2026-06-02: Added optional `tex_compiler_path` config support so the
   headless command can invoke a custom Tectonic executable. Binary bundling,
   GUI/TUI preview behavior, and a real Tectonic smoke fixture remain open.
@@ -88,3 +87,9 @@ Out of scope for the first slice:
   artifacts for optional end-to-end smoke checks through
   `paperview-tui tex compile`. Binary bundling and GUI/TUI preview behavior
   remain open.
+- 2026-06-02: Ran the real smoke check with `Tectonic 0.16.9` at
+  `/opt/homebrew/bin/tectonic`:
+  `cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex`.
+  PaperView generated a valid `docs/fixtures/minimal.pdf`; the generated PDF
+  was removed afterward. Binary bundling and GUI/TUI preview behavior remain
+  open.

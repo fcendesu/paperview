@@ -28,8 +28,8 @@ The current first implementation slice:
 
 The next implementation slice should:
 
-- Decide whether PaperView should bundle the Tectonic binary, discover it on
-  `PATH`, or expose a config setting for the compiler path.
+- Decide whether PaperView should bundle the Tectonic binary or continue with
+  configured/PATH discovery.
 - Preserve PaperView's existing Markdown-first reader behavior.
 
 Later slices can expose compiled `.tex` output in the GUI and TUI:
@@ -97,3 +97,11 @@ cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
 
 The generated `docs/fixtures/minimal.pdf` and Tectonic byproducts are ignored
 and should remain uncommitted.
+
+The latest local smoke result:
+
+- Date: 2026-06-02.
+- Tectonic: `Tectonic 0.16.9` at `/opt/homebrew/bin/tectonic`.
+- Command:
+  `cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex`.
+- Result: generated a valid `docs/fixtures/minimal.pdf`, then removed it.
