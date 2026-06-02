@@ -113,3 +113,6 @@ Out of scope for the first slice:
 - 2026-06-02: Added a GUI `Open PDF` header action after successful `.tex`
   compilation so users can reopen the managed PDF artifact from the compiled
   status.
+- 2026-06-02: Added a GUI `Clean PDF` header action after successful `.tex`
+  compilation so users can remove the managed PDF artifact from the compiled
+  status without switching to the TUI.

@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     ffi::OsString,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
     process::Command,
     sync::mpsc,
@@ -70,6 +70,7 @@ enum Status {
     Loaded(PathBuf),
     CompilingTex(PathBuf),
     CompiledTex { source: PathBuf, output: PathBuf },
+    CleanedTex { source: PathBuf, output: PathBuf },
     Hovering(PathBuf),
     Error(String),
 }
@@ -100,6 +101,10 @@ pub enum Message {
         result: Result<PathBuf, String>,
     },
     OpenCompiledTex(PathBuf),
+    CleanCompiledTex {
+        source: PathBuf,
+        output: PathBuf,
+    },
     RemoteImageLoaded {
         url: String,
         result: Result<Vec<u8>, String>,
@@ -362,6 +367,7 @@ impl Status {
             Self::Loaded(_) => "loaded",
             Self::CompilingTex(_) => "compiling_tex",
             Self::CompiledTex { .. } => "compiled_tex",
+            Self::CleanedTex { .. } => "cleaned_tex",
             Self::Hovering(_) => "hovering",
             Self::Error(_) => "error",
         }
@@ -413,6 +419,9 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         }
         Message::OpenCompiledTex(output) => {
             return state.open_compiled_tex(output);
+        }
+        Message::CleanCompiledTex { source, output } => {
+            state.clean_compiled_tex(source, output);
         }
         Message::RemoteImageLoaded { url, result } => {
             let image =
@@ -518,6 +527,21 @@ impl PaperView {
                 Err(error) => Message::LinkOpenFailed(error),
             },
         )
+    }
+
+    fn clean_compiled_tex(&mut self, source: PathBuf, output: PathBuf) {
+        match fs::remove_file(&output) {
+            Ok(()) => {
+                self.status = Status::CleanedTex { source, output };
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                self.status = Status::CleanedTex { source, output };
+            }
+            Err(error) => {
+                self.status =
+                    Status::Error(format!("failed to remove {}: {error}", output.display()));
+            }
+        }
     }
 
     fn open_dropped_files(&mut self, paths: impl IntoIterator<Item = PathBuf>) -> Task<Message> {
@@ -2049,6 +2073,13 @@ fn header(state: &PaperView) -> Element<'_, Message> {
             Status::CompiledTex { source, output } => {
                 format!("Compiled {} -> {}", source.display(), output.display())
             }
+            Status::CleanedTex { source, output } => {
+                format!(
+                    "Removed compiled PDF for {} at {}",
+                    source.display(),
+                    output.display()
+                )
+            }
             Status::Hovering(path) => format!("Drop to open {}", path.display()),
             Status::Error(error) => error.clone(),
         }
@@ -2153,20 +2184,30 @@ fn header(state: &PaperView) -> Element<'_, Message> {
 }
 
 fn compiled_tex_controls(status: &Status) -> Element<'_, Message> {
-    let Some(output) = compiled_tex_output_path(status) else {
+    let Some((source, output)) = compiled_tex_artifact_paths(status) else {
         return row![].spacing(0).into();
     };
 
-    button(text("Open PDF").size(13))
+    let open_button = button(text("Open PDF").size(13))
         .padding([7, 12])
-        .on_press(Message::OpenCompiledTex(output))
-        .style(move |_, status| theme::header_action_button(false, status))
-        .into()
+        .on_press(Message::OpenCompiledTex(output.clone()))
+        .style(move |_, status| theme::header_action_button(false, status));
+    let clean_button = button(text("Clean PDF").size(13))
+        .padding([7, 12])
+        .on_press(Message::CleanCompiledTex { source, output })
+        .style(move |_, status| theme::header_action_button(false, status));
+
+    row![open_button, clean_button].spacing(6).into()
 }
 
+#[cfg(test)]
 fn compiled_tex_output_path(status: &Status) -> Option<PathBuf> {
+    compiled_tex_artifact_paths(status).map(|(_, output)| output)
+}
+
+fn compiled_tex_artifact_paths(status: &Status) -> Option<(PathBuf, PathBuf)> {
     match status {
-        Status::CompiledTex { output, .. } => Some(output.clone()),
+        Status::CompiledTex { source, output } => Some((source.clone(), output.clone())),
         _ => None,
     }
 }
@@ -2295,6 +2336,7 @@ fn empty_state(status: &Status) -> Element<'_, Message> {
         Status::Loaded(_) => ("Document loaded", ""),
         Status::CompilingTex(_) => ("Compiling LaTeX", "Tectonic is generating a PDF."),
         Status::CompiledTex { .. } => ("LaTeX compiled", "Generated PDF opened externally."),
+        Status::CleanedTex { .. } => ("LaTeX artifact cleaned", "Generated PDF was removed."),
         Status::Hovering(_) => (
             "Drop to open",
             "Release the file to preview it in PaperView.",
@@ -2777,6 +2819,44 @@ mod tests {
             }),
             Some(output)
         );
+    }
+
+    #[test]
+    fn clean_compiled_tex_removes_artifact_and_updates_status() {
+        let stem = unique_test_stem("gui-clean-tex");
+        let source = std::env::temp_dir().join(format!("{stem}.tex"));
+        let output = std::env::temp_dir().join(format!("{stem}.pdf"));
+        fs::write(&source, "\\documentclass{article}").expect("write tex fixture");
+        fs::write(&output, "%PDF-1.7").expect("write pdf fixture");
+        let mut state = PaperView::from_args_with_store([], temp_store("gui-clean-tex.toml"));
+
+        state.clean_compiled_tex(source.clone(), output.clone());
+
+        assert!(!output.exists());
+        assert!(
+            matches!(state.status, super::Status::CleanedTex { ref source, ref output }
+                if source.ends_with(format!("{stem}.tex")) && output.ends_with(format!("{stem}.pdf")))
+        );
+        assert_eq!(compiled_tex_output_path(&state.status), None);
+
+        fs::remove_file(source).expect("remove tex fixture");
+    }
+
+    #[test]
+    fn clean_compiled_tex_treats_missing_artifact_as_clean() {
+        let stem = unique_test_stem("gui-clean-missing-tex");
+        let source = std::env::temp_dir().join(format!("{stem}.tex"));
+        let output = std::env::temp_dir().join(format!("{stem}.pdf"));
+        let mut state =
+            PaperView::from_args_with_store([], temp_store("gui-clean-missing-tex.toml"));
+
+        state.clean_compiled_tex(source.clone(), output.clone());
+
+        assert!(
+            matches!(state.status, super::Status::CleanedTex { ref source, ref output }
+                if source.ends_with(format!("{stem}.tex")) && output.ends_with(format!("{stem}.pdf")))
+        );
+        assert_eq!(compiled_tex_output_path(&state.status), None);
     }
 
     #[cfg(unix)]
