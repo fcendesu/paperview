@@ -12,7 +12,8 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
-- None.
+- [Tectonic `.tex` Support](active/tectonic-tex-support.md) - full LaTeX
+  document compilation path for Overleaf-compatible sources.
 
 ## Completed Plans
 

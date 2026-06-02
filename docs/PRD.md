@@ -138,9 +138,9 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
   text-first PDF export. Full formula typesetting remains missing.)*
 - **Presentation Mode:** One-click conversion of headings/rules into slides.
   *(Implemented across core, GUI, and TUI.)*
-- Full `.tex` support is missing and remains deferred out of the current
-  roadmap scope. When this enters scope, PaperView will use Tectonic-backed
-  compilation for existing Overleaf/LaTeX documents.
+- Full `.tex` support is planned through Tectonic-backed compilation for
+  existing Overleaf/LaTeX documents. The first active slice is a core/headless
+  compile-check path before embedded GUI preview work.
 - **Knowledge Graph** visual connections between linked Markdown files are
   deferred out of the current roadmap scope.
 
