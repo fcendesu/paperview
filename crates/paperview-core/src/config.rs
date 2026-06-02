@@ -15,6 +15,8 @@ pub struct Config {
     pub zen_mode: bool,
     #[serde(default = "default_split_primary_width")]
     pub split_primary_width: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tex_compiler_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +33,7 @@ impl Default for Config {
             theme: ThemePreference::default(),
             zen_mode: false,
             split_primary_width: default_split_primary_width(),
+            tex_compiler_path: None,
         }
     }
 }
@@ -249,6 +252,7 @@ mod tests {
             theme: ThemePreference::Hybrid,
             zen_mode: true,
             split_primary_width: 60,
+            tex_compiler_path: Some(PathBuf::from("/opt/tectonic/tectonic")),
         };
 
         store.save(&config).expect("save config");
@@ -263,6 +267,17 @@ mod tests {
         let encoded = toml::to_string(&Config::default()).expect("encode config");
 
         assert!(encoded.contains("theme = \"hybrid\""));
+    }
+
+    #[test]
+    fn serializes_tex_compiler_path_when_configured() {
+        let config = Config {
+            tex_compiler_path: Some(PathBuf::from("/opt/tectonic/tectonic")),
+            ..Config::default()
+        };
+        let encoded = toml::to_string(&config).expect("encode config");
+
+        assert!(encoded.contains("tex_compiler_path = \"/opt/tectonic/tectonic\""));
     }
 
     #[test]

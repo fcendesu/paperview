@@ -63,6 +63,8 @@ PaperView distinguishes between UI events and headless toolkit commands.
 - `Export(Format)`: Headless PDF/HTML generation.
 - `GetStats(PathBuf)`: Word count and document metadata analysis.
 - `ManageConfig(Action)`: Reads or modifies the `config.toml`.
+- `CompileTex(PathBuf)`: Invokes the configured Tectonic compiler and writes a
+  PDF artifact for a `.tex` entry file.
 
 
 ---
@@ -163,8 +165,10 @@ parse/model construction, and TUI line rendering through
 `render_document_with_anchors` without initializing Ratatui.
 
 The first config implementation keeps TOML config path resolution and file
-creation in `paperview-core::ConfigStore`. The TUI binary exposes headless
-`config path` and `config edit` commands without initializing Ratatui.
+creation in `paperview-core::ConfigStore`. The shared config also owns the
+optional Tectonic compiler path used by headless `.tex` compilation. The TUI
+binary exposes headless `config path` and `config edit` commands without
+initializing Ratatui.
 
 The Editing Mode foundation keeps source-editing state in
 `paperview-core::EditSession`. It owns the editable buffer, original source for

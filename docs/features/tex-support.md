@@ -19,6 +19,8 @@ The current first implementation slice:
   bundled runtimes.
 - Adds a headless TUI command:
   `cargo run -p paperview-tui -- tex compile <file.tex>`.
+- Honors the optional `tex_compiler_path` config setting when the Tectonic
+  executable lives outside `PATH`.
 - Reports missing compiler, compiler failure, missing output PDF, and output
   write errors as explicit compile errors.
 
@@ -62,8 +64,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
 - The current default generated PDF path is beside the source file. Future GUI
   preview work may move generated artifacts into a `.paperview/` cache
   directory.
-- The headless command currently uses the default `tectonic` executable name.
-  A CLI/config option for a custom compiler path is still undecided.
+- The headless command uses `tex_compiler_path` from config when present, and
+  otherwise falls back to the default `tectonic` executable name.
 - Decide how to handle multi-file LaTeX projects that use `\input`,
   `\include`, images, bibliographies, or custom style files.
 - Decide whether GUI preview should open the generated PDF with the platform

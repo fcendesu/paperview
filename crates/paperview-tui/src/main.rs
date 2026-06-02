@@ -69,7 +69,10 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         [command, action, path] if command == "tex" && action == "compile" => {
-            let input = paperview_core::TexCompileInput::new(PathBuf::from(path));
+            let config = paperview_core::ConfigStore::default()
+                .load()
+                .map_err(|error| error.to_string())?;
+            let input = tex_compile_input(PathBuf::from(path), &config);
             let artifact =
                 paperview_core::compile_tex(&input).map_err(|error| error.to_string())?;
             println!("{}", tex_compile_text(&artifact));
@@ -190,6 +193,19 @@ fn tex_compile_text(artifact: &paperview_core::TexCompileArtifact) -> String {
         format!("Compiled {output_path}")
     } else {
         format!("Compiled {output_path}\n{diagnostics}")
+    }
+}
+
+fn tex_compile_input(
+    path: impl Into<PathBuf>,
+    config: &paperview_core::Config,
+) -> paperview_core::TexCompileInput {
+    let input = paperview_core::TexCompileInput::new(path.into());
+
+    if let Some(compiler_path) = &config.tex_compiler_path {
+        input.with_compiler_path(compiler_path)
+    } else {
+        input
     }
 }
 
@@ -705,7 +721,8 @@ mod tests {
         LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, StartupPerfReport,
         StartupTarget, config_path_text, export_path, format_bytes, format_duration,
         is_reserved_command, measure_perf, measure_startup, open_documents, perf_text, run,
-        startup_perf_text, stats_json_text, stats_text, tex_compile_text, workspace_search_text,
+        startup_perf_text, stats_json_text, stats_text, tex_compile_input, tex_compile_text,
+        workspace_search_text,
     };
 
     #[test]
@@ -891,6 +908,26 @@ mod tests {
         assert_eq!(
             tex_compile_text(&artifact),
             "Compiled docs/resume.pdf\nwarning: missing reference"
+        );
+    }
+
+    #[test]
+    fn tex_compile_input_uses_configured_compiler_path() {
+        let default_input =
+            tex_compile_input("docs/resume.tex", &paperview_core::Config::default());
+        assert_eq!(default_input.compiler_path(), PathBuf::from("tectonic"));
+
+        let input = tex_compile_input(
+            "docs/resume.tex",
+            &paperview_core::Config {
+                tex_compiler_path: Some(PathBuf::from("/opt/tectonic/tectonic")),
+                ..paperview_core::Config::default()
+            },
+        );
+
+        assert_eq!(
+            input.compiler_path(),
+            PathBuf::from("/opt/tectonic/tectonic")
         );
     }
 

@@ -3012,6 +3012,7 @@ mod tests {
                 theme: ThemePreference::Hybrid,
                 zen_mode: true,
                 split_primary_width: 65,
+                tex_compiler_path: None,
             })
             .expect("save config");
 

@@ -136,6 +136,12 @@ cargo run -p paperview-tui -- tex compile resume.tex
 This requires a `tectonic` executable on `PATH` and writes the generated PDF
 beside the source file.
 
+If Tectonic is installed somewhere else, add this to the PaperView config file:
+
+```toml
+tex_compiler_path = "/path/to/tectonic"
+```
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.
@@ -195,7 +201,8 @@ read/parse/render timings for local baseline checks.
 The config commands print or open PaperView's TOML config file, creating a
 default file before edit when needed. The GUI and TUI currently persist Zen
 Mode, Split View width, and the current `hybrid` theme preference in that
-config file.
+config file. The optional `tex_compiler_path` setting points `.tex` compilation
+at a custom Tectonic executable.
 The workspace search command prints ripgrep-backed `path:line:column` results
 without launching the TUI, or opens a Ratatui result picker with `--interactive`.
 The GUI left rail also includes workspace search; submit a query with `Find` or

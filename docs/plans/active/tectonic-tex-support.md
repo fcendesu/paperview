@@ -81,3 +81,6 @@ Out of scope for the first slice:
   generated PDF path and compiler diagnostics when available. Bundling/config
   policy, GUI/TUI preview behavior, and a real Tectonic smoke fixture remain
   open.
+- 2026-06-02: Added optional `tex_compiler_path` config support so the
+  headless command can invoke a custom Tectonic executable. Binary bundling,
+  GUI/TUI preview behavior, and a real Tectonic smoke fixture remain open.
