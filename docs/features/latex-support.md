@@ -17,6 +17,11 @@ PaperView preserves LaTeX math source emitted by `pulldown-cmark`.
 This is still a foundation slice. PaperView does not yet fully typeset formulas
 or validate LaTeX syntax.
 
+Full `.tex` documents are also not supported yet. PaperView currently accepts
+Markdown and plain text files; an Overleaf-style source with `\documentclass`,
+packages, custom commands, tables, and layout directives will not render as a
+compiled document.
+
 ## Implementation Notes
 
 - `paperview-core::parser::Block::Math` stores display math source.
@@ -44,8 +49,19 @@ or validate LaTeX syntax.
 
 ## Open Decisions
 
-- Choose the full native formula rendering path for the GUI.
+- Choose the full native formula rendering path for Markdown math.
 - Decide how inline math should participate in future native formula rendering.
+- Full `.tex` support will use Tectonic as the integration target. Tectonic is
+  a self-contained TeX/LaTeX engine with Rust library and CLI surfaces, making
+  it a good fit for rendering existing Overleaf-compatible `.tex` projects into
+  PDF/pages without requiring users to install a full TeX Live distribution.
+- Non-plan alternatives and why they are not the chosen direction:
+  - Shelling out to `latexmk`, `pdflatex`, `xelatex`, or `lualatex` depends on
+    an external TeX installation and platform setup.
+  - Typst is a different language and would not directly render existing `.tex`
+    resumes without conversion.
+  - A custom LaTeX parser/renderer is too broad for PaperView's viewer-first
+    scope because full documents rely on macros, packages, and layout engines.
 
 ## Verification
 

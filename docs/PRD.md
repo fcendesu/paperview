@@ -134,11 +134,13 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
 
 ### Phase 3: Technical Advanced & Presentation
 - LaTeX/Math support ($inline$ and $$block$$). *(Foundation implemented with
-  readable/source-preserving previews.)*
+  readable/source-preserving previews across core, GUI, TUI, HTML export, and
+  text-first PDF export. Full formula typesetting remains missing.)*
 - **Presentation Mode:** One-click conversion of headings/rules into slides.
-  *(Core deck generation started.)*
-- Full `.tex` support via Tectonic integration is deferred out of the current
-  roadmap scope.
+  *(Implemented across core, GUI, and TUI.)*
+- Full `.tex` support is missing and remains deferred out of the current
+  roadmap scope. When this enters scope, PaperView will use Tectonic-backed
+  compilation for existing Overleaf/LaTeX documents.
 - **Knowledge Graph** visual connections between linked Markdown files are
   deferred out of the current roadmap scope.
 

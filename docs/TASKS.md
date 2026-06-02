@@ -94,5 +94,7 @@ This document tracks the progress of features across the three workspace crates.
 
 ## Deferred Out Of Current Roadmap Scope
 
-- Full `.tex` support via Tectonic integration.
+- Full formula rendering/typesetting for Markdown math.
+- Full `.tex` support for Overleaf/LaTeX documents through Tectonic-backed
+  compilation.
 - Knowledge Graph visual connections between linked Markdown files.
