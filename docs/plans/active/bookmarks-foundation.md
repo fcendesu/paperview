@@ -46,3 +46,5 @@ headless TUI commands to add, list, remove, and prune bookmarks.
 - 2026-06-02: Updated GUI bookmark opening to use saved heading anchors when
   present, selecting the matching heading and issuing the normal reader scroll
   task.
+- 2026-06-02: Added GUI fallback navigation for anchorless bookmarks, using
+  stored source-line positions first and stored scroll progress second.

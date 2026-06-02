@@ -20,10 +20,10 @@ use iced::{
     window,
 };
 use paperview_core::{
-    BookmarkStore, Bookmarks, Config, ConfigStore, Document, EditSession, History, HistoryStore,
-    OpenDocuments, PresentationDeck, SearchMatch, SplitResize, SplitViewState, SupportedFileType,
-    WatchEvent, WorkspaceSearchMatch, ZenModeState, parser::Block, presentation_deck,
-    search_workspace, toggle_task_line_source, watch_file,
+    Bookmark, BookmarkStore, Bookmarks, Config, ConfigStore, Document, EditSession, History,
+    HistoryStore, OpenDocuments, PresentationDeck, SearchMatch, SplitResize, SplitViewState,
+    SupportedFileType, WatchEvent, WorkspaceSearchMatch, ZenModeState, parser::Block,
+    presentation_deck, search_workspace, toggle_task_line_source, watch_file,
 };
 
 use crate::{
@@ -535,7 +535,7 @@ impl PaperView {
         }
 
         let Some(anchor) = bookmark.heading_anchor() else {
-            return Task::none();
+            return self.scroll_to_bookmark_fallback(&bookmark);
         };
         let Some(block_index) = self.anchor_block_index(anchor) else {
             self.status = Status::Error(format!("bookmark heading anchor not found: #{anchor}"));
@@ -544,6 +544,25 @@ impl PaperView {
 
         self.active_toc_block_index = Some(block_index);
         self.scroll_to_toc_block(block_index)
+    }
+
+    fn scroll_to_bookmark_fallback(&mut self, bookmark: &Bookmark) -> Task<Message> {
+        let Some(document) = self.documents.active() else {
+            return Task::none();
+        };
+        let Some(progress) = bookmark_scroll_progress(document, bookmark) else {
+            return Task::none();
+        };
+
+        self.active_toc_block_index =
+            reader::active_heading_for_scroll(document.parsed(), progress);
+        operation::snap_to(
+            reader::ACTIVE_READER_SCROLLABLE_ID,
+            RelativeOffset {
+                x: 0.0,
+                y: progress,
+            },
+        )
     }
 
     fn open_reader_path(&mut self, path: PathBuf) {
@@ -1393,6 +1412,14 @@ fn search_scroll_progress(document: &Document, line_index: usize) -> f32 {
     } else {
         (line_index as f32 / (line_count - 1) as f32).clamp(0.0, 1.0)
     }
+}
+
+fn bookmark_scroll_progress(document: &Document, bookmark: &Bookmark) -> Option<f32> {
+    if let Some(line_index) = bookmark.source_line() {
+        return Some(search_scroll_progress(document, line_index));
+    }
+
+    bookmark.scroll_progress().map(normalized_scroll_progress)
 }
 
 fn normalized_scroll_progress(progress: f32) -> f32 {
@@ -2574,11 +2601,11 @@ mod tests {
     };
 
     use super::{
-        Message, PaperView, SplitResize, Status, compile_tex_for_gui, compiled_tex_output_path,
-        is_split_divider_hit, normalized_scroll_progress, open_link_target, reader,
-        remote_image_placeholders, resolve_link_target, resolve_local_document_link, runtime_event,
-        search_scroll_progress, split_primary_width_from_cursor, test_bookmark_store,
-        test_config_store, title, update,
+        Message, PaperView, SplitResize, Status, bookmark_scroll_progress, compile_tex_for_gui,
+        compiled_tex_output_path, is_split_divider_hit, normalized_scroll_progress,
+        open_link_target, reader, remote_image_placeholders, resolve_link_target,
+        resolve_local_document_link, runtime_event, search_scroll_progress,
+        split_primary_width_from_cursor, test_bookmark_store, test_config_store, title, update,
     };
 
     #[test]
@@ -2726,6 +2753,55 @@ mod tests {
 
         fs::remove_file(path).expect("remove document");
         fs::remove_file(bookmark_store.path()).expect("remove bookmarks");
+    }
+
+    #[test]
+    fn opening_bookmark_with_source_line_selects_nearest_heading() {
+        let path = temp_doc(
+            "bookmark-source-line.md",
+            "# First\n\nIntro\n\n## Details\n\nMore\n\n## Later\n\nEnd",
+        );
+        let history_store = temp_store("open-bookmark-source-line-history.toml");
+        let config_store = test_config_store(&history_store);
+        let bookmark_store = test_bookmark_store(&history_store);
+        let mut bookmarks = Bookmarks::new();
+        bookmarks.add(Bookmark::new(&path, "Saved Line").with_source_line(5));
+        bookmark_store.save(&bookmarks).expect("save bookmarks");
+        let mut state = PaperView::from_args_with_stores(
+            [],
+            history_store,
+            config_store,
+            bookmark_store.clone(),
+        );
+
+        let _task = update(&mut state, Message::OpenBookmark(0));
+
+        assert_eq!(state.documents.active().map(Document::title), Some("First"));
+        assert_eq!(state.active_toc_block_index, Some(2));
+
+        fs::remove_file(path).expect("remove document");
+        fs::remove_file(bookmark_store.path()).expect("remove bookmarks");
+    }
+
+    #[test]
+    fn bookmark_scroll_progress_prefers_source_line_over_saved_progress() {
+        let document = Document::from_source("# First\n\nIntro\n\n## Details\n\nMore");
+        let bookmark = Bookmark::new("notes.md", "Saved")
+            .with_source_line(1)
+            .with_scroll_progress(0.95);
+
+        assert_eq!(
+            bookmark_scroll_progress(&document, &bookmark),
+            Some(search_scroll_progress(&document, 1))
+        );
+    }
+
+    #[test]
+    fn bookmark_scroll_progress_uses_saved_progress_without_source_line() {
+        let document = Document::from_source("# First\n\nIntro\n\n## Details\n\nMore");
+        let bookmark = Bookmark::new("notes.md", "Saved").with_scroll_progress(0.95);
+
+        assert_eq!(bookmark_scroll_progress(&document, &bookmark), Some(0.95));
     }
 
     #[test]

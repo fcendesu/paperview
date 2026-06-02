@@ -27,11 +27,12 @@ The first implemented slice supports:
   file-backed. The sidebar refreshes immediately after saving.
 - GUI bookmark clicks navigate to the stored heading anchor when one is
   available.
+- GUI bookmark clicks fall back to stored source-line or scroll-progress
+  navigation when no heading anchor is available.
 
 Still planned:
 
-- Navigate to scroll-progress/source-line targets in the GUI when no heading
-  anchor is available.
+- Add per-workspace bookmark stores if global bookmarks become too noisy.
 
 Bookmarks are distinct from:
 
@@ -57,7 +58,8 @@ Bookmarks are distinct from:
 - Current bookmarks are global by default. Decide whether per-workspace stores
   should be added later.
 - Current bookmarks can store heading anchor, source line, and scroll progress
-  metadata. Decide how GUI/TUI navigation should choose among those targets.
+  metadata. Navigation prefers heading anchors, then source-line positions, then
+  stored scroll progress.
 - Decide keyboard shortcuts for GUI and TUI without colliding with existing
   navigation, tabs, search, editing, presentation, and split-view controls.
 - Decide whether the GUI history rail and bookmarks share a panel or use
