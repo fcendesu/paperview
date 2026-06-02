@@ -70,3 +70,9 @@ Out of scope for the first slice:
   `.tex` from being opened as a Markdown `Document`, and introduced core
   compile input/artifact/error types with default PDF artifact path planning.
   The real Tectonic adapter and headless command remain next.
+- 2026-06-02: Evaluated `tectonic 0.16.9` as a Rust crate, but the build
+  required system `graphite2` discovery through `pkg-config` on macOS. Switched
+  the first adapter to a configurable Tectonic CLI invocation behind the same
+  `compile_tex` API. Core tests cover command success, compiler failure,
+  missing compiler diagnostics, missing output diagnostics, and custom output
+  path handling. The headless CLI entrypoint remains next.

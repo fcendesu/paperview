@@ -14,13 +14,17 @@ The current first implementation slice:
   Markdown.
 - Adds core compile input/artifact/error types.
 - Plans the default PDF artifact path as `source.tex` -> `source.pdf`.
-- Returns an explicit "Tectonic adapter not implemented yet" compile error.
+- Runs a configurable Tectonic command-line adapter. The default compiler name
+  is `tectonic`; callers may provide a custom compiler path for tests or
+  bundled runtimes.
+- Reports missing compiler, compiler failure, missing output PDF, and output
+  write errors as explicit compile errors.
 
 The next implementation slice should:
 
-- Compile a single entry `.tex` file with Tectonic into a PDF artifact.
-- Report compile success, output path, and compiler diagnostics without
-  launching a frontend.
+- Add a headless command that calls the core compile API.
+- Decide whether PaperView should bundle the Tectonic binary, discover it on
+  `PATH`, or expose a config setting for the compiler path.
 - Preserve PaperView's existing Markdown-first reader behavior.
 
 Later slices can expose compiled `.tex` output in the GUI and TUI:
@@ -32,9 +36,10 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
 
 ## Implementation Notes
 
-- Tectonic is the chosen full `.tex` engine because it is self-contained,
-  supports existing LaTeX/Overleaf-style sources, and has Rust-friendly library
-  and CLI integration paths.
+- Tectonic is the chosen full `.tex` engine because it is self-contained and
+  supports existing LaTeX/Overleaf-style sources.
+- The current adapter uses the Tectonic CLI shape: `tectonic --outdir <dir>
+  <entry.tex>`. This avoids linking the Rust crate into PaperView for now.
 - `.tex` support should not route through the Markdown parser. It needs a
   separate core model or artifact path so Markdown assumptions do not leak into
   compiled LaTeX workflows.
@@ -47,11 +52,13 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
 
 ## Decisions And Gaps
 
-- Decide whether the first implementation uses Tectonic's Rust APIs, a bundled
-  CLI invocation, or both behind a small adapter.
-- Decide where generated PDFs should live: beside the source file, in a
-  `.paperview/` cache directory, or in a temporary directory for check-only
-  runs.
+- The Rust crate integration was evaluated first, but `tectonic 0.16.9` pulled
+  in native bridge crates that required system `graphite2` discovery through
+  `pkg-config` on macOS. The CLI adapter is the selected first implementation
+  path until bundling/runtime policy is settled.
+- The current default generated PDF path is beside the source file. Future GUI
+  preview work may move generated artifacts into a `.paperview/` cache
+  directory.
 - Decide how to handle multi-file LaTeX projects that use `\input`,
   `\include`, images, bibliographies, or custom style files.
 - Decide whether GUI preview should open the generated PDF with the platform
