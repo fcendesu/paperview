@@ -66,3 +66,7 @@ Out of scope for the first slice:
 
 - 2026-06-02: Plan opened after selecting Tectonic as the full `.tex` support
   direction.
+- 2026-06-02: Added `.tex` recognition as a distinct file type, prevented
+  `.tex` from being opened as a Markdown `Document`, and introduced core
+  compile input/artifact/error types with default PDF artifact path planning.
+  The real Tectonic adapter and headless command remain next.

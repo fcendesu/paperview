@@ -2,13 +2,22 @@
 
 ## Product Behavior
 
-PaperView does not currently open full `.tex` documents. Future `.tex` support
-will target Overleaf-compatible LaTeX sources through Tectonic-backed
-compilation.
+PaperView does not currently open full `.tex` documents. `.tex` files are now
+recognized as a distinct supported file type, but they are not routed through
+the Markdown reader. Full `.tex` support will target Overleaf-compatible LaTeX
+sources through Tectonic-backed compilation.
 
-The first implementation slice should:
+The current first implementation slice:
 
-- Accept `.tex` source files as a distinct document kind.
+- Accepts `.tex` source files as a distinct file type.
+- Keeps `.tex` files out of `Document::open` so they are not parsed as
+  Markdown.
+- Adds core compile input/artifact/error types.
+- Plans the default PDF artifact path as `source.tex` -> `source.pdf`.
+- Returns an explicit "Tectonic adapter not implemented yet" compile error.
+
+The next implementation slice should:
+
 - Compile a single entry `.tex` file with Tectonic into a PDF artifact.
 - Report compile success, output path, and compiler diagnostics without
   launching a frontend.
@@ -29,8 +38,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
 - `.tex` support should not route through the Markdown parser. It needs a
   separate core model or artifact path so Markdown assumptions do not leak into
   compiled LaTeX workflows.
-- The first core API should prefer an explicit compile/check function over
-  silently compiling during `Document::open`.
+- The first core API uses an explicit compile function instead of silently
+  compiling during `Document::open`.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
 - Diagnostics should remain user-facing and testable: missing packages, syntax

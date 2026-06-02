@@ -9,6 +9,7 @@ pub mod presentation;
 pub mod search;
 pub mod split_view;
 pub mod stats;
+pub mod tex;
 pub mod watcher;
 pub mod zen_mode;
 
@@ -26,5 +27,8 @@ pub use search::{
 };
 pub use split_view::{SplitResize, SplitViewState, synced_scroll_offset};
 pub use stats::{DocumentStats, StatsHeading, document_stats};
+pub use tex::{
+    TexCompileArtifact, TexCompileError, TexCompileInput, compile_tex, tex_pdf_artifact_path,
+};
 pub use watcher::{FileWatcher, WatchError, WatchEvent, watch_file};
 pub use zen_mode::ZenModeState;

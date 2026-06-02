@@ -30,9 +30,17 @@ impl Document {
 
     pub fn open(path: impl AsRef<Path>) -> Result<Self, DocumentError> {
         let path = path.as_ref();
-        SupportedFileType::from_path(path).ok_or_else(|| DocumentError::UnsupportedFileType {
-            path: path.to_path_buf(),
+        let file_type = SupportedFileType::from_path(path).ok_or_else(|| {
+            DocumentError::UnsupportedFileType {
+                path: path.to_path_buf(),
+            }
         })?;
+        if !file_type.is_markdown_reader_document() {
+            return Err(DocumentError::CompiledFileRequiresCompile {
+                path: path.to_path_buf(),
+                file_type,
+            });
+        }
 
         let source = fs::read_to_string(path).map_err(|source| DocumentError::ReadFailed {
             path: path.to_path_buf(),
@@ -118,6 +126,7 @@ pub fn toggle_task_line_source(source: &str, line_index: usize) -> Option<String
 pub enum SupportedFileType {
     Markdown,
     PlainText,
+    Tex,
 }
 
 impl SupportedFileType {
@@ -132,15 +141,39 @@ impl SupportedFileType {
         {
             Some("md" | "markdown") => Some(Self::Markdown),
             Some("txt") => Some(Self::PlainText),
+            Some("tex") => Some(Self::Tex),
             _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_markdown_reader_document(self) -> bool {
+        matches!(self, Self::Markdown | Self::PlainText)
+    }
+
+    #[must_use]
+    pub fn extension_label(self) -> &'static str {
+        match self {
+            Self::Markdown => "Markdown",
+            Self::PlainText => "plain text",
+            Self::Tex => ".tex",
         }
     }
 }
 
 #[derive(Debug)]
 pub enum DocumentError {
-    UnsupportedFileType { path: PathBuf },
-    ReadFailed { path: PathBuf, source: io::Error },
+    UnsupportedFileType {
+        path: PathBuf,
+    },
+    CompiledFileRequiresCompile {
+        path: PathBuf,
+        file_type: SupportedFileType,
+    },
+    ReadFailed {
+        path: PathBuf,
+        source: io::Error,
+    },
 }
 
 impl fmt::Display for DocumentError {
@@ -148,6 +181,14 @@ impl fmt::Display for DocumentError {
         match self {
             Self::UnsupportedFileType { path } => {
                 write!(formatter, "unsupported document type: {}", path.display())
+            }
+            Self::CompiledFileRequiresCompile { path, file_type } => {
+                write!(
+                    formatter,
+                    "{} files must be compiled before viewing: {}",
+                    file_type.extension_label(),
+                    path.display()
+                )
             }
             Self::ReadFailed { path, source } => {
                 write!(formatter, "failed to read {}: {source}", path.display())
@@ -159,7 +200,7 @@ impl fmt::Display for DocumentError {
 impl std::error::Error for DocumentError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::UnsupportedFileType { .. } => None,
+            Self::UnsupportedFileType { .. } | Self::CompiledFileRequiresCompile { .. } => None,
             Self::ReadFailed { source, .. } => Some(source),
         }
     }
@@ -202,7 +243,30 @@ mod tests {
             SupportedFileType::from_path("notes.txt"),
             Some(SupportedFileType::PlainText)
         );
+        assert_eq!(
+            SupportedFileType::from_path("resume.tex"),
+            Some(SupportedFileType::Tex)
+        );
         assert_eq!(SupportedFileType::from_path("notes.html"), None);
+    }
+
+    #[test]
+    fn tex_files_are_not_opened_as_markdown_documents() {
+        let path = temp_path("open-tex-document.tex");
+        fs::write(&path, "\\documentclass{article}").expect("write test tex");
+
+        let error = Document::open(&path).expect_err("tex should require compile path");
+
+        assert!(matches!(
+            error,
+            DocumentError::CompiledFileRequiresCompile {
+                file_type: SupportedFileType::Tex,
+                ..
+            }
+        ));
+        assert!(error.to_string().contains("must be compiled"));
+
+        fs::remove_file(path).expect("remove test document");
     }
 
     #[test]
