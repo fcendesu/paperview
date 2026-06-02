@@ -17,7 +17,7 @@ PaperView follows the **Elm Architecture (TEA)** provided by Iced:
 struct PaperView {
     layout: LayoutMode,
     history: Vec<FileEntry>,
-    bookmarks: Vec<Bookmark>, // Planned; not implemented yet.
+    bookmarks: Vec<Bookmark>,
     ui_state: UIState,
 }
 
@@ -169,6 +169,12 @@ creation in `paperview-core::ConfigStore`. The shared config also owns the
 optional Tectonic compiler path used by headless `.tex` compilation. The TUI
 binary exposes headless `config path` and `config edit` commands without
 initializing Ratatui.
+
+The first bookmark implementation keeps persistent bookmark state in
+`paperview-core::BookmarkStore`, with `Bookmark` and `Bookmarks` modeling
+document path, title, heading-anchor, source-line, and scroll-progress
+metadata. The TUI binary exposes headless `bookmark list`, `bookmark add`,
+`bookmark remove`, and `bookmark prune` commands without initializing Ratatui.
 
 The first `.tex` document path keeps LaTeX sources out of `Document::open`.
 `paperview-core::compile_tex` owns Tectonic invocation and PDF artifact

@@ -2,19 +2,27 @@
 
 ## Product Behavior
 
-Bookmarks are planned but not implemented yet.
+Bookmarks are partially implemented. The current foundation is a viewer-first
+way to persist useful document locations without turning PaperView into a
+general notes database.
 
-The intended feature is a viewer-first way to save useful reading locations
-inside documents without turning PaperView into a general notes database.
+The first implemented slice supports:
 
-The first slice should support:
+- Store document path, title, optional heading anchor, optional source line, and
+  optional scroll progress metadata in a shared core model.
+- Persist bookmarks across launches in `bookmarks.toml` under the same
+  PaperView data directory pattern as history.
+- Override the bookmark store path with `PAPERVIEW_BOOKMARKS_PATH`.
+- Add, list, remove, and prune bookmarks through headless TUI commands:
+  `bookmark add <file> [--anchor slug|--line number]`, `bookmark list`,
+  `bookmark remove <index>`, and `bookmark prune`.
 
-- Bookmark the current document location.
-- Store the document path, title, optional heading anchor, and source-line or
-  scroll position metadata.
+Still planned:
+
+- Bookmark the current in-reader GUI/TUI location with keyboard shortcuts.
+- Navigate from a bookmark back to a document location.
 - Show saved bookmarks in the GUI navigation/sidebar area.
-- Expose keyboard-driven TUI bookmark actions and a bookmark list.
-- Persist bookmarks across launches.
+- Add an interactive TUI bookmark list.
 
 Bookmarks are distinct from:
 
@@ -24,20 +32,22 @@ Bookmarks are distinct from:
 
 ## Implementation Notes
 
-- Core should own a shared `Bookmark` model and `BookmarkStore`, similar to the
-  existing history/config store pattern.
+- Core owns a shared `Bookmark` model, `Bookmarks` collection, and
+  `BookmarkStore`, similar to the existing history/config store pattern.
 - GUI and TUI frontends should remain thin: they should create, list, navigate
   to, and remove bookmarks through core APIs.
 - Bookmark targets should prefer stable document identity plus heading/source
   metadata. Exact pixel scroll offsets are frontend-specific and should not be
   the only stored target.
-- Bookmark persistence should prune or mark missing document paths gracefully.
+- Bookmark persistence can prune missing document paths through the shared
+  collection and the `paperview-tui bookmark prune` command.
 
 ## Decisions And Gaps
 
-- Decide whether bookmarks should be global, per-workspace, or both.
-- Decide whether a bookmark is tied to a heading, a source line, scroll
-  progress, or a combination.
+- Current bookmarks are global by default. Decide whether per-workspace stores
+  should be added later.
+- Current bookmarks can store heading anchor, source line, and scroll progress
+  metadata. Decide how GUI/TUI navigation should choose among those targets.
 - Decide keyboard shortcuts for GUI and TUI without colliding with existing
   navigation, tabs, search, editing, presentation, and split-view controls.
 - Decide whether the GUI history rail and bookmarks share a panel or use
@@ -50,7 +60,6 @@ The first implementation should include:
 ```sh
 cargo fmt --all
 cargo test -p paperview-core bookmark
-cargo test -p paperview-gui bookmark
 cargo test -p paperview-tui bookmark
 cargo clippy --workspace -- -D warnings
 cargo test --workspace

@@ -82,6 +82,54 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
         [command, action] if command == "tex" && action == "doctor" => {
             tex_doctor_command().map(|report| println!("{report}"))
         }
+        [command, action] if command == "bookmark" && action == "list" => {
+            bookmark_list_command().map(|report| println!("{report}"))
+        }
+        [command, action, index] if command == "bookmark" && action == "remove" => {
+            bookmark_remove_command(
+                index
+                    .to_string_lossy()
+                    .parse::<usize>()
+                    .map_err(|error| format!("bookmark index must be a number: {error}"))?,
+            )
+            .map(|report| println!("{report}"))
+        }
+        [command, action] if command == "bookmark" && action == "prune" => {
+            bookmark_prune_command().map(|report| println!("{report}"))
+        }
+        [command, action, path] if command == "bookmark" && action == "add" => {
+            bookmark_add_command(PathBuf::from(path), BookmarkOptions::default())
+                .map(|report| println!("{report}"))
+        }
+        [command, action, path, flag, value]
+            if command == "bookmark" && action == "add" && flag == "--anchor" =>
+        {
+            bookmark_add_command(
+                PathBuf::from(path),
+                BookmarkOptions {
+                    heading_anchor: Some(value.to_string_lossy().to_string()),
+                    ..BookmarkOptions::default()
+                },
+            )
+            .map(|report| println!("{report}"))
+        }
+        [command, action, path, flag, value]
+            if command == "bookmark" && action == "add" && flag == "--line" =>
+        {
+            bookmark_add_command(
+                PathBuf::from(path),
+                BookmarkOptions {
+                    source_line: Some(
+                        value
+                            .to_string_lossy()
+                            .parse::<usize>()
+                            .map_err(|error| format!("bookmark line must be a number: {error}"))?,
+                    ),
+                    ..BookmarkOptions::default()
+                },
+            )
+            .map(|report| println!("{report}"))
+        }
         [command, action] if command == "config" && action == "path" => {
             println!(
                 "{}",
@@ -143,14 +191,14 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 }
 
 fn usage_text() -> String {
-    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui tex clean <file.tex|dir>\n       paperview-tui tex doctor\n       paperview-tui config path\n       paperview-tui config edit"
+    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui tex clean <file.tex|dir>\n       paperview-tui tex doctor\n       paperview-tui bookmark list\n       paperview-tui bookmark add <file> [--anchor slug|--line number]\n       paperview-tui bookmark remove <index>\n       paperview-tui bookmark prune\n       paperview-tui config path\n       paperview-tui config edit"
         .to_owned()
 }
 
 fn is_reserved_command(value: &OsString) -> bool {
     matches!(
         value.to_string_lossy().as_ref(),
-        "search" | "stats" | "perf" | "export" | "tex" | "config"
+        "search" | "stats" | "perf" | "export" | "tex" | "bookmark" | "config"
     )
 }
 
@@ -167,6 +215,112 @@ fn open_documents<'a>(
 
 fn config_path_text(store: &paperview_core::ConfigStore) -> String {
     store.path().display().to_string()
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct BookmarkOptions {
+    heading_anchor: Option<String>,
+    source_line: Option<usize>,
+}
+
+fn bookmark_list_command() -> Result<String, String> {
+    let store = paperview_core::BookmarkStore::default();
+    bookmark_list_command_with_store(&store)
+}
+
+fn bookmark_list_command_with_store(
+    store: &paperview_core::BookmarkStore,
+) -> Result<String, String> {
+    let bookmarks = store.load().map_err(|error| error.to_string())?;
+    Ok(bookmarks_text(&bookmarks))
+}
+
+fn bookmark_add_command(path: PathBuf, options: BookmarkOptions) -> Result<String, String> {
+    let store = paperview_core::BookmarkStore::default();
+    bookmark_add_command_with_store(path, options, &store)
+}
+
+fn bookmark_add_command_with_store(
+    path: PathBuf,
+    options: BookmarkOptions,
+    store: &paperview_core::BookmarkStore,
+) -> Result<String, String> {
+    let document = paperview_core::Document::open(path).map_err(|error| error.to_string())?;
+    let mut bookmark = paperview_core::Bookmark::from_document(&document)
+        .ok_or_else(|| "cannot bookmark an in-memory document".to_owned())?;
+
+    if let Some(heading_anchor) = options.heading_anchor {
+        bookmark = bookmark.with_heading_anchor(heading_anchor);
+    }
+    if let Some(source_line) = options.source_line {
+        bookmark = bookmark.with_source_line(source_line);
+    }
+
+    let mut bookmarks = store.load().map_err(|error| error.to_string())?;
+    bookmarks.add(bookmark.clone());
+    store.save(&bookmarks).map_err(|error| error.to_string())?;
+
+    Ok(format!("Bookmarked {}", bookmark_label(&bookmark)))
+}
+
+fn bookmark_remove_command(index: usize) -> Result<String, String> {
+    let store = paperview_core::BookmarkStore::default();
+    bookmark_remove_command_with_store(index, &store)
+}
+
+fn bookmark_remove_command_with_store(
+    index: usize,
+    store: &paperview_core::BookmarkStore,
+) -> Result<String, String> {
+    let mut bookmarks = store.load().map_err(|error| error.to_string())?;
+    let bookmark = bookmarks
+        .remove(index)
+        .ok_or_else(|| format!("bookmark index {index} not found"))?;
+    store.save(&bookmarks).map_err(|error| error.to_string())?;
+
+    Ok(format!("Removed {}", bookmark_label(&bookmark)))
+}
+
+fn bookmark_prune_command() -> Result<String, String> {
+    let store = paperview_core::BookmarkStore::default();
+    bookmark_prune_command_with_store(&store)
+}
+
+fn bookmark_prune_command_with_store(
+    store: &paperview_core::BookmarkStore,
+) -> Result<String, String> {
+    let mut bookmarks = store.load().map_err(|error| error.to_string())?;
+    let removed = bookmarks.prune_missing();
+    store.save(&bookmarks).map_err(|error| error.to_string())?;
+
+    Ok(format!("Pruned {removed} missing bookmark(s)"))
+}
+
+fn bookmarks_text(bookmarks: &paperview_core::Bookmarks) -> String {
+    if bookmarks.is_empty() {
+        return "No bookmarks".to_owned();
+    }
+
+    bookmarks
+        .entries()
+        .iter()
+        .enumerate()
+        .map(|(index, bookmark)| format!("{index}: {}", bookmark_label(bookmark)))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn bookmark_label(bookmark: &paperview_core::Bookmark) -> String {
+    let mut label = format!("{} ({})", bookmark.title(), bookmark.path().display());
+
+    if let Some(anchor) = bookmark.heading_anchor() {
+        label.push_str(&format!(" #{anchor}"));
+    }
+    if let Some(line) = bookmark.source_line() {
+        label.push_str(&format!(" line {line}"));
+    }
+
+    label
 }
 
 fn write_export(
@@ -911,18 +1065,20 @@ mod tests {
         ffi::OsString,
         fs,
         path::{Path, PathBuf},
-        time::Duration,
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
 
     use paperview_core::{ConfigStore, Document, WorkspaceSearchMatch};
 
     use super::{
-        LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, StartupPerfReport,
-        StartupTarget, TexDoctorCompilerSource, TexDoctorReport, TexDoctorSmoke, config_path_text,
-        export_path, format_bytes, format_duration, is_reserved_command, measure_perf,
-        measure_startup, open_documents, perf_text, run, startup_perf_text, stats_json_text,
-        stats_text, tex_clean_command, tex_clean_target, tex_compile_input, tex_compile_text,
-        tex_doctor_text, workspace_search_text,
+        BookmarkOptions, LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload,
+        StartupPerfReport, StartupTarget, TexDoctorCompilerSource, TexDoctorReport, TexDoctorSmoke,
+        bookmark_add_command_with_store, bookmark_list_command_with_store,
+        bookmark_prune_command_with_store, bookmark_remove_command_with_store, bookmarks_text,
+        config_path_text, export_path, format_bytes, format_duration, is_reserved_command,
+        measure_perf, measure_startup, open_documents, perf_text, run, startup_perf_text,
+        stats_json_text, stats_text, tex_clean_command, tex_clean_target, tex_compile_input,
+        tex_compile_text, tex_doctor_text, workspace_search_text,
     };
 
     #[test]
@@ -1063,6 +1219,72 @@ mod tests {
         let store = ConfigStore::new("/tmp/paperview-test-config.toml");
 
         assert_eq!(config_path_text(&store), "/tmp/paperview-test-config.toml");
+    }
+
+    #[test]
+    fn formats_empty_and_populated_bookmark_lists() {
+        let mut bookmarks = paperview_core::Bookmarks::new();
+
+        assert_eq!(bookmarks_text(&bookmarks), "No bookmarks");
+
+        bookmarks.add(
+            paperview_core::Bookmark::new("docs/PRD.md", "PRD")
+                .with_heading_anchor("phase-2")
+                .with_source_line(42),
+        );
+
+        assert_eq!(
+            bookmarks_text(&bookmarks),
+            "0: PRD (docs/PRD.md) #phase-2 line 42"
+        );
+    }
+
+    #[test]
+    fn bookmark_commands_add_list_remove_and_prune() {
+        let stem = temp_stem("bookmark-command");
+        let document_path = env::temp_dir().join(format!("{stem}.md"));
+        let missing_path = env::temp_dir().join(format!("{stem}-missing.md"));
+        let store_path = env::temp_dir().join(format!("{stem}-bookmarks.toml"));
+        let store = paperview_core::BookmarkStore::new(&store_path);
+        fs::write(&document_path, "# Bookmark Me\n\nBody").expect("write document");
+
+        let add_report = bookmark_add_command_with_store(
+            document_path.clone(),
+            BookmarkOptions {
+                source_line: Some(2),
+                ..BookmarkOptions::default()
+            },
+            &store,
+        )
+        .expect("add bookmark");
+        assert!(add_report.contains("Bookmarked Bookmark Me"));
+        assert!(add_report.contains("line 2"));
+
+        assert!(
+            bookmark_list_command_with_store(&store)
+                .expect("list bookmarks")
+                .contains("0: Bookmark Me")
+        );
+
+        let mut bookmarks = store.load().expect("load bookmarks");
+        bookmarks.add(paperview_core::Bookmark::new(&missing_path, "Missing"));
+        store.save(&bookmarks).expect("save missing bookmark");
+
+        assert_eq!(
+            bookmark_prune_command_with_store(&store).expect("prune bookmarks"),
+            "Pruned 1 missing bookmark(s)"
+        );
+        assert_eq!(
+            bookmark_remove_command_with_store(0, &store).expect("remove bookmark"),
+            format!("Removed Bookmark Me ({}) line 2", document_path.display())
+        );
+        assert_eq!(
+            bookmark_list_command_with_store(&store).expect("list bookmarks"),
+            "No bookmarks"
+        );
+
+        fs::remove_file(document_path).expect("remove document");
+        fs::remove_file(store_path).expect("remove bookmarks");
     }
 
     #[test]
@@ -1230,6 +1452,7 @@ mod tests {
         assert!(error.contains("paperview-tui tex compile <file.tex> [--open]"));
         assert!(error.contains("paperview-tui tex clean <file.tex|dir>"));
         assert!(error.contains("paperview-tui tex doctor"));
+        assert!(error.contains("paperview-tui bookmark list"));
     }
 
     #[test]
@@ -1337,5 +1560,13 @@ mod tests {
         assert_eq!(reader.load_target_duration, LOAD_TARGET_DURATION);
 
         fs::remove_file(path).expect("remove startup perf document");
+    }
+
+    fn temp_stem(prefix: &str) -> String {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        format!("paperview-{prefix}-{nanos}")
     }
 }

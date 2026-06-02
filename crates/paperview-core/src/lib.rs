@@ -1,3 +1,4 @@
+pub mod bookmarks;
 pub mod config;
 pub mod document;
 pub mod editing;
@@ -13,6 +14,7 @@ pub mod tex;
 pub mod watcher;
 pub mod zen_mode;
 
+pub use bookmarks::{Bookmark, BookmarkStore, BookmarkStoreError, Bookmarks};
 pub use config::{Config, ConfigStore, ConfigStoreError, ThemePreference};
 pub use document::{Document, DocumentError, SupportedFileType, toggle_task_line_source};
 pub use editing::{EditSession, EditSessionError};

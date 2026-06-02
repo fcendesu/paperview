@@ -12,6 +12,8 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
+- [Bookmarks Foundation](active/bookmarks-foundation.md) - shared bookmark
+  persistence and first headless TUI command surface.
 - [Tectonic `.tex` Support](active/tectonic-tex-support.md) - full LaTeX
   document compilation path for Overleaf-compatible sources.
 

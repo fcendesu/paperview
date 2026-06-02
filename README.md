@@ -165,6 +165,17 @@ tex_compiler_path = "/path/to/tectonic"
 The GUI also accepts `.tex` files on launch, drag-and-drop, or local document
 links. It compiles them through Tectonic and opens the generated PDF externally.
 
+Manage persistent bookmarks from the TUI command surface:
+
+```sh
+cargo run -p paperview-tui -- bookmark add docs/PRD.md
+cargo run -p paperview-tui -- bookmark add docs/PRD.md --line 42
+cargo run -p paperview-tui -- bookmark add docs/PRD.md --anchor phase-2
+cargo run -p paperview-tui -- bookmark list
+cargo run -p paperview-tui -- bookmark remove 0
+cargo run -p paperview-tui -- bookmark prune
+```
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.
