@@ -32,7 +32,9 @@ The current first implementation slice:
   GUI compilation runs through Iced tasks so the app can show `Compiling ...`
   instead of blocking on Tectonic. After a successful compile, the GUI header
   exposes `Open PDF` and `Clean PDF` actions for reopening or removing the
-  generated artifact.
+  generated artifact. The main GUI reader area also shows a `.tex` status panel
+  with the source path, managed PDF path, meaningful Tectonic diagnostics, and
+  the same artifact actions.
 - Honors the optional `tex_compiler_path` config setting when the Tectonic
   executable lives outside `PATH`.
 - Includes `docs/fixtures/minimal.tex` as a local smoke fixture for doctor and
@@ -73,11 +75,12 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   compile removes the generated fixture PDF after a successful check.
 - The `--open` option delegates the generated PDF artifact to the existing
   platform opener helper. It does not embed PDF rendering in PaperView.
-- GUI `.tex` opening uses the same external-open behavior for now and reports
+- GUI `.tex` opening uses the same external-open behavior for now, reports
   `Compiling ...` followed by the source/output artifact path in shell status
-  text. The compiled status exposes `Open PDF` and `Clean PDF` header actions.
-  Launch-time `.tex` startup returns an initial compile task through the Iced
-  boot function.
+  text, and keeps the no-document reader area on a dedicated `.tex` status
+  panel. The compiled status exposes `Open PDF` and `Clean PDF` in both the
+  header and the panel. Launch-time `.tex` startup returns an initial compile
+  task through the Iced boot function.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
 - Generated PDFs and Tectonic byproducts under `docs/fixtures/.paperview/` are

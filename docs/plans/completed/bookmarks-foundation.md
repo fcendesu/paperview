@@ -48,3 +48,5 @@ headless TUI commands to add, list, remove, and prune bookmarks.
   task.
 - 2026-06-02: Added GUI fallback navigation for anchorless bookmarks, using
   stored source-line positions first and stored scroll progress second.
+- 2026-06-02: Completed the planned bookmark foundation slice. Remaining
+  bookmark ideas are product follow-ups, not blockers for this plan.

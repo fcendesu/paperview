@@ -118,3 +118,7 @@ Out of scope for the first slice:
   status without switching to the TUI.
 - 2026-06-02: Added `paperview-tui tex doctor` to report compiler path source,
   Tectonic version availability, and a minimal fixture smoke compile result.
+- 2026-06-02: Added a GUI `.tex` status panel for compiling, compiled, and
+  cleaned states. Successful compiles now preserve meaningful Tectonic
+  diagnostics in GUI state and show source/output paths plus `Open PDF` and
+  `Clean PDF` actions in the main reader area.

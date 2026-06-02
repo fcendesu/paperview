@@ -70,12 +70,28 @@ pub struct PaperView {
 enum Status {
     Empty,
     Loaded(PathBuf),
-    Bookmarked { title: String, path: PathBuf },
+    Bookmarked {
+        title: String,
+        path: PathBuf,
+    },
     CompilingTex(PathBuf),
-    CompiledTex { source: PathBuf, output: PathBuf },
-    CleanedTex { source: PathBuf, output: PathBuf },
+    CompiledTex {
+        source: PathBuf,
+        output: PathBuf,
+        diagnostics: String,
+    },
+    CleanedTex {
+        source: PathBuf,
+        output: PathBuf,
+    },
     Hovering(PathBuf),
     Error(String),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TexGuiCompileOutput {
+    output: PathBuf,
+    diagnostics: String,
 }
 
 #[derive(Debug, Clone)]
@@ -103,7 +119,7 @@ pub enum Message {
     LinkOpenFailed(String),
     TexCompileFinished {
         source: PathBuf,
-        result: Result<PathBuf, String>,
+        result: Result<TexGuiCompileOutput, String>,
     },
     OpenCompiledTex(PathBuf),
     CleanCompiledTex {
@@ -602,10 +618,14 @@ impl PaperView {
         )
     }
 
-    fn finish_tex_compile(&mut self, source: PathBuf, result: Result<PathBuf, String>) {
+    fn finish_tex_compile(&mut self, source: PathBuf, result: Result<TexGuiCompileOutput, String>) {
         match result {
-            Ok(output) => {
-                self.status = Status::CompiledTex { source, output };
+            Ok(compiled) => {
+                self.status = Status::CompiledTex {
+                    source,
+                    output: compiled.output,
+                    diagnostics: compiled.diagnostics,
+                };
             }
             Err(error) => {
                 self.status = Status::Error(error);
@@ -1843,6 +1863,7 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
             ]
             .into()
         }
+        None if is_tex_status(&state.status) => tex_status_panel(&state.status),
         None => empty_state(&state.status),
     };
     let layout = if state.zen_mode.is_enabled() || state.presentation_deck.is_some() {
@@ -2195,7 +2216,7 @@ fn compile_tex_for_gui(
     path: &Path,
     config: &Config,
     open_after_compile: bool,
-) -> Result<PathBuf, String> {
+) -> Result<TexGuiCompileOutput, String> {
     let mut input = paperview_core::TexCompileInput::new(path);
     if let Some(compiler_path) = &config.tex_compiler_path {
         input = input.with_compiler_path(compiler_path);
@@ -2203,12 +2224,16 @@ fn compile_tex_for_gui(
 
     let artifact = paperview_core::compile_tex(&input).map_err(|error| error.to_string())?;
     let output_path = artifact.output_path().to_path_buf();
+    let diagnostics = artifact.diagnostics().to_owned();
 
     if open_after_compile {
         open_link_target(output_path.display().to_string())?;
     }
 
-    Ok(output_path)
+    Ok(TexGuiCompileOutput {
+        output: output_path,
+        diagnostics,
+    })
 }
 
 fn open_link_target(target: String) -> Result<(), String> {
@@ -2272,7 +2297,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
                 format!("Bookmarked {title} - {}", path.display())
             }
             Status::CompilingTex(path) => format!("Compiling {}", path.display()),
-            Status::CompiledTex { source, output } => {
+            Status::CompiledTex { source, output, .. } => {
                 format!("Compiled {} -> {}", source.display(), output.display())
             }
             Status::CleanedTex { source, output } => {
@@ -2418,9 +2443,114 @@ fn compiled_tex_output_path(status: &Status) -> Option<PathBuf> {
 
 fn compiled_tex_artifact_paths(status: &Status) -> Option<(PathBuf, PathBuf)> {
     match status {
-        Status::CompiledTex { source, output } => Some((source.clone(), output.clone())),
+        Status::CompiledTex { source, output, .. } => Some((source.clone(), output.clone())),
         _ => None,
     }
+}
+
+fn is_tex_status(status: &Status) -> bool {
+    matches!(
+        status,
+        Status::CompilingTex(_) | Status::CompiledTex { .. } | Status::CleanedTex { .. }
+    )
+}
+
+fn tex_status_panel(status: &Status) -> Element<'_, Message> {
+    let title = match status {
+        Status::CompilingTex(_) => "Compiling LaTeX",
+        Status::CompiledTex { .. } => "LaTeX compiled",
+        Status::CleanedTex { .. } => "LaTeX artifact cleaned",
+        _ => "LaTeX",
+    };
+    let detail = match status {
+        Status::CompilingTex(_) => "Tectonic is generating a managed PDF artifact.",
+        Status::CompiledTex { .. } => "The generated PDF is available as an external artifact.",
+        Status::CleanedTex { .. } => "The generated PDF artifact was removed.",
+        _ => "",
+    };
+
+    let mut rows = column![
+        text(title).size(28).color(theme::READER_TEXT),
+        text(detail).size(15).color(theme::READER_TEXT_MUTED)
+    ]
+    .spacing(12);
+
+    match status {
+        Status::CompilingTex(source) => {
+            rows = rows.push(tex_status_row("Source", source));
+        }
+        Status::CompiledTex {
+            source,
+            output,
+            diagnostics,
+        } => {
+            rows = rows
+                .push(tex_status_row("Source", source))
+                .push(tex_status_row("Output", output));
+            if let Some(diagnostics) = meaningful_tex_diagnostics(diagnostics) {
+                rows = rows.push(tex_diagnostics_block(diagnostics));
+            }
+            rows = rows.push(tex_status_actions(source.clone(), output.clone()));
+        }
+        Status::CleanedTex { source, output } => {
+            rows = rows
+                .push(tex_status_row("Source", source))
+                .push(tex_status_row("Removed", output));
+        }
+        _ => {}
+    }
+
+    container(
+        container(rows)
+            .padding(48)
+            .max_width(860)
+            .style(|_| theme::paper_container()),
+    )
+    .width(Fill)
+    .height(Fill)
+    .center(Fill)
+    .style(|_| theme::reader_backdrop())
+    .into()
+}
+
+fn tex_status_row<'a>(label: &'static str, path: &'a Path) -> Element<'a, Message> {
+    column![
+        text(label).size(12).color(theme::READER_TEXT_MUTED),
+        text(path.display().to_string())
+            .size(14)
+            .color(theme::READER_TEXT)
+    ]
+    .spacing(3)
+    .into()
+}
+
+fn tex_diagnostics_block(diagnostics: &str) -> Element<'_, Message> {
+    column![
+        text("Diagnostics").size(12).color(theme::READER_TEXT_MUTED),
+        text(diagnostics.to_owned())
+            .size(13)
+            .color(theme::READER_TEXT)
+    ]
+    .spacing(3)
+    .into()
+}
+
+fn meaningful_tex_diagnostics(diagnostics: &str) -> Option<&str> {
+    let diagnostics = diagnostics.trim();
+    (!diagnostics.is_empty() && diagnostics != "compiled with Tectonic").then_some(diagnostics)
+}
+
+fn tex_status_actions(source: PathBuf, output: PathBuf) -> Element<'static, Message> {
+    let open_button = button(text("Open PDF").size(13))
+        .padding([7, 12])
+        .on_press(Message::OpenCompiledTex(output.clone()))
+        .style(move |_, status| theme::header_action_button(false, status));
+    let clean_button = button(text("Clean PDF").size(13))
+        .padding([7, 12])
+        .on_press(Message::CleanCompiledTex { source, output })
+        .style(move |_, status| theme::header_action_button(false, status));
+
+    row![open_button, clean_button].spacing(8).into()
 }
 
 fn search_controls(state: &PaperView) -> Element<'_, Message> {
@@ -2601,11 +2731,12 @@ mod tests {
     };
 
     use super::{
-        Message, PaperView, SplitResize, Status, bookmark_scroll_progress, compile_tex_for_gui,
-        compiled_tex_output_path, is_split_divider_hit, normalized_scroll_progress,
-        open_link_target, reader, remote_image_placeholders, resolve_link_target,
-        resolve_local_document_link, runtime_event, search_scroll_progress,
-        split_primary_width_from_cursor, test_bookmark_store, test_config_store, title, update,
+        Message, PaperView, SplitResize, Status, TexGuiCompileOutput, bookmark_scroll_progress,
+        compile_tex_for_gui, compiled_tex_output_path, is_split_divider_hit, is_tex_status,
+        meaningful_tex_diagnostics, normalized_scroll_progress, open_link_target, reader,
+        remote_image_placeholders, resolve_link_target, resolve_local_document_link, runtime_event,
+        search_scroll_progress, split_primary_width_from_cursor, test_bookmark_store,
+        test_config_store, title, update,
     };
 
     #[test]
@@ -3147,7 +3278,7 @@ mod tests {
         let compiler_path = fake_tectonic_compiler(&stem);
         fs::write(&tex_path, "\\documentclass{article}").expect("write tex fixture");
 
-        let output = compile_tex_for_gui(
+        let compiled = compile_tex_for_gui(
             &tex_path,
             &Config {
                 tex_compiler_path: Some(compiler_path.clone()),
@@ -3158,7 +3289,7 @@ mod tests {
         .expect("compile tex");
 
         assert_eq!(
-            output,
+            compiled.output,
             tex_path
                 .parent()
                 .expect("tex parent")
@@ -3166,10 +3297,15 @@ mod tests {
                 .join(tex_path.file_name().expect("tex file name"))
                 .with_extension("pdf")
         );
-        assert!(output.exists());
+        assert!(compiled.output.exists());
+        assert!(
+            compiled
+                .diagnostics
+                .contains("compiled from fake gui tectonic")
+        );
 
         fs::remove_file(tex_path).expect("remove tex fixture");
-        fs::remove_file(output).expect("remove pdf fixture");
+        fs::remove_file(compiled.output).expect("remove pdf fixture");
         fs::remove_file(compiler_path).expect("remove fake compiler");
     }
 
@@ -3194,11 +3330,19 @@ mod tests {
         );
 
         let output = tex_path.with_extension("pdf");
-        state.finish_tex_compile(tex_path.clone(), Ok(output.clone()));
+        state.finish_tex_compile(
+            tex_path.clone(),
+            Ok(TexGuiCompileOutput {
+                output: output.clone(),
+                diagnostics: "warning: check package".to_owned(),
+            }),
+        );
 
         assert!(
-            matches!(state.status, super::Status::CompiledTex { ref source, ref output }
-                if source == &tex_path && output == &tex_path.with_extension("pdf"))
+            matches!(state.status, super::Status::CompiledTex { ref source, ref output, ref diagnostics }
+                if source == &tex_path
+                    && output == &tex_path.with_extension("pdf")
+                    && diagnostics == "warning: check package")
         );
 
         fs::remove_file(tex_path).expect("remove tex fixture");
@@ -3219,8 +3363,33 @@ mod tests {
             compiled_tex_output_path(&Status::CompiledTex {
                 source,
                 output: output.clone(),
+                diagnostics: String::new(),
             }),
             Some(output)
+        );
+    }
+
+    #[test]
+    fn tex_status_panel_states_are_detected() {
+        let source = PathBuf::from("paper.tex");
+        let output = PathBuf::from(".paperview/tex/paper.pdf");
+
+        assert!(!is_tex_status(&Status::Empty));
+        assert!(is_tex_status(&Status::CompilingTex(source.clone())));
+        assert!(is_tex_status(&Status::CompiledTex {
+            source: source.clone(),
+            output: output.clone(),
+            diagnostics: String::new(),
+        }));
+        assert!(is_tex_status(&Status::CleanedTex { source, output }));
+    }
+
+    #[test]
+    fn meaningful_tex_diagnostics_filters_default_message() {
+        assert_eq!(meaningful_tex_diagnostics("compiled with Tectonic"), None);
+        assert_eq!(
+            meaningful_tex_diagnostics(" warning: package missing "),
+            Some("warning: package missing")
         );
     }
 
