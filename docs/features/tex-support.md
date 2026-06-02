@@ -24,6 +24,9 @@ The current first implementation slice:
   opener after a successful compile.
 - Adds a headless `tex clean <file.tex|dir>` command for removing generated
   `.paperview/tex/` artifacts.
+- Adds a headless `tex doctor` command that reports the selected compiler path,
+  whether it came from config or PATH/default discovery, the Tectonic version,
+  and a minimal fixture smoke compile result.
 - GUI launch, drag-and-drop, and local-link open flows compile `.tex` files and
   open the generated PDF externally as the first desktop preview behavior.
   GUI compilation runs through Iced tasks so the app can show `Compiling ...`
@@ -32,8 +35,8 @@ The current first implementation slice:
   generated artifact.
 - Honors the optional `tex_compiler_path` config setting when the Tectonic
   executable lives outside `PATH`.
-- Includes `docs/fixtures/minimal.tex` as a local smoke fixture for manual
-  end-to-end compile checks.
+- Includes `docs/fixtures/minimal.tex` as a local smoke fixture for doctor and
+  manual end-to-end compile checks.
 - Reports missing compiler, compiler failure, missing output PDF, and output
   write errors as explicit compile errors.
 
@@ -65,6 +68,9 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   diagnostics when the compiler reports them.
 - `tex clean <file.tex>` removes that file's managed PDF artifact. `tex clean
   <dir>` removes `<dir>/.paperview/tex/`.
+- `tex doctor` uses `tectonic --version` for compiler diagnostics and then
+  compiles `docs/fixtures/minimal.tex` through the same core adapter. The smoke
+  compile removes the generated fixture PDF after a successful check.
 - The `--open` option delegates the generated PDF artifact to the existing
   platform opener helper. It does not embed PDF rendering in PaperView.
 - GUI `.tex` opening uses the same external-open behavior for now and reports
@@ -109,14 +115,14 @@ cargo clippy --workspace -- -D warnings
 cargo test --workspace
 ```
 
-When Tectonic is installed, run the optional end-to-end smoke check:
+When Tectonic is installed, run the optional diagnostics check:
 
 ```sh
-cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
+cargo run -p paperview-tui -- tex doctor
 ```
 
 The generated `docs/fixtures/.paperview/tex/minimal.pdf` and Tectonic byproducts
-are ignored and should remain uncommitted.
+are ignored and should remain uncommitted if a manual compile leaves them behind.
 
 The latest local smoke result:
 

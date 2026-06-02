@@ -116,3 +116,5 @@ Out of scope for the first slice:
 - 2026-06-02: Added a GUI `Clean PDF` header action after successful `.tex`
   compilation so users can remove the managed PDF artifact from the compiled
   status without switching to the TUI.
+- 2026-06-02: Added `paperview-tui tex doctor` to report compiler path source,
+  Tectonic version availability, and a minimal fixture smoke compile result.

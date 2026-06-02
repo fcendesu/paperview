@@ -79,6 +79,9 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
         [command, action, path] if command == "tex" && action == "clean" => {
             tex_clean_command(PathBuf::from(path)).map(|report| println!("{report}"))
         }
+        [command, action] if command == "tex" && action == "doctor" => {
+            tex_doctor_command().map(|report| println!("{report}"))
+        }
         [command, action] if command == "config" && action == "path" => {
             println!(
                 "{}",
@@ -140,7 +143,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 }
 
 fn usage_text() -> String {
-    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui tex clean <file.tex|dir>\n       paperview-tui config path\n       paperview-tui config edit"
+    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui tex clean <file.tex|dir>\n       paperview-tui tex doctor\n       paperview-tui config path\n       paperview-tui config edit"
         .to_owned()
 }
 
@@ -222,6 +225,152 @@ fn tex_compile_input(
         input.with_compiler_path(compiler_path)
     } else {
         input
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TexDoctorReport {
+    compiler_path: PathBuf,
+    source: TexDoctorCompilerSource,
+    version: Result<String, String>,
+    smoke: TexDoctorSmoke,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TexDoctorCompilerSource {
+    Config,
+    Path,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TexDoctorSmoke {
+    Passed(PathBuf),
+    Failed(String),
+    MissingFixture(PathBuf),
+}
+
+fn tex_doctor_command() -> Result<String, String> {
+    let config = paperview_core::ConfigStore::default()
+        .load()
+        .map_err(|error| error.to_string())?;
+    let compiler_path = config
+        .tex_compiler_path
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("tectonic"));
+    let source = if config.tex_compiler_path.is_some() {
+        TexDoctorCompilerSource::Config
+    } else {
+        TexDoctorCompilerSource::Path
+    };
+    let version = tex_compiler_version(&compiler_path);
+    let smoke = tex_doctor_smoke(&compiler_path, Path::new("docs/fixtures/minimal.tex"));
+
+    Ok(tex_doctor_text(&TexDoctorReport {
+        compiler_path,
+        source,
+        version,
+        smoke,
+    }))
+}
+
+fn tex_compiler_version(compiler_path: &Path) -> Result<String, String> {
+    let output = Command::new(compiler_path)
+        .arg("--version")
+        .output()
+        .map_err(|error| {
+            format!(
+                "failed to run {} --version: {error}",
+                compiler_path.display()
+            )
+        })?;
+
+    let text = process_output_text(&output.stdout, &output.stderr);
+    if output.status.success() {
+        Ok(text
+            .lines()
+            .next()
+            .unwrap_or("version output was empty")
+            .to_owned())
+    } else {
+        Err(format!(
+            "{} --version exited with {}{}",
+            compiler_path.display(),
+            output.status,
+            format_optional_output(&text)
+        ))
+    }
+}
+
+fn tex_doctor_smoke(compiler_path: &Path, fixture_path: &Path) -> TexDoctorSmoke {
+    if !fixture_path.exists() {
+        return TexDoctorSmoke::MissingFixture(fixture_path.to_path_buf());
+    }
+
+    let input =
+        paperview_core::TexCompileInput::new(fixture_path).with_compiler_path(compiler_path);
+
+    match paperview_core::compile_tex(&input) {
+        Ok(artifact) => {
+            let output = artifact.output_path().to_path_buf();
+            let _ = fs::remove_file(&output);
+            TexDoctorSmoke::Passed(output)
+        }
+        Err(error) => TexDoctorSmoke::Failed(error.to_string()),
+    }
+}
+
+fn tex_doctor_text(report: &TexDoctorReport) -> String {
+    let source = match report.source {
+        TexDoctorCompilerSource::Config => "config tex_compiler_path",
+        TexDoctorCompilerSource::Path => "PATH/default",
+    };
+    let mut lines = vec![
+        "Tectonic doctor".to_owned(),
+        format!("Compiler: {} ({source})", report.compiler_path.display()),
+    ];
+
+    match &report.version {
+        Ok(version) => {
+            lines.push(format!("Version: {version}"));
+        }
+        Err(error) => {
+            lines.push(format!("Version: unavailable - {error}"));
+            lines.push(
+                "Install Tectonic or set tex_compiler_path in the PaperView config.".to_owned(),
+            );
+        }
+    }
+
+    match &report.smoke {
+        TexDoctorSmoke::Passed(output) => {
+            lines.push(format!("Smoke compile: ok ({})", output.display()));
+        }
+        TexDoctorSmoke::Failed(error) => {
+            lines.push(format!("Smoke compile: failed - {error}"));
+        }
+        TexDoctorSmoke::MissingFixture(path) => {
+            lines.push(format!(
+                "Smoke compile: skipped - missing {}",
+                path.display()
+            ));
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn process_output_text(stdout: &[u8], stderr: &[u8]) -> String {
+    let mut text = String::new();
+    text.push_str(&String::from_utf8_lossy(stdout));
+    text.push_str(&String::from_utf8_lossy(stderr));
+    text.trim().to_owned()
+}
+
+fn format_optional_output(text: &str) -> String {
+    if text.is_empty() {
+        String::new()
+    } else {
+        format!(": {text}")
     }
 }
 
@@ -769,10 +918,11 @@ mod tests {
 
     use super::{
         LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, StartupPerfReport,
-        StartupTarget, config_path_text, export_path, format_bytes, format_duration,
-        is_reserved_command, measure_perf, measure_startup, open_documents, perf_text, run,
-        startup_perf_text, stats_json_text, stats_text, tex_clean_command, tex_clean_target,
-        tex_compile_input, tex_compile_text, workspace_search_text,
+        StartupTarget, TexDoctorCompilerSource, TexDoctorReport, TexDoctorSmoke, config_path_text,
+        export_path, format_bytes, format_duration, is_reserved_command, measure_perf,
+        measure_startup, open_documents, perf_text, run, startup_perf_text, stats_json_text,
+        stats_text, tex_clean_command, tex_clean_target, tex_compile_input, tex_compile_text,
+        tex_doctor_text, workspace_search_text,
     };
 
     #[test]
@@ -982,6 +1132,46 @@ mod tests {
     }
 
     #[test]
+    fn formats_tex_doctor_report_success() {
+        let report = TexDoctorReport {
+            compiler_path: PathBuf::from("/opt/homebrew/bin/tectonic"),
+            source: TexDoctorCompilerSource::Config,
+            version: Ok("Tectonic 0.16.9".to_owned()),
+            smoke: TexDoctorSmoke::Passed(PathBuf::from(
+                "docs/fixtures/.paperview/tex/minimal.pdf",
+            )),
+        };
+
+        assert_eq!(
+            tex_doctor_text(&report),
+            "Tectonic doctor\nCompiler: /opt/homebrew/bin/tectonic (config tex_compiler_path)\nVersion: Tectonic 0.16.9\nSmoke compile: ok (docs/fixtures/.paperview/tex/minimal.pdf)"
+        );
+    }
+
+    #[test]
+    fn formats_tex_doctor_report_missing_compiler() {
+        let report = TexDoctorReport {
+            compiler_path: PathBuf::from("tectonic"),
+            source: TexDoctorCompilerSource::Path,
+            version: Err("failed to run tectonic --version: missing".to_owned()),
+            smoke: TexDoctorSmoke::Failed(
+                "failed to run Tectonic compiler tectonic: missing".to_owned(),
+            ),
+        };
+
+        let text = tex_doctor_text(&report);
+
+        assert!(text.contains("Compiler: tectonic (PATH/default)"));
+        assert!(text.contains("Version: unavailable - failed to run tectonic --version: missing"));
+        assert!(text.contains("Install Tectonic or set tex_compiler_path"));
+        assert!(
+            text.contains(
+                "Smoke compile: failed - failed to run Tectonic compiler tectonic: missing"
+            )
+        );
+    }
+
+    #[test]
     fn derives_tex_clean_targets() {
         assert_eq!(
             tex_clean_target(Path::new("docs/resume.tex")),
@@ -1039,6 +1229,7 @@ mod tests {
 
         assert!(error.contains("paperview-tui tex compile <file.tex> [--open]"));
         assert!(error.contains("paperview-tui tex clean <file.tex|dir>"));
+        assert!(error.contains("paperview-tui tex doctor"));
     }
 
     #[test]
