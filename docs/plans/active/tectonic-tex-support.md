@@ -100,3 +100,7 @@ Out of scope for the first slice:
   drag-and-drop, and local document links: compile through Tectonic, open the
   generated PDF externally, and report source/output paths in GUI status.
   Embedded GUI/TUI PDF preview remains open.
+- 2026-06-02: Moved runtime GUI `.tex` opens into an async Iced task with a
+  `Compiling ...` status and completion message. Launch-time `.tex` startup
+  still compiles during initialization because the current GUI runner does not
+  return an initial task.

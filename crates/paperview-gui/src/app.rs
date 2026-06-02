@@ -68,6 +68,7 @@ pub struct PaperView {
 enum Status {
     Empty,
     Loaded(PathBuf),
+    CompilingTex(PathBuf),
     CompiledTex { source: PathBuf, output: PathBuf },
     Hovering(PathBuf),
     Error(String),
@@ -94,6 +95,10 @@ pub enum Message {
     OpenLink(String),
     LinkOpened,
     LinkOpenFailed(String),
+    TexCompileFinished {
+        source: PathBuf,
+        result: Result<PathBuf, String>,
+    },
     RemoteImageLoaded {
         url: String,
         result: Result<Vec<u8>, String>,
@@ -191,7 +196,7 @@ impl PaperView {
                         split_primary_width,
                         Status::Empty,
                     );
-                    state.open_tex_path(path, true);
+                    state.open_tex_path_sync(path, true);
                     return state;
                 }
 
@@ -329,6 +334,7 @@ impl Status {
         match self {
             Self::Empty => "empty",
             Self::Loaded(_) => "loaded",
+            Self::CompilingTex(_) => "compiling_tex",
             Self::CompiledTex { .. } => "compiled_tex",
             Self::Hovering(_) => "hovering",
             Self::Error(_) => "error",
@@ -339,7 +345,7 @@ impl Status {
 pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
     match message {
         Message::OpenHistory(path) => {
-            state.open_path(path);
+            return state.open_path(path);
         }
         Message::FileChanged(path) => {
             state.reload_path(path);
@@ -359,7 +365,7 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         }
         Message::OpenDroppedFiles(paths) => {
             state.is_drag_hovered = false;
-            state.open_dropped_files(paths);
+            return state.open_dropped_files(paths);
         }
         Message::ToggleZen => {
             state.zen_mode.toggle();
@@ -375,6 +381,9 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::LinkOpened => {}
         Message::LinkOpenFailed(error) => {
             state.status = Status::Error(error);
+        }
+        Message::TexCompileFinished { source, result } => {
+            state.finish_tex_compile(source, result);
         }
         Message::RemoteImageLoaded { url, result } => {
             let image =
@@ -415,13 +424,13 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
 }
 
 impl PaperView {
-    fn open_path(&mut self, path: PathBuf) {
+    fn open_path(&mut self, path: PathBuf) -> Task<Message> {
         if is_tex_document_path(&path) {
-            self.open_tex_path(path, true);
-            return;
+            return self.open_tex_path(path, true);
         }
 
         self.open_reader_path(path);
+        Task::none()
     }
 
     fn open_reader_path(&mut self, path: PathBuf) {
@@ -444,15 +453,35 @@ impl PaperView {
         }
     }
 
-    fn open_tex_path(&mut self, path: PathBuf, open_after_compile: bool) {
-        match compile_tex_for_gui(&path, &self.config, open_after_compile) {
+    fn open_tex_path(&mut self, path: PathBuf, open_after_compile: bool) -> Task<Message> {
+        self.status = Status::CompilingTex(path.clone());
+        self.end_editing();
+        self.end_presentation();
+
+        let config = self.config.clone();
+        let source = path.clone();
+
+        Task::perform(
+            async move { compile_tex_for_gui(&path, &config, open_after_compile) },
+            move |result| Message::TexCompileFinished {
+                source: source.clone(),
+                result,
+            },
+        )
+    }
+
+    fn open_tex_path_sync(&mut self, path: PathBuf, open_after_compile: bool) {
+        self.status = Status::CompilingTex(path.clone());
+        self.end_editing();
+        self.end_presentation();
+        let result = compile_tex_for_gui(&path, &self.config, open_after_compile);
+        self.finish_tex_compile(path, result);
+    }
+
+    fn finish_tex_compile(&mut self, source: PathBuf, result: Result<PathBuf, String>) {
+        match result {
             Ok(output) => {
-                self.status = Status::CompiledTex {
-                    source: path,
-                    output,
-                };
-                self.end_editing();
-                self.end_presentation();
+                self.status = Status::CompiledTex { source, output };
             }
             Err(error) => {
                 self.status = Status::Error(error);
@@ -460,19 +489,26 @@ impl PaperView {
         }
     }
 
-    fn open_dropped_files(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+    fn open_dropped_files(&mut self, paths: impl IntoIterator<Item = PathBuf>) -> Task<Message> {
         let mut last_error = None;
+        let mut tasks = Vec::new();
 
         for path in paths {
-            self.open_path(path);
-            if let Status::Error(error) = &self.status {
-                last_error = Some(error.clone());
+            if is_tex_document_path(&path) {
+                tasks.push(self.open_tex_path(path, true));
+            } else {
+                self.open_reader_path(path);
+                if let Status::Error(error) = &self.status {
+                    last_error = Some(error.clone());
+                }
             }
         }
 
         if let Some(error) = last_error {
             self.status = Status::Error(error);
         }
+
+        Task::batch(tasks)
     }
 
     fn reload_path(&mut self, path: PathBuf) {
@@ -870,8 +906,7 @@ impl PaperView {
         }
 
         if let Some(path) = resolve_local_document_link(&target, self.documents.active()) {
-            self.open_path(path);
-            return Task::none();
+            return self.open_path(path);
         }
 
         let resolved =
@@ -1040,7 +1075,11 @@ impl PaperView {
         let path = absolute_workspace_match_path(search_match.path);
         let line_index = search_match.line_number.saturating_sub(1);
 
-        self.open_path(path);
+        if is_tex_document_path(&path) {
+            return self.open_path(path);
+        }
+
+        self.open_reader_path(path);
         self.status = self.active_path().map_or(Status::Empty, Status::Loaded);
 
         operation::snap_to(
@@ -1975,6 +2014,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
                 state.history_store.path().display()
             ),
             Status::Loaded(path) => path.display().to_string(),
+            Status::CompilingTex(path) => format!("Compiling {}", path.display()),
             Status::CompiledTex { source, output } => {
                 format!("Compiled {} -> {}", source.display(), output.display())
             }
@@ -2201,6 +2241,7 @@ fn empty_state(status: &Status) -> Element<'_, Message> {
             "Launch with paperview-gui <file> to preview the native reader shell.",
         ),
         Status::Loaded(_) => ("Document loaded", ""),
+        Status::CompilingTex(_) => ("Compiling LaTeX", "Tectonic is generating a PDF."),
         Status::CompiledTex { .. } => ("LaTeX compiled", "Generated PDF opened externally."),
         Status::Hovering(_) => (
             "Drop to open",
@@ -2340,7 +2381,7 @@ mod tests {
             [OsString::from(&first)],
             temp_store("split-reload.toml"),
         );
-        state.open_path(second.clone());
+        let _ = state.open_path(second.clone());
         state.select_tab(0);
         state.toggle_split();
 
@@ -2631,33 +2672,31 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn dropped_tex_file_compiles_and_sets_status() {
+    fn tex_open_starts_async_compile_and_finish_sets_status() {
         let stem = unique_test_stem("gui-drop-tex");
         let tex_path = std::env::temp_dir().join(format!("{stem}.tex"));
-        let compiler_path = fake_tectonic_compiler(&stem);
         let history_store = temp_store("gui-drop-tex-history.toml");
         let config_path = temp_doc("gui-drop-tex-config.toml", "");
         let config_store = ConfigStore::new(&config_path);
         fs::write(&tex_path, "\\documentclass{article}").expect("write tex fixture");
-        config_store
-            .save(&Config {
-                tex_compiler_path: Some(compiler_path.clone()),
-                ..Config::default()
-            })
-            .expect("save config");
         let mut state = PaperView::from_args_with_stores([], history_store, config_store);
 
-        state.open_tex_path(tex_path.clone(), false);
+        let _ = state.open_tex_path(tex_path.clone(), false);
 
         assert_eq!(state.documents.len(), 0);
+        assert!(
+            matches!(state.status, super::Status::CompilingTex(ref source) if source == &tex_path)
+        );
+
+        let output = tex_path.with_extension("pdf");
+        state.finish_tex_compile(tex_path.clone(), Ok(output.clone()));
+
         assert!(
             matches!(state.status, super::Status::CompiledTex { ref source, ref output }
                 if source == &tex_path && output == &tex_path.with_extension("pdf"))
         );
 
-        fs::remove_file(tex_path.with_extension("pdf")).expect("remove pdf fixture");
         fs::remove_file(tex_path).expect("remove tex fixture");
-        fs::remove_file(compiler_path).expect("remove fake compiler");
         fs::remove_file(config_path).expect("remove config");
     }
 
