@@ -26,14 +26,15 @@ For optional local `.tex` validation, install or configure Tectonic and run:
 cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
 ```
 
-The generated fixture PDF and Tectonic byproducts are ignored by
-`docs/fixtures/.gitignore`.
+The generated fixture PDF and Tectonic byproducts under
+`docs/fixtures/.paperview/` are ignored by `docs/fixtures/.gitignore`.
 
 Latest `.tex` smoke result:
 
 - 2026-06-02: `Tectonic 0.16.9` at `/opt/homebrew/bin/tectonic` successfully
   generated `docs/fixtures/minimal.pdf` through the PaperView command above;
-  the generated PDF was removed afterward.
+  the generated PDF was removed afterward. This result predates the managed
+  `.paperview/tex/` artifact path.
 
 ## Dependency Audit
 

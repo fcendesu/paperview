@@ -2679,7 +2679,15 @@ mod tests {
         )
         .expect("compile tex");
 
-        assert_eq!(output, tex_path.with_extension("pdf"));
+        assert_eq!(
+            output,
+            tex_path
+                .parent()
+                .expect("tex parent")
+                .join(".paperview/tex")
+                .join(tex_path.file_name().expect("tex file name"))
+                .with_extension("pdf")
+        );
         assert!(output.exists());
 
         fs::remove_file(tex_path).expect("remove tex fixture");

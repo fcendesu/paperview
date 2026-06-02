@@ -25,7 +25,8 @@ parsed as Markdown. They go through the explicit `.tex` compile path.
 - `paperview-tui [file]` loads one file into an interactive Ratatui terminal shell.
 - `paperview-gui [file]` opens a native Iced window and renders the loaded document. Launching without a file shows an empty state.
 - GUI `.tex` launch/drop/link flows compile through Tectonic and open the
-  generated PDF externally instead of creating a Markdown reader tab.
+  generated `.paperview/tex/` PDF externally instead of creating a Markdown
+  reader tab.
 - GUI drag-and-drop uses the same file-opening path as launch and history open flows.
 
 ## Open Decisions

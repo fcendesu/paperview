@@ -172,12 +172,13 @@ initializing Ratatui.
 
 The first `.tex` document path keeps LaTeX sources out of `Document::open`.
 `paperview-core::compile_tex` owns Tectonic invocation and PDF artifact
-validation. The TUI exposes this as `tex compile`; the GUI uses the same compile
-path for `.tex` launch, drag-and-drop, and local links, then delegates the
-generated PDF to the platform opener until embedded PDF preview exists. Runtime
-GUI `.tex` opens run through an async Iced task and report completion back into
-the update loop; launch-time `.tex` startup returns an initial Iced task from
-the application boot function.
+validation. Default PDF artifacts live under `.paperview/tex/` beside the
+source file's directory. The TUI exposes this as `tex compile`; the GUI uses the
+same compile path for `.tex` launch, drag-and-drop, and local links, then
+delegates the generated PDF to the platform opener until embedded PDF preview
+exists. Runtime GUI `.tex` opens run through an async Iced task and report
+completion back into the update loop; launch-time `.tex` startup returns an
+initial Iced task from the application boot function.
 
 The Editing Mode foundation keeps source-editing state in
 `paperview-core::EditSession`. It owns the editable buffer, original source for

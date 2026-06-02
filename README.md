@@ -134,7 +134,7 @@ cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
 ```
 
 This requires a `tectonic` executable on `PATH` and writes the generated PDF
-beside the source file.
+under `.paperview/tex/` beside the source file's directory.
 
 Add `--open` to open the generated PDF with the platform opener after a
 successful compile:

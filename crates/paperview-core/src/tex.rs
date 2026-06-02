@@ -157,12 +157,7 @@ pub fn compile_tex(input: &TexCompileInput) -> Result<TexCompileArtifact, TexCom
         });
     }
 
-    let generated_output_path = output_dir.join(tex_pdf_artifact_path(
-        input
-            .entry_path()
-            .file_name()
-            .unwrap_or_else(|| input.entry_path().as_os_str()),
-    ));
+    let generated_output_path = output_dir.join(tectonic_generated_pdf_name(input.entry_path()));
     if !generated_output_path.exists() {
         return Err(TexCompileError::OutputMissing {
             path: generated_output_path,
@@ -190,7 +185,24 @@ pub fn compile_tex(input: &TexCompileInput) -> Result<TexCompileArtifact, TexCom
 
 #[must_use]
 pub fn tex_pdf_artifact_path(entry_path: impl AsRef<Path>) -> PathBuf {
-    entry_path.as_ref().with_extension("pdf")
+    let entry_path = entry_path.as_ref();
+    let file_name = entry_path.file_name().unwrap_or(entry_path.as_os_str());
+    let artifact_name = Path::new(file_name).with_extension("pdf");
+
+    entry_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or_else(
+            || PathBuf::from(".paperview").join("tex").join(&artifact_name),
+            |parent| parent.join(".paperview").join("tex").join(&artifact_name),
+        )
+}
+
+fn tectonic_generated_pdf_name(entry_path: &Path) -> PathBuf {
+    entry_path.file_name().map_or_else(
+        || entry_path.with_extension("pdf"),
+        |file_name| Path::new(file_name).with_extension("pdf"),
+    )
 }
 
 fn tectonic_diagnostics(output: &std::process::Output) -> String {
@@ -223,20 +235,27 @@ mod tests {
     fn tex_pdf_artifact_path_replaces_extension() {
         assert_eq!(
             tex_pdf_artifact_path("resume.tex"),
-            PathBuf::from("resume.pdf")
+            PathBuf::from(".paperview/tex/resume.pdf")
         );
         assert_eq!(
             tex_pdf_artifact_path("archive.resume.tex"),
-            PathBuf::from("archive.resume.pdf")
+            PathBuf::from(".paperview/tex/archive.resume.pdf")
+        );
+        assert_eq!(
+            tex_pdf_artifact_path("docs/resume.tex"),
+            PathBuf::from("docs/.paperview/tex/resume.pdf")
         );
     }
 
     #[test]
-    fn tex_compile_input_defaults_to_neighboring_pdf() {
+    fn tex_compile_input_defaults_to_managed_artifact_path() {
         let input = TexCompileInput::new("docs/resume.tex");
 
         assert_eq!(input.entry_path(), PathBuf::from("docs/resume.tex"));
-        assert_eq!(input.output_path(), PathBuf::from("docs/resume.pdf"));
+        assert_eq!(
+            input.output_path(),
+            PathBuf::from("docs/.paperview/tex/resume.pdf")
+        );
         assert_eq!(input.compiler_path(), PathBuf::from("tectonic"));
     }
 

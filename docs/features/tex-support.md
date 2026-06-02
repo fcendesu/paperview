@@ -13,7 +13,8 @@ The current first implementation slice:
 - Keeps `.tex` files out of `Document::open` so they are not parsed as
   Markdown.
 - Adds core compile input/artifact/error types.
-- Plans the default PDF artifact path as `source.tex` -> `source.pdf`.
+- Plans the default PDF artifact path as `source.tex` ->
+  `.paperview/tex/source.pdf` under the source file's directory.
 - Runs a configurable Tectonic command-line adapter. The default compiler name
   is `tectonic`; callers may provide a custom compiler path for tests or
   bundled runtimes.
@@ -66,8 +67,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   Iced boot function.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
-- Generated PDFs and Tectonic byproducts under `docs/fixtures/` are ignored so
-  smoke checks do not dirty the repository.
+- Generated PDFs and Tectonic byproducts under `docs/fixtures/.paperview/` are
+  ignored so smoke checks do not dirty the repository.
 - Diagnostics should remain user-facing and testable: missing packages, syntax
   errors, and Tectonic setup/network failures should produce clear errors.
 
@@ -77,9 +78,9 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   in native bridge crates that required system `graphite2` discovery through
   `pkg-config` on macOS. The CLI adapter is the selected first implementation
   path until bundling/runtime policy is settled.
-- The current default generated PDF path is beside the source file. Future GUI
-  preview work may move generated artifacts into a `.paperview/` cache
-  directory.
+- The current default generated PDF path is under `.paperview/tex/` beside the
+  source file's directory. Explicit output paths are still available through the
+  core API for tests or future advanced commands.
 - The headless command uses `tex_compiler_path` from config when present, and
   otherwise falls back to the default `tectonic` executable name.
 - Decide how to handle multi-file LaTeX projects that use `\input`,
@@ -107,8 +108,8 @@ When Tectonic is installed, run the optional end-to-end smoke check:
 cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
 ```
 
-The generated `docs/fixtures/minimal.pdf` and Tectonic byproducts are ignored
-and should remain uncommitted.
+The generated `docs/fixtures/.paperview/tex/minimal.pdf` and Tectonic byproducts
+are ignored and should remain uncommitted.
 
 The latest local smoke result:
 
@@ -116,4 +117,5 @@ The latest local smoke result:
 - Tectonic: `Tectonic 0.16.9` at `/opt/homebrew/bin/tectonic`.
 - Command:
   `cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex`.
-- Result: generated a valid `docs/fixtures/minimal.pdf`, then removed it.
+- Result: generated a valid `docs/fixtures/minimal.pdf`, then removed it. This
+  result predates the managed `.paperview/tex/` artifact path.

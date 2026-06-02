@@ -105,3 +105,6 @@ Out of scope for the first slice:
 - 2026-06-02: Updated GUI startup to return an initial Iced task for `.tex`
   launch arguments, so `paperview-gui file.tex` no longer compiles during state
   construction.
+- 2026-06-02: Moved the default generated `.tex` PDF path from beside the
+  source file to `.paperview/tex/<name>.pdf` under the source file's directory.
+  Explicit output paths remain supported in the core API.
