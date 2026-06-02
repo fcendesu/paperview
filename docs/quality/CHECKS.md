@@ -20,6 +20,15 @@ Run focused tests when touched code has test coverage or obvious behavior to ver
 
 Use broader workspace tests when a change affects shared core behavior, parser behavior, CLI behavior, or cross-crate contracts.
 
+For optional local `.tex` validation, install or configure Tectonic and run:
+
+```sh
+cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
+```
+
+The generated fixture PDF and Tectonic byproducts are ignored by
+`docs/fixtures/.gitignore`.
+
 ## Dependency Audit
 
 For release-readiness or dependency-surface changes, check the direct workspace

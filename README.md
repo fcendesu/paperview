@@ -130,7 +130,7 @@ cargo run -p paperview-tui -- export docs/PRD.md --to pdf
 Compile a `.tex` entry file through Tectonic without launching the TUI:
 
 ```sh
-cargo run -p paperview-tui -- tex compile resume.tex
+cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
 ```
 
 This requires a `tectonic` executable on `PATH` and writes the generated PDF

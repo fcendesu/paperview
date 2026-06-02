@@ -84,3 +84,7 @@ Out of scope for the first slice:
 - 2026-06-02: Added optional `tex_compiler_path` config support so the
   headless command can invoke a custom Tectonic executable. Binary bundling,
   GUI/TUI preview behavior, and a real Tectonic smoke fixture remain open.
+- 2026-06-02: Added `docs/fixtures/minimal.tex` plus ignored generated fixture
+  artifacts for optional end-to-end smoke checks through
+  `paperview-tui tex compile`. Binary bundling and GUI/TUI preview behavior
+  remain open.

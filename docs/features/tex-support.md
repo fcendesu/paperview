@@ -21,6 +21,8 @@ The current first implementation slice:
   `cargo run -p paperview-tui -- tex compile <file.tex>`.
 - Honors the optional `tex_compiler_path` config setting when the Tectonic
   executable lives outside `PATH`.
+- Includes `docs/fixtures/minimal.tex` as a local smoke fixture for manual
+  end-to-end compile checks.
 - Reports missing compiler, compiler failure, missing output PDF, and output
   write errors as explicit compile errors.
 
@@ -52,6 +54,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   diagnostics when the compiler reports them.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
+- Generated PDFs and Tectonic byproducts under `docs/fixtures/` are ignored so
+  smoke checks do not dirty the repository.
 - Diagnostics should remain user-facing and testable: missing packages, syntax
   errors, and Tectonic setup/network failures should produce clear errors.
 
@@ -85,6 +89,11 @@ cargo clippy --workspace -- -D warnings
 cargo test --workspace
 ```
 
-When a smoke-test `.tex` fixture exists, verification should also compile it
-through `cargo run -p paperview-tui -- tex compile <file.tex>` and remove
-generated artifacts unless they are intentionally committed.
+When Tectonic is installed, run the optional end-to-end smoke check:
+
+```sh
+cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex
+```
+
+The generated `docs/fixtures/minimal.pdf` and Tectonic byproducts are ignored
+and should remain uncommitted.
