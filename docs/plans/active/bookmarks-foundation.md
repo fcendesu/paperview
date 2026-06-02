@@ -43,3 +43,6 @@ headless TUI commands to add, list, remove, and prune bookmarks.
   behavior, with startup pruning for missing bookmarked paths.
 - 2026-06-02: Added GUI header bookmark creation for the active file-backed
   document, including immediate sidebar state refresh.
+- 2026-06-02: Updated GUI bookmark opening to use saved heading anchors when
+  present, selecting the matching heading and issuing the normal reader scroll
+  task.

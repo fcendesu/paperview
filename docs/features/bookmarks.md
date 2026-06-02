@@ -25,11 +25,13 @@ The first implemented slice supports:
   clicking a bookmark opens its document.
 - Bookmark the current GUI document from the header when the active document is
   file-backed. The sidebar refreshes immediately after saving.
+- GUI bookmark clicks navigate to the stored heading anchor when one is
+  available.
 
 Still planned:
 
-- Navigate to heading anchors and scroll-progress/source-line targets in the
-  GUI, not only open bookmarked documents.
+- Navigate to scroll-progress/source-line targets in the GUI when no heading
+  anchor is available.
 
 Bookmarks are distinct from:
 

@@ -81,7 +81,7 @@ enum Status {
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenHistory(PathBuf),
-    OpenBookmark(PathBuf),
+    OpenBookmark(usize),
     BookmarkActiveDocument,
     FileChanged(PathBuf),
     WatchFailed(String),
@@ -420,8 +420,8 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::OpenHistory(path) => {
             return state.open_path(path);
         }
-        Message::OpenBookmark(path) => {
-            return state.open_path(path);
+        Message::OpenBookmark(index) => {
+            return state.open_bookmark(index);
         }
         Message::BookmarkActiveDocument => state.bookmark_active_document(),
         Message::FileChanged(path) => {
@@ -514,6 +514,36 @@ impl PaperView {
 
         self.open_reader_path(path);
         Task::none()
+    }
+
+    fn open_bookmark(&mut self, index: usize) -> Task<Message> {
+        let Some(bookmark) = self.bookmarks.entries().get(index).cloned() else {
+            self.status = Status::Error(format!("bookmark index {index} not found"));
+            return Task::none();
+        };
+        let path = bookmark.path().to_path_buf();
+
+        if is_tex_document_path(&path) {
+            return self.open_path(path);
+        }
+
+        let opened_path = path.clone();
+        self.open_reader_path(path);
+
+        if !self.is_active_path(&opened_path) {
+            return Task::none();
+        }
+
+        let Some(anchor) = bookmark.heading_anchor() else {
+            return Task::none();
+        };
+        let Some(block_index) = self.anchor_block_index(anchor) else {
+            self.status = Status::Error(format!("bookmark heading anchor not found: #{anchor}"));
+            return Task::none();
+        };
+
+        self.active_toc_block_index = Some(block_index);
+        self.scroll_to_toc_block(block_index)
     }
 
     fn open_reader_path(&mut self, path: PathBuf) {
@@ -1855,7 +1885,7 @@ fn bookmarks_section(state: &PaperView) -> Element<'_, Message> {
     if state.bookmarks.is_empty() {
         content = content.push(text("No bookmarks").size(12).color(theme::SHELL_TEXT_MUTED));
     } else {
-        for bookmark in state.bookmarks.entries() {
+        for (index, bookmark) in state.bookmarks.entries().iter().enumerate() {
             let mut meta = bookmark.path().display().to_string();
             if let Some(anchor) = bookmark.heading_anchor() {
                 meta.push_str(&format!(" #{anchor}"));
@@ -1875,7 +1905,7 @@ fn bookmarks_section(state: &PaperView) -> Element<'_, Message> {
                 .padding([9, 10])
                 .width(Fill)
                 .style(|_, status| theme::history_item_button(status))
-                .on_press(Message::OpenBookmark(bookmark.path().to_path_buf())),
+                .on_press(Message::OpenBookmark(index)),
             );
         }
     }
@@ -2643,10 +2673,21 @@ mod tests {
 
     #[test]
     fn opening_bookmark_path_updates_loaded_document() {
-        let mut state = PaperView::from_args_with_store([], temp_store("open-bookmark.toml"));
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/PRD.md");
+        let history_store = temp_store("open-bookmark-history.toml");
+        let config_store = test_config_store(&history_store);
+        let bookmark_store = test_bookmark_store(&history_store);
+        let mut bookmarks = Bookmarks::new();
+        bookmarks.add(Bookmark::new(&path, "PRD"));
+        bookmark_store.save(&bookmarks).expect("save bookmarks");
+        let mut state = PaperView::from_args_with_stores(
+            [],
+            history_store,
+            config_store,
+            bookmark_store.clone(),
+        );
 
-        apply(&mut state, Message::OpenBookmark(path.clone()));
+        apply(&mut state, Message::OpenBookmark(0));
 
         assert_eq!(
             state.documents.active().map(Document::title),
@@ -2655,6 +2696,36 @@ mod tests {
         assert!(
             matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
         );
+
+        fs::remove_file(bookmark_store.path()).expect("remove bookmarks");
+    }
+
+    #[test]
+    fn opening_bookmark_with_anchor_selects_heading() {
+        let path = temp_doc(
+            "bookmark-anchor.md",
+            "# First\n\nIntro\n\n## Details\n\nMore",
+        );
+        let history_store = temp_store("open-bookmark-anchor-history.toml");
+        let config_store = test_config_store(&history_store);
+        let bookmark_store = test_bookmark_store(&history_store);
+        let mut bookmarks = Bookmarks::new();
+        bookmarks.add(Bookmark::new(&path, "Details").with_heading_anchor("details"));
+        bookmark_store.save(&bookmarks).expect("save bookmarks");
+        let mut state = PaperView::from_args_with_stores(
+            [],
+            history_store,
+            config_store,
+            bookmark_store.clone(),
+        );
+
+        let _task = update(&mut state, Message::OpenBookmark(0));
+
+        assert_eq!(state.documents.active().map(Document::title), Some("First"));
+        assert_eq!(state.active_toc_block_index, Some(2));
+
+        fs::remove_file(path).expect("remove document");
+        fs::remove_file(bookmark_store.path()).expect("remove bookmarks");
     }
 
     #[test]
