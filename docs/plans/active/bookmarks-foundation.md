@@ -39,3 +39,5 @@ headless TUI commands to add, list, remove, and prune bookmarks.
   stored source line when available.
 - 2026-06-02: Added TUI reader shortcut `m` to bookmark the current
   file-backed document location with source-line and active-heading metadata.
+- 2026-06-02: Added GUI left-sidebar bookmark visibility and click-to-open
+  behavior, with startup pruning for missing bookmarked paths.

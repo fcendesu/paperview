@@ -21,13 +21,14 @@ The first implemented slice supports:
 - Press `m` in the TUI reader to bookmark the current file-backed document
   location. The bookmark stores the document title/path, approximate source
   line, and active heading anchor when available.
+- Show saved bookmarks in the GUI left sidebar alongside recent-file history;
+  clicking a bookmark opens its document.
 
 Still planned:
 
 - Bookmark the current in-reader GUI location.
-- Navigate to heading anchors and scroll-progress targets, not only stored
-  source lines.
-- Show saved bookmarks in the GUI navigation/sidebar area.
+- Navigate to heading anchors and scroll-progress/source-line targets in the
+  GUI, not only open bookmarked documents.
 
 Bookmarks are distinct from:
 

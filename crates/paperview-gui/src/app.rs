@@ -20,10 +20,10 @@ use iced::{
     window,
 };
 use paperview_core::{
-    Config, ConfigStore, Document, EditSession, History, HistoryStore, OpenDocuments,
-    PresentationDeck, SearchMatch, SplitResize, SplitViewState, SupportedFileType, WatchEvent,
-    WorkspaceSearchMatch, ZenModeState, parser::Block, presentation_deck, search_workspace,
-    toggle_task_line_source, watch_file,
+    BookmarkStore, Bookmarks, Config, ConfigStore, Document, EditSession, History, HistoryStore,
+    OpenDocuments, PresentationDeck, SearchMatch, SplitResize, SplitViewState, SupportedFileType,
+    WatchEvent, WorkspaceSearchMatch, ZenModeState, parser::Block, presentation_deck,
+    search_workspace, toggle_task_line_source, watch_file,
 };
 
 use crate::{
@@ -41,6 +41,7 @@ pub struct PaperView {
     documents: OpenDocuments,
     history: History,
     history_store: HistoryStore,
+    bookmarks: Bookmarks,
     status: Status,
     is_drag_hovered: bool,
     zen_mode: ZenModeState,
@@ -78,6 +79,7 @@ enum Status {
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenHistory(PathBuf),
+    OpenBookmark(PathBuf),
     FileChanged(PathBuf),
     WatchFailed(String),
     FileHovered(PathBuf),
@@ -144,6 +146,14 @@ struct ActiveWatchPath(PathBuf);
 #[derive(Debug, Clone, Hash)]
 struct RemoteImageUrl(String);
 
+struct LoadedAppState {
+    config: Config,
+    config_store: ConfigStore,
+    history: History,
+    history_store: HistoryStore,
+    bookmarks: Bookmarks,
+}
+
 impl PaperView {
     #[must_use]
     pub fn from_args(args: impl IntoIterator<Item = OsString>) -> Self {
@@ -151,7 +161,12 @@ impl PaperView {
     }
 
     pub fn from_args_with_task(args: impl IntoIterator<Item = OsString>) -> (Self, Task<Message>) {
-        Self::from_args_with_stores_and_task(args, HistoryStore::default(), ConfigStore::default())
+        Self::from_args_with_stores_and_task(
+            args,
+            HistoryStore::default(),
+            ConfigStore::default(),
+            BookmarkStore::default(),
+        )
     }
 
     #[must_use]
@@ -161,7 +176,8 @@ impl PaperView {
         history_store: HistoryStore,
     ) -> Self {
         let config_store = test_config_store(&history_store);
-        Self::from_args_with_stores(args, history_store, config_store)
+        let bookmark_store = test_bookmark_store(&history_store);
+        Self::from_args_with_stores(args, history_store, config_store, bookmark_store)
     }
 
     #[must_use]
@@ -170,17 +186,20 @@ impl PaperView {
         args: impl IntoIterator<Item = OsString>,
         history_store: HistoryStore,
         config_store: ConfigStore,
+        bookmark_store: BookmarkStore,
     ) -> Self {
-        Self::from_args_with_stores_and_task(args, history_store, config_store).0
+        Self::from_args_with_stores_and_task(args, history_store, config_store, bookmark_store).0
     }
 
     fn from_args_with_stores_and_task(
         args: impl IntoIterator<Item = OsString>,
         history_store: HistoryStore,
         config_store: ConfigStore,
+        bookmark_store: BookmarkStore,
     ) -> (Self, Task<Message>) {
         let args = args.into_iter().collect::<Vec<_>>();
         let config = load_config(&config_store);
+        let bookmarks = load_bookmarks(&bookmark_store);
         let zen_mode = ZenModeState::new(config.zen_mode);
         let split_primary_width = config.split_primary_width.clamp(
             SplitViewState::MIN_PRIMARY_WIDTH,
@@ -193,10 +212,13 @@ impl PaperView {
 
                 (
                     Self::new_empty(
-                        config,
-                        config_store,
-                        history,
-                        history_store,
+                        LoadedAppState {
+                            config,
+                            config_store,
+                            history,
+                            history_store,
+                            bookmarks,
+                        },
                         zen_mode,
                         split_primary_width,
                         Status::Empty,
@@ -210,10 +232,13 @@ impl PaperView {
 
                 if is_tex_document_path(&path) {
                     let mut state = Self::new_empty(
-                        config,
-                        config_store,
-                        history,
-                        history_store,
+                        LoadedAppState {
+                            config,
+                            config_store,
+                            history,
+                            history_store,
+                            bookmarks,
+                        },
                         zen_mode,
                         split_primary_width,
                         Status::Empty,
@@ -237,6 +262,7 @@ impl PaperView {
                                 documents: OpenDocuments::from_document(document),
                                 history,
                                 history_store,
+                                bookmarks,
                                 status: Status::Loaded(path),
                                 is_drag_hovered: false,
                                 zen_mode,
@@ -264,10 +290,13 @@ impl PaperView {
                     }
                     Err(error) => (
                         Self::new_empty(
-                            config,
-                            config_store,
-                            history,
-                            history_store,
+                            LoadedAppState {
+                                config,
+                                config_store,
+                                history,
+                                history_store,
+                                bookmarks,
+                            },
                             zen_mode,
                             split_primary_width,
                             Status::Error(error.to_string()),
@@ -281,10 +310,13 @@ impl PaperView {
 
                 (
                     Self::new_empty(
-                        config,
-                        config_store,
-                        history,
-                        history_store,
+                        LoadedAppState {
+                            config,
+                            config_store,
+                            history,
+                            history_store,
+                            bookmarks,
+                        },
                         zen_mode,
                         split_primary_width,
                         Status::Error("usage: paperview-gui [file]".to_owned()),
@@ -296,20 +328,18 @@ impl PaperView {
     }
 
     fn new_empty(
-        config: Config,
-        config_store: ConfigStore,
-        history: History,
-        history_store: HistoryStore,
+        loaded: LoadedAppState,
         zen_mode: ZenModeState,
         split_primary_width: u16,
         status: Status,
     ) -> Self {
         Self {
-            config,
-            config_store,
+            config: loaded.config,
+            config_store: loaded.config_store,
             documents: OpenDocuments::new(),
-            history,
-            history_store,
+            history: loaded.history,
+            history_store: loaded.history_store,
+            bookmarks: loaded.bookmarks,
             status,
             is_drag_hovered: false,
             zen_mode,
@@ -377,6 +407,9 @@ impl Status {
 pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
     match message {
         Message::OpenHistory(path) => {
+            return state.open_path(path);
+        }
+        Message::OpenBookmark(path) => {
             return state.open_path(path);
         }
         Message::FileChanged(path) => {
@@ -1582,6 +1615,17 @@ fn load_history(store: &HistoryStore) -> History {
     history
 }
 
+fn load_bookmarks(store: &BookmarkStore) -> Bookmarks {
+    let mut bookmarks = store.load().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        Bookmarks::new()
+    });
+    if bookmarks.prune_missing() > 0 {
+        save_bookmarks(store, &bookmarks);
+    }
+    bookmarks
+}
+
 fn load_config(store: &ConfigStore) -> Config {
     store.load().unwrap_or_else(|error| {
         eprintln!("{error}");
@@ -1594,8 +1638,19 @@ fn test_config_store(history_store: &HistoryStore) -> ConfigStore {
     ConfigStore::new(history_store.path().with_extension("config.toml"))
 }
 
+#[cfg(test)]
+fn test_bookmark_store(history_store: &HistoryStore) -> BookmarkStore {
+    BookmarkStore::new(history_store.path().with_extension("bookmarks.toml"))
+}
+
 fn save_history(store: &HistoryStore, history: &History) {
     if let Err(error) = store.save(history) {
+        eprintln!("{error}");
+    }
+}
+
+fn save_bookmarks(store: &BookmarkStore, bookmarks: &Bookmarks) {
+    if let Err(error) = store.save(bookmarks) {
         eprintln!("{error}");
     }
 }
@@ -1700,7 +1755,12 @@ pub fn view(state: &PaperView) -> Element<'_, Message> {
 
 fn left_sidebar(state: &PaperView) -> Element<'_, Message> {
     container(scrollable(
-        column![history_section(state), workspace_search_section(state)].spacing(24),
+        column![
+            history_section(state),
+            bookmarks_section(state),
+            workspace_search_section(state)
+        ]
+        .spacing(24),
     ))
     .width(300)
     .height(Fill)
@@ -1734,6 +1794,40 @@ fn history_section(state: &PaperView) -> Element<'_, Message> {
                 .width(Fill)
                 .style(|_, status| theme::history_item_button(status))
                 .on_press(Message::OpenHistory(entry.path().to_path_buf())),
+            );
+        }
+    }
+
+    content.into()
+}
+
+fn bookmarks_section(state: &PaperView) -> Element<'_, Message> {
+    let mut content = column![text("Bookmarks").size(14).color(theme::SHELL_TEXT)].spacing(12);
+
+    if state.bookmarks.is_empty() {
+        content = content.push(text("No bookmarks").size(12).color(theme::SHELL_TEXT_MUTED));
+    } else {
+        for bookmark in state.bookmarks.entries() {
+            let mut meta = bookmark.path().display().to_string();
+            if let Some(anchor) = bookmark.heading_anchor() {
+                meta.push_str(&format!(" #{anchor}"));
+            }
+            if let Some(line) = bookmark.source_line() {
+                meta.push_str(&format!(" line {line}"));
+            }
+
+            content = content.push(
+                button(
+                    column![
+                        text(bookmark.title()).size(13).color(theme::SHELL_TEXT),
+                        text(meta).size(11).color(theme::SHELL_TEXT_MUTED)
+                    ]
+                    .spacing(3),
+                )
+                .padding([9, 10])
+                .width(Fill)
+                .style(|_, status| theme::history_item_button(status))
+                .on_press(Message::OpenBookmark(bookmark.path().to_path_buf())),
             );
         }
     }
@@ -2383,8 +2477,8 @@ mod tests {
         widget::text_editor,
     };
     use paperview_core::{
-        Config, ConfigStore, Document, History, HistoryStore, ThemePreference,
-        WorkspaceSearchMatch,
+        Bookmark, BookmarkStore, Bookmarks, Config, ConfigStore, Document, History, HistoryStore,
+        ThemePreference, WorkspaceSearchMatch,
         parser::{Block, parse_markdown},
     };
 
@@ -2392,7 +2486,8 @@ mod tests {
         Message, PaperView, SplitResize, Status, compile_tex_for_gui, compiled_tex_output_path,
         is_split_divider_hit, normalized_scroll_progress, open_link_target, reader,
         remote_image_placeholders, resolve_link_target, resolve_local_document_link, runtime_event,
-        search_scroll_progress, split_primary_width_from_cursor, title, update,
+        search_scroll_progress, split_primary_width_from_cursor, test_bookmark_store,
+        test_config_store, title, update,
     };
 
     #[test]
@@ -2448,6 +2543,57 @@ mod tests {
         );
 
         fs::remove_file(existing).expect("remove existing history file");
+    }
+
+    #[test]
+    fn gui_loads_and_prunes_bookmarks_on_load() {
+        let existing = temp_doc("bookmark-existing.md", "# Existing");
+        let missing = existing.with_file_name("bookmark-missing.md");
+        let history_store = temp_store("bookmark-history.toml");
+        let config_store = test_config_store(&history_store);
+        let bookmark_store =
+            BookmarkStore::new(history_store.path().with_extension("bookmarks.toml"));
+        let mut bookmarks = Bookmarks::new();
+        bookmarks.add(Bookmark::new(&missing, "Missing"));
+        bookmarks.add(Bookmark::new(&existing, "Existing"));
+        bookmark_store.save(&bookmarks).expect("save bookmarks");
+
+        let state = PaperView::from_args_with_stores(
+            [],
+            history_store,
+            config_store,
+            bookmark_store.clone(),
+        );
+
+        assert_eq!(state.bookmarks.entries().len(), 1);
+        assert_eq!(state.bookmarks.entries()[0].path(), existing.as_path());
+        assert_eq!(
+            bookmark_store
+                .load()
+                .expect("load pruned bookmarks")
+                .entries()
+                .len(),
+            1
+        );
+
+        fs::remove_file(existing).expect("remove existing bookmark file");
+        fs::remove_file(bookmark_store.path()).expect("remove bookmarks");
+    }
+
+    #[test]
+    fn opening_bookmark_path_updates_loaded_document() {
+        let mut state = PaperView::from_args_with_store([], temp_store("open-bookmark.toml"));
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/PRD.md");
+
+        apply(&mut state, Message::OpenBookmark(path.clone()));
+
+        assert_eq!(
+            state.documents.active().map(Document::title),
+            Some("PaperView — Product Requirements Document (PRD)")
+        );
+        assert!(
+            matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
+        );
     }
 
     #[test]
@@ -2780,8 +2926,10 @@ mod tests {
         let history_store = temp_store("gui-drop-tex-history.toml");
         let config_path = temp_doc("gui-drop-tex-config.toml", "");
         let config_store = ConfigStore::new(&config_path);
+        let bookmark_store = test_bookmark_store(&history_store);
         fs::write(&tex_path, "\\documentclass{article}").expect("write tex fixture");
-        let mut state = PaperView::from_args_with_stores([], history_store, config_store);
+        let mut state =
+            PaperView::from_args_with_stores([], history_store, config_store, bookmark_store);
 
         let _ = state.open_tex_path(tex_path.clone(), false);
 
@@ -2867,12 +3015,14 @@ mod tests {
         let history_store = temp_store("gui-launch-tex-history.toml");
         let config_path = temp_doc("gui-launch-tex-config.toml", "");
         let config_store = ConfigStore::new(&config_path);
+        let bookmark_store = test_bookmark_store(&history_store);
         fs::write(&tex_path, "\\documentclass{article}").expect("write tex fixture");
 
         let (state, _task) = PaperView::from_args_with_stores_and_task(
             [OsString::from(&tex_path)],
             history_store,
             config_store,
+            bookmark_store,
         );
 
         assert_eq!(state.documents.len(), 0);
@@ -3345,7 +3495,9 @@ mod tests {
             })
             .expect("save config");
 
-        let state = PaperView::from_args_with_stores([], history_store, config_store);
+        let bookmark_store = test_bookmark_store(&history_store);
+        let state =
+            PaperView::from_args_with_stores([], history_store, config_store, bookmark_store);
 
         assert!(state.zen_mode.is_enabled());
         assert_eq!(state.split_widths(), (65, 35));
@@ -3361,11 +3513,13 @@ mod tests {
         let history_store = temp_store("gui-config-save-history.toml");
         let config_path = temp_doc("gui-config-save.toml", "");
         let config_store = ConfigStore::new(&config_path);
+        let bookmark_store = test_bookmark_store(&history_store);
         config_store.ensure_exists().expect("ensure config");
         let mut state = PaperView::from_args_with_stores(
             [OsString::from(&first)],
             history_store,
             config_store.clone(),
+            bookmark_store,
         );
         apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
         apply(&mut state, Message::ToggleSplit);
@@ -3469,11 +3623,13 @@ mod tests {
         let history_store = temp_store("gui-config-drag-history.toml");
         let config_path = temp_doc("gui-config-drag.toml", "");
         let config_store = ConfigStore::new(&config_path);
+        let bookmark_store = test_bookmark_store(&history_store);
         config_store.ensure_exists().expect("ensure config");
         let mut state = PaperView::from_args_with_stores(
             [OsString::from(&first)],
             history_store,
             config_store.clone(),
+            bookmark_store,
         );
         apply(&mut state, Message::OpenDroppedFiles(vec![second.clone()]));
         apply(&mut state, Message::ToggleSplit);

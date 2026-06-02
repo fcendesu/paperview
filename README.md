@@ -164,6 +164,8 @@ tex_compiler_path = "/path/to/tectonic"
 
 The GUI also accepts `.tex` files on launch, drag-and-drop, or local document
 links. It compiles them through Tectonic and opens the generated PDF externally.
+The GUI left sidebar shows saved bookmarks alongside history, and clicking a
+bookmark opens its document.
 
 Manage persistent bookmarks from the TUI command surface:
 
