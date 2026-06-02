@@ -93,3 +93,6 @@ Out of scope for the first slice:
   PaperView generated a valid `docs/fixtures/minimal.pdf`; the generated PDF
   was removed afterward. Binary bundling and GUI/TUI preview behavior remain
   open.
+- 2026-06-02: Added `--open` to `paperview-tui tex compile` so a successful
+  compile can hand the generated PDF to the platform opener. Embedded GUI/TUI
+  PDF preview remains open.

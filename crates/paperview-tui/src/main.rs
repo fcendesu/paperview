@@ -69,14 +69,12 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             Ok(())
         }
         [command, action, path] if command == "tex" && action == "compile" => {
-            let config = paperview_core::ConfigStore::default()
-                .load()
-                .map_err(|error| error.to_string())?;
-            let input = tex_compile_input(PathBuf::from(path), &config);
-            let artifact =
-                paperview_core::compile_tex(&input).map_err(|error| error.to_string())?;
-            println!("{}", tex_compile_text(&artifact));
-            Ok(())
+            tex_compile_command(PathBuf::from(path), false).map(|report| println!("{report}"))
+        }
+        [command, action, path, flag]
+            if command == "tex" && action == "compile" && flag == "--open" =>
+        {
+            tex_compile_command(PathBuf::from(path), true).map(|report| println!("{report}"))
         }
         [command, action] if command == "config" && action == "path" => {
             println!(
@@ -139,7 +137,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 }
 
 fn usage_text() -> String {
-    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex>\n       paperview-tui config path\n       paperview-tui config edit"
+    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui config path\n       paperview-tui config edit"
         .to_owned()
 }
 
@@ -194,6 +192,21 @@ fn tex_compile_text(artifact: &paperview_core::TexCompileArtifact) -> String {
     } else {
         format!("Compiled {output_path}\n{diagnostics}")
     }
+}
+
+fn tex_compile_command(path: PathBuf, open_after_compile: bool) -> Result<String, String> {
+    let config = paperview_core::ConfigStore::default()
+        .load()
+        .map_err(|error| error.to_string())?;
+    let input = tex_compile_input(path, &config);
+    let artifact = paperview_core::compile_tex(&input).map_err(|error| error.to_string())?;
+    let report = tex_compile_text(&artifact);
+
+    if open_after_compile {
+        open_path(artifact.output_path())?;
+    }
+
+    Ok(report)
 }
 
 fn tex_compile_input(
@@ -936,7 +949,7 @@ mod tests {
         let error =
             run([OsString::from("tex")]).expect_err("tex command should require subcommand");
 
-        assert!(error.contains("paperview-tui tex compile <file.tex>"));
+        assert!(error.contains("paperview-tui tex compile <file.tex> [--open]"));
     }
 
     #[test]

@@ -254,11 +254,16 @@ mod tests {
 
     #[test]
     fn compile_tex_reports_missing_compiler() {
-        let input = TexCompileInput::new("missing-resume.tex");
+        let input = TexCompileInput::new("missing-resume.tex")
+            .with_compiler_path("/definitely-missing-paperview-tectonic");
         let error = compile_tex(&input).expect_err("compile should fail");
 
         assert!(matches!(error, TexCompileError::CompilerUnavailable { .. }));
-        assert!(error.to_string().contains("tectonic"));
+        assert!(
+            error
+                .to_string()
+                .contains("/definitely-missing-paperview-tectonic")
+        );
     }
 
     #[test]

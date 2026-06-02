@@ -19,6 +19,8 @@ The current first implementation slice:
   bundled runtimes.
 - Adds a headless TUI command:
   `cargo run -p paperview-tui -- tex compile <file.tex>`.
+- Supports `--open` on that command to open the generated PDF with the platform
+  opener after a successful compile.
 - Honors the optional `tex_compiler_path` config setting when the Tectonic
   executable lives outside `PATH`.
 - Includes `docs/fixtures/minimal.tex` as a local smoke fixture for manual
@@ -34,8 +36,8 @@ The next implementation slice should:
 
 Later slices can expose compiled `.tex` output in the GUI and TUI:
 
-- GUI: open or preview the compiled PDF artifact, then move toward rendered page
-  previews if a durable PDF/page renderer is selected.
+- GUI: preview the compiled PDF artifact once a durable PDF/page renderer is
+  selected.
 - TUI: show compile status, diagnostics, and generated artifact paths rather
   than attempting terminal page rendering.
 
@@ -52,6 +54,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   compiling during `Document::open`.
 - The headless command prints the generated PDF path and includes Tectonic
   diagnostics when the compiler reports them.
+- The `--open` option delegates the generated PDF artifact to the existing
+  platform opener helper. It does not embed PDF rendering in PaperView.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
 - Generated PDFs and Tectonic byproducts under `docs/fixtures/` are ignored so
@@ -72,8 +76,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   otherwise falls back to the default `tectonic` executable name.
 - Decide how to handle multi-file LaTeX projects that use `\input`,
   `\include`, images, bibliographies, or custom style files.
-- Decide whether GUI preview should open the generated PDF with the platform
-  opener first, or wait for an embedded PDF/page preview.
+- Decide whether GUI preview should also expose an external-open action before
+  embedded PDF/page preview lands.
 - Full Markdown math formula rendering remains separate from full `.tex`
   document compilation.
 
