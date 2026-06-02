@@ -44,18 +44,20 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 }
 
 fn run_gui(args: Vec<OsString>) -> Result<(), String> {
-    let initial_state = app::PaperView::from_args(args);
-
-    iced::application(move || initial_state.clone(), app::update, app::view)
-        .title(app::title)
-        .subscription(app::subscription)
-        .theme(app::iced_theme)
-        .style(app::style)
-        .window_size(iced::Size::new(1120.0, 760.0))
-        .centered()
-        .antialiasing(true)
-        .run()
-        .map_err(|error| error.to_string())
+    iced::application(
+        move || app::PaperView::from_args_with_task(args.clone()),
+        app::update,
+        app::view,
+    )
+    .title(app::title)
+    .subscription(app::subscription)
+    .theme(app::iced_theme)
+    .style(app::style)
+    .window_size(iced::Size::new(1120.0, 760.0))
+    .centered()
+    .antialiasing(true)
+    .run()
+    .map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

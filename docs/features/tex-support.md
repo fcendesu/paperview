@@ -23,8 +23,8 @@ The current first implementation slice:
   opener after a successful compile.
 - GUI launch, drag-and-drop, and local-link open flows compile `.tex` files and
   open the generated PDF externally as the first desktop preview behavior.
-  Runtime GUI opens run compilation through an async Iced task so the update
-  path can show `Compiling ...` instead of blocking on Tectonic.
+  GUI compilation runs through Iced tasks so the app can show `Compiling ...`
+  instead of blocking on Tectonic.
 - Honors the optional `tex_compiler_path` config setting when the Tectonic
   executable lives outside `PATH`.
 - Includes `docs/fixtures/minimal.tex` as a local smoke fixture for manual
@@ -62,8 +62,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   platform opener helper. It does not embed PDF rendering in PaperView.
 - GUI `.tex` opening uses the same external-open behavior for now and reports
   `Compiling ...` followed by the source/output artifact path in shell status
-  text. Launch-time `.tex` startup still compiles during startup until an
-  initial-task runner is added.
+  text. Launch-time `.tex` startup returns an initial compile task through the
+  Iced boot function.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
 - Generated PDFs and Tectonic byproducts under `docs/fixtures/` are ignored so

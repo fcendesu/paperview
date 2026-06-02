@@ -101,6 +101,7 @@ Out of scope for the first slice:
   generated PDF externally, and report source/output paths in GUI status.
   Embedded GUI/TUI PDF preview remains open.
 - 2026-06-02: Moved runtime GUI `.tex` opens into an async Iced task with a
-  `Compiling ...` status and completion message. Launch-time `.tex` startup
-  still compiles during initialization because the current GUI runner does not
-  return an initial task.
+  `Compiling ...` status and completion message.
+- 2026-06-02: Updated GUI startup to return an initial Iced task for `.tex`
+  launch arguments, so `paperview-gui file.tex` no longer compiles during state
+  construction.

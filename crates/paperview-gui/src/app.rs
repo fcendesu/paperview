@@ -141,7 +141,11 @@ struct RemoteImageUrl(String);
 impl PaperView {
     #[must_use]
     pub fn from_args(args: impl IntoIterator<Item = OsString>) -> Self {
-        Self::from_args_with_stores(args, HistoryStore::default(), ConfigStore::default())
+        Self::from_args_with_task(args).0
+    }
+
+    pub fn from_args_with_task(args: impl IntoIterator<Item = OsString>) -> (Self, Task<Message>) {
+        Self::from_args_with_stores_and_task(args, HistoryStore::default(), ConfigStore::default())
     }
 
     #[must_use]
@@ -155,11 +159,20 @@ impl PaperView {
     }
 
     #[must_use]
+    #[cfg(test)]
     fn from_args_with_stores(
         args: impl IntoIterator<Item = OsString>,
         history_store: HistoryStore,
         config_store: ConfigStore,
     ) -> Self {
+        Self::from_args_with_stores_and_task(args, history_store, config_store).0
+    }
+
+    fn from_args_with_stores_and_task(
+        args: impl IntoIterator<Item = OsString>,
+        history_store: HistoryStore,
+        config_store: ConfigStore,
+    ) -> (Self, Task<Message>) {
         let args = args.into_iter().collect::<Vec<_>>();
         let config = load_config(&config_store);
         let zen_mode = ZenModeState::new(config.zen_mode);
@@ -172,14 +185,17 @@ impl PaperView {
             [] => {
                 let history = load_history(&history_store);
 
-                Self::new_empty(
-                    config,
-                    config_store,
-                    history,
-                    history_store,
-                    zen_mode,
-                    split_primary_width,
-                    Status::Empty,
+                (
+                    Self::new_empty(
+                        config,
+                        config_store,
+                        history,
+                        history_store,
+                        zen_mode,
+                        split_primary_width,
+                        Status::Empty,
+                    ),
+                    Task::none(),
                 )
             }
             [path] => {
@@ -196,8 +212,8 @@ impl PaperView {
                         split_primary_width,
                         Status::Empty,
                     );
-                    state.open_tex_path_sync(path, true);
-                    return state;
+                    let task = state.open_tex_path(path, true);
+                    return (state, task);
                 }
 
                 match Document::open(&path) {
@@ -208,57 +224,66 @@ impl PaperView {
                         history.record_document(&document);
                         save_history(&history_store, &history);
 
-                        Self {
-                            config: config.clone(),
-                            config_store: config_store.clone(),
-                            documents: OpenDocuments::from_document(document),
+                        (
+                            Self {
+                                config: config.clone(),
+                                config_store: config_store.clone(),
+                                documents: OpenDocuments::from_document(document),
+                                history,
+                                history_store,
+                                status: Status::Loaded(path),
+                                is_drag_hovered: false,
+                                zen_mode,
+                                split_view: SplitViewState::new(split_primary_width),
+                                split_drag_cursor: None,
+                                is_split_dragging: false,
+                                active_toc_block_index,
+                                search_query: String::new(),
+                                search_matches: Vec::new(),
+                                search_selected_index: None,
+                                workspace_search_query: String::new(),
+                                workspace_search_matches: Vec::new(),
+                                is_workspace_searching: false,
+                                workspace_search_error: None,
+                                remote_images,
+                                edit_session: None,
+                                edit_content: text_editor::Content::new(),
+                                edit_preview: None,
+                                presentation_deck: None,
+                                presentation_slide_index: 0,
+                                presentation_document: None,
+                            },
+                            Task::none(),
+                        )
+                    }
+                    Err(error) => (
+                        Self::new_empty(
+                            config,
+                            config_store,
                             history,
                             history_store,
-                            status: Status::Loaded(path),
-                            is_drag_hovered: false,
                             zen_mode,
-                            split_view: SplitViewState::new(split_primary_width),
-                            split_drag_cursor: None,
-                            is_split_dragging: false,
-                            active_toc_block_index,
-                            search_query: String::new(),
-                            search_matches: Vec::new(),
-                            search_selected_index: None,
-                            workspace_search_query: String::new(),
-                            workspace_search_matches: Vec::new(),
-                            is_workspace_searching: false,
-                            workspace_search_error: None,
-                            remote_images,
-                            edit_session: None,
-                            edit_content: text_editor::Content::new(),
-                            edit_preview: None,
-                            presentation_deck: None,
-                            presentation_slide_index: 0,
-                            presentation_document: None,
-                        }
-                    }
-                    Err(error) => Self::new_empty(
-                        config,
-                        config_store,
-                        history,
-                        history_store,
-                        zen_mode,
-                        split_primary_width,
-                        Status::Error(error.to_string()),
+                            split_primary_width,
+                            Status::Error(error.to_string()),
+                        ),
+                        Task::none(),
                     ),
                 }
             }
             _ => {
                 let history = load_history(&history_store);
 
-                Self::new_empty(
-                    config,
-                    config_store,
-                    history,
-                    history_store,
-                    zen_mode,
-                    split_primary_width,
-                    Status::Error("usage: paperview-gui [file]".to_owned()),
+                (
+                    Self::new_empty(
+                        config,
+                        config_store,
+                        history,
+                        history_store,
+                        zen_mode,
+                        split_primary_width,
+                        Status::Error("usage: paperview-gui [file]".to_owned()),
+                    ),
+                    Task::none(),
                 )
             }
         }
@@ -468,14 +493,6 @@ impl PaperView {
                 result,
             },
         )
-    }
-
-    fn open_tex_path_sync(&mut self, path: PathBuf, open_after_compile: bool) {
-        self.status = Status::CompilingTex(path.clone());
-        self.end_editing();
-        self.end_presentation();
-        let result = compile_tex_for_gui(&path, &self.config, open_after_compile);
-        self.finish_tex_compile(path, result);
     }
 
     fn finish_tex_compile(&mut self, source: PathBuf, result: Result<PathBuf, String>) {
@@ -2694,6 +2711,31 @@ mod tests {
         assert!(
             matches!(state.status, super::Status::CompiledTex { ref source, ref output }
                 if source == &tex_path && output == &tex_path.with_extension("pdf"))
+        );
+
+        fs::remove_file(tex_path).expect("remove tex fixture");
+        fs::remove_file(config_path).expect("remove config");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tex_launch_returns_initial_compile_task() {
+        let stem = unique_test_stem("gui-launch-tex");
+        let tex_path = std::env::temp_dir().join(format!("{stem}.tex"));
+        let history_store = temp_store("gui-launch-tex-history.toml");
+        let config_path = temp_doc("gui-launch-tex-config.toml", "");
+        let config_store = ConfigStore::new(&config_path);
+        fs::write(&tex_path, "\\documentclass{article}").expect("write tex fixture");
+
+        let (state, _task) = PaperView::from_args_with_stores_and_task(
+            [OsString::from(&tex_path)],
+            history_store,
+            config_store,
+        );
+
+        assert_eq!(state.documents.len(), 0);
+        assert!(
+            matches!(state.status, super::Status::CompilingTex(ref source) if source == &tex_path)
         );
 
         fs::remove_file(tex_path).expect("remove tex fixture");
