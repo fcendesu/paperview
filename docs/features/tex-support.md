@@ -17,12 +17,13 @@ The current first implementation slice:
 - Runs a configurable Tectonic command-line adapter. The default compiler name
   is `tectonic`; callers may provide a custom compiler path for tests or
   bundled runtimes.
+- Adds a headless TUI command:
+  `cargo run -p paperview-tui -- tex compile <file.tex>`.
 - Reports missing compiler, compiler failure, missing output PDF, and output
   write errors as explicit compile errors.
 
 The next implementation slice should:
 
-- Add a headless command that calls the core compile API.
 - Decide whether PaperView should bundle the Tectonic binary, discover it on
   `PATH`, or expose a config setting for the compiler path.
 - Preserve PaperView's existing Markdown-first reader behavior.
@@ -45,6 +46,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
   compiled LaTeX workflows.
 - The first core API uses an explicit compile function instead of silently
   compiling during `Document::open`.
+- The headless command prints the generated PDF path and includes Tectonic
+  diagnostics when the compiler reports them.
 - Generated PDFs should be treated as artifacts, similar to export output, so
   users can inspect or open them outside PaperView.
 - Diagnostics should remain user-facing and testable: missing packages, syntax
@@ -59,6 +62,8 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
 - The current default generated PDF path is beside the source file. Future GUI
   preview work may move generated artifacts into a `.paperview/` cache
   directory.
+- The headless command currently uses the default `tectonic` executable name.
+  A CLI/config option for a custom compiler path is still undecided.
 - Decide how to handle multi-file LaTeX projects that use `\input`,
   `\include`, images, bibliographies, or custom style files.
 - Decide whether GUI preview should open the generated PDF with the platform
@@ -73,10 +78,11 @@ Initial `.tex` support should include:
 ```sh
 cargo fmt --all
 cargo test -p paperview-core tex
+cargo test -p paperview-tui tex
 cargo clippy --workspace -- -D warnings
 cargo test --workspace
 ```
 
 When a smoke-test `.tex` fixture exists, verification should also compile it
-through the new PaperView entrypoint and remove generated artifacts unless they
-are intentionally committed.
+through `cargo run -p paperview-tui -- tex compile <file.tex>` and remove
+generated artifacts unless they are intentionally committed.

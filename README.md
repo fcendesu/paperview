@@ -127,6 +127,15 @@ Use `--to pdf` to write a basic text-first PDF beside the source document:
 cargo run -p paperview-tui -- export docs/PRD.md --to pdf
 ```
 
+Compile a `.tex` entry file through Tectonic without launching the TUI:
+
+```sh
+cargo run -p paperview-tui -- tex compile resume.tex
+```
+
+This requires a `tectonic` executable on `PATH` and writes the generated PDF
+beside the source file.
+
 TUI controls:
 
 - `j` / `Down`: scroll or move selection down.

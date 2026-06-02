@@ -68,8 +68,18 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             println!("{}", output_path.display());
             Ok(())
         }
+        [command, action, path] if command == "tex" && action == "compile" => {
+            let input = paperview_core::TexCompileInput::new(PathBuf::from(path));
+            let artifact =
+                paperview_core::compile_tex(&input).map_err(|error| error.to_string())?;
+            println!("{}", tex_compile_text(&artifact));
+            Ok(())
+        }
         [command, action] if command == "config" && action == "path" => {
-            println!("{}", config_path_text(&paperview_core::ConfigStore::default()));
+            println!(
+                "{}",
+                config_path_text(&paperview_core::ConfigStore::default())
+            );
             Ok(())
         }
         [command, action] if command == "config" && action == "edit" => {
@@ -81,8 +91,8 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
         [command, query, flag] if command == "search" && flag == "--interactive" => {
             let root = PathBuf::from(".");
             let query = query.to_string_lossy().to_string();
-            let matches =
-                paperview_core::search_workspace(&query, &root).map_err(|error| error.to_string())?;
+            let matches = paperview_core::search_workspace(&query, &root)
+                .map_err(|error| error.to_string())?;
             app::run_workspace_search(query, root, matches).map_err(|error| error.to_string())?;
             Ok(())
         }
@@ -102,11 +112,12 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
         [command, query, root, flag] if command == "search" && flag == "--interactive" => {
             let root = PathBuf::from(root);
             let query = query.to_string_lossy().to_string();
-            let matches =
-                paperview_core::search_workspace(&query, &root).map_err(|error| error.to_string())?;
+            let matches = paperview_core::search_workspace(&query, &root)
+                .map_err(|error| error.to_string())?;
             app::run_workspace_search(query, root, matches).map_err(|error| error.to_string())?;
             Ok(())
         }
+        [command] if is_reserved_command(command) => Err(usage_text()),
         [path] => {
             let document = open_documents([path])?
                 .into_iter()
@@ -120,17 +131,19 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
             app::run_documents(documents).map_err(|error| error.to_string())?;
             Ok(())
         }
-        _ => Err(
-            "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui config path\n       paperview-tui config edit"
-                .to_owned(),
-        ),
+        _ => Err(usage_text()),
     }
+}
+
+fn usage_text() -> String {
+    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex>\n       paperview-tui config path\n       paperview-tui config edit"
+        .to_owned()
 }
 
 fn is_reserved_command(value: &OsString) -> bool {
     matches!(
         value.to_string_lossy().as_ref(),
-        "search" | "stats" | "perf" | "export" | "config"
+        "search" | "stats" | "perf" | "export" | "tex" | "config"
     )
 }
 
@@ -167,6 +180,17 @@ fn export_path(document: &paperview_core::Document, extension: &str) -> Result<P
         .ok_or_else(|| "cannot export an in-memory document".to_owned())?;
 
     Ok(path.with_extension(extension))
+}
+
+fn tex_compile_text(artifact: &paperview_core::TexCompileArtifact) -> String {
+    let output_path = artifact.output_path().display();
+    let diagnostics = artifact.diagnostics().trim();
+
+    if diagnostics.is_empty() || diagnostics == "compiled with Tectonic" {
+        format!("Compiled {output_path}")
+    } else {
+        format!("Compiled {output_path}\n{diagnostics}")
+    }
 }
 
 fn open_path(path: &Path) -> Result<(), String> {
@@ -681,7 +705,7 @@ mod tests {
         LOAD_TARGET_DURATION, MEMORY_TARGET_BYTES, PerfReport, ScrollWorkload, StartupPerfReport,
         StartupTarget, config_path_text, export_path, format_bytes, format_duration,
         is_reserved_command, measure_perf, measure_startup, open_documents, perf_text, run,
-        startup_perf_text, stats_json_text, stats_text, workspace_search_text,
+        startup_perf_text, stats_json_text, stats_text, tex_compile_text, workspace_search_text,
     };
 
     #[test]
@@ -855,6 +879,30 @@ mod tests {
     }
 
     #[test]
+    fn formats_tex_compile_report() {
+        let artifact =
+            paperview_core::TexCompileArtifact::new("docs/resume.pdf", "compiled with Tectonic");
+        assert_eq!(tex_compile_text(&artifact), "Compiled docs/resume.pdf");
+
+        let artifact = paperview_core::TexCompileArtifact::new(
+            "docs/resume.pdf",
+            "warning: missing reference\n",
+        );
+        assert_eq!(
+            tex_compile_text(&artifact),
+            "Compiled docs/resume.pdf\nwarning: missing reference"
+        );
+    }
+
+    #[test]
+    fn tex_command_requires_compile_subcommand() {
+        let error =
+            run([OsString::from("tex")]).expect_err("tex command should require subcommand");
+
+        assert!(error.contains("paperview-tui tex compile <file.tex>"));
+    }
+
+    #[test]
     fn writes_pdf_export_artifact() {
         let path = env::temp_dir().join(format!(
             "paperview-pdf-export-test-{}.md",
@@ -908,6 +956,7 @@ mod tests {
     fn recognizes_reserved_commands() {
         assert!(is_reserved_command(&OsString::from("search")));
         assert!(is_reserved_command(&OsString::from("perf")));
+        assert!(is_reserved_command(&OsString::from("tex")));
         assert!(!is_reserved_command(&OsString::from("docs/PRD.md")));
     }
 

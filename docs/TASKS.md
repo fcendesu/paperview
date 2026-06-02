@@ -62,6 +62,7 @@ This document tracks the progress of features across the three workspace crates.
 | :--- | :---: | :--- |
 | **paperview search** | ✅ | Prints ripgrep-backed path, line, column, and text results; `--interactive` opens a TUI result picker |
 | **paperview export** | ✅ | v0.1 export covers standalone styled HTML with static Mermaid and readable math previews plus text-first PDF with basic layout, padded/wrapped tables, readable math preview text, heading outlines, and image metadata placeholders; rich PDF assets/renderers are deferred |
+| **paperview tex compile** | 🏗️ | Invokes the core Tectonic CLI adapter for a single `.tex` entry file, writes the generated PDF beside the source, and reports diagnostics; bundling/config policy and preview UI remain deferred |
 | **paperview stats** | ✅ | Prints words, lines, characters, reading time, heading structure, and optional JSON |
 | **paperview perf** | ✅ | Prints shape, deterministic memory estimate, target status, and baseline timings |
 | **paperview config** | ✅ | Supports config path/edit plus theme, GUI/TUI Zen Mode, and Split View width preferences |
@@ -90,7 +91,7 @@ This document tracks the progress of features across the three workspace crates.
 | Feature | Core Logic | GUI (Iced) | TUI (Ratatui) |
 | :--- | :---: | :---: | :---: |
 | **LaTeX/Math Foundation** | ✅ | ✅ | ✅ |
-| **Tectonic `.tex` Support** | 🏗️ | ⬜ | ⬜ |
+| **Tectonic `.tex` Support** | 🏗️ | ⬜ | 🏗️ |
 | **Presentation Mode** | ✅ | ✅ | ✅ |
 
 ## Deferred Out Of Current Roadmap Scope

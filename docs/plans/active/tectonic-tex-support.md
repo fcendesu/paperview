@@ -75,4 +75,9 @@ Out of scope for the first slice:
   the first adapter to a configurable Tectonic CLI invocation behind the same
   `compile_tex` API. Core tests cover command success, compiler failure,
   missing compiler diagnostics, missing output diagnostics, and custom output
-  path handling. The headless CLI entrypoint remains next.
+  path handling.
+- 2026-06-02: Added `paperview-tui tex compile <file.tex>` as the first
+  headless entrypoint over the core Tectonic adapter. The command prints the
+  generated PDF path and compiler diagnostics when available. Bundling/config
+  policy, GUI/TUI preview behavior, and a real Tectonic smoke fixture remain
+  open.
