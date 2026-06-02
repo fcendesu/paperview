@@ -102,6 +102,7 @@ struct ReaderApp {
     config: Config,
     config_store: ConfigStore,
     history_store: HistoryStore,
+    bookmark_store: BookmarkStore,
     documents: OpenDocuments,
     document_lines: Vec<String>,
     split_view: SplitViewState,
@@ -201,6 +202,7 @@ impl ReaderApp {
             config,
             config_store,
             history_store: default_history_store(),
+            bookmark_store: BookmarkStore::default(),
             documents: open_documents,
             document_lines: rendered.lines,
             split_document_lines: Vec::new(),
@@ -299,6 +301,7 @@ impl ReaderApp {
                     KeyCode::Char('<') => self.shrink_split_primary(),
                     KeyCode::Char('\\') => self.toggle_split(),
                     KeyCode::Char('z') => self.toggle_zen(),
+                    KeyCode::Char('m') => self.bookmark_current_location(),
                     KeyCode::Char(' ') => self.toggle_task_at_scroll(),
                     KeyCode::Char('x') if self.close_active_tab() => return Ok(()),
                     KeyCode::Char('x') => {}
@@ -1234,21 +1237,45 @@ impl ReaderApp {
         self.status = Some("Toggled task checkbox".to_owned());
     }
 
-    fn task_source_line_at_scroll(&self) -> Option<usize> {
-        let rendered_line = usize::from(self.scroll);
-        let anchor_index = self
-            .block_line_starts
-            .iter()
-            .rposition(|anchor| anchor.line <= rendered_line)?;
-        let anchor = self.block_line_starts.get(anchor_index)?;
-        let next_line = self
-            .block_line_starts
-            .get(anchor_index + 1)
-            .map_or(self.document_lines.len(), |next| next.line);
-        if rendered_line >= next_line {
-            return None;
+    fn bookmark_current_location(&mut self) {
+        let Some(document) = self.documents.active() else {
+            self.status = Some("Open a document before bookmarking".to_owned());
+            return;
+        };
+        let Some(mut bookmark) = Bookmark::from_document(document) else {
+            self.status = Some("Bookmarks require a file-backed document".to_owned());
+            return;
+        };
+        let line_number = self.current_source_line_number().unwrap_or_else(|| {
+            usize::from(self.scroll)
+                .saturating_add(1)
+                .min(document.source().lines().count().max(1))
+        });
+        bookmark = bookmark.with_source_line(line_number);
+        if let Some(anchor) = self.active_toc_anchor() {
+            bookmark = bookmark.with_heading_anchor(anchor);
         }
 
+        let mut bookmarks = self.bookmark_store.load().unwrap_or_else(|error| {
+            self.status = Some(error.to_string());
+            Bookmarks::new()
+        });
+        bookmarks.add(bookmark.clone());
+        match self.bookmark_store.save(&bookmarks) {
+            Ok(()) => {
+                self.status = Some(format!(
+                    "Bookmarked {} line {line_number}",
+                    bookmark.title()
+                ));
+            }
+            Err(error) => {
+                self.status = Some(error.to_string());
+            }
+        }
+    }
+
+    fn task_source_line_at_scroll(&self) -> Option<usize> {
+        let (anchor, rendered_line) = self.current_block_anchor_at_scroll()?;
         let MarkdownBlock::List { items, .. } = self
             .active_document()
             .parsed()
@@ -1263,6 +1290,48 @@ impl ReaderApp {
             .get(item_index)
             .filter(|item| item.checked.is_some())
             .and_then(|item| item.source_line)
+    }
+
+    fn current_source_line_number(&self) -> Option<usize> {
+        let (anchor, _) = self.current_block_anchor_at_scroll()?;
+        match self
+            .active_document()
+            .parsed()
+            .blocks
+            .get(anchor.block_index)?
+        {
+            MarkdownBlock::List { items, .. } => items
+                .iter()
+                .find_map(|item| item.source_line)
+                .map(|line| line + 1),
+            _ => Some(anchor.block_index + 1),
+        }
+    }
+
+    fn current_block_anchor_at_scroll(&self) -> Option<(&render::BlockLineStart, usize)> {
+        let rendered_line = usize::from(self.scroll);
+        let anchor_index = self
+            .block_line_starts
+            .iter()
+            .rposition(|anchor| anchor.line <= rendered_line)?;
+        let anchor = self.block_line_starts.get(anchor_index)?;
+        let next_line = self
+            .block_line_starts
+            .get(anchor_index + 1)
+            .map_or(self.document_lines.len(), |next| next.line);
+        if rendered_line >= next_line {
+            return None;
+        }
+
+        Some((anchor, rendered_line))
+    }
+
+    fn active_toc_anchor(&self) -> Option<String> {
+        let block_index = self.active_toc_block_index()?;
+        self.toc
+            .iter()
+            .find(|item| item.block_index == block_index)
+            .map(|item| item.slug.clone())
     }
 
     fn active_path(&self) -> Option<std::path::PathBuf> {
@@ -3290,6 +3359,43 @@ mod tests {
 
         fs::remove_file(document_path).expect("remove document");
         fs::remove_file(bookmark_path).expect("remove bookmarks");
+    }
+
+    #[test]
+    fn reader_bookmarks_current_file_backed_location() {
+        let stem = temp_stem("reader-bookmark-current");
+        let document_path = std::env::temp_dir().join(format!("{stem}.md"));
+        let bookmark_path = std::env::temp_dir().join(format!("{stem}-bookmarks.toml"));
+        fs::write(&document_path, "# Mark Me\n\nBody").expect("write document");
+        let document = Document::open(&document_path).expect("open document");
+        let mut app = ReaderApp::new(document);
+        app.bookmark_store = paperview_core::BookmarkStore::new(&bookmark_path);
+
+        app.bookmark_current_location();
+
+        let bookmarks = app.bookmark_store.load().expect("load bookmarks");
+        assert_eq!(bookmarks.entries().len(), 1);
+        let bookmark = &bookmarks.entries()[0];
+        assert_eq!(bookmark.path(), document_path);
+        assert_eq!(bookmark.title(), "Mark Me");
+        assert_eq!(bookmark.source_line(), Some(1));
+        assert_eq!(bookmark.heading_anchor(), Some("mark-me"));
+        assert_eq!(app.status.as_deref(), Some("Bookmarked Mark Me line 1"));
+
+        fs::remove_file(document_path).expect("remove document");
+        fs::remove_file(bookmark_path).expect("remove bookmarks");
+    }
+
+    #[test]
+    fn reader_bookmark_requires_file_backed_document() {
+        let mut app = ReaderApp::new(Document::from_source("# Memory Only"));
+
+        app.bookmark_current_location();
+
+        assert_eq!(
+            app.status.as_deref(),
+            Some("Bookmarks require a file-backed document")
+        );
     }
 
     #[test]

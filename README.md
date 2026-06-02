@@ -184,6 +184,7 @@ TUI controls:
 - `g`: jump to top in the reader.
 - `G`: jump to bottom in the reader.
 - `e`: enter Editing Mode for the active document.
+- `m`: bookmark the current file-backed document location.
 - `p`: enter Presentation Mode for the active document.
 - `Space`: toggle a task checkbox at the current reader line for file-backed documents.
 - `[` / `]`: switch to the previous or next tab.

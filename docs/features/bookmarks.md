@@ -18,10 +18,13 @@ The first implemented slice supports:
   `bookmark remove <index>`, and `bookmark prune`.
 - Open an interactive TUI bookmark picker with `bookmark interactive`; selected
   bookmarks open in the reader near their stored source line when available.
+- Press `m` in the TUI reader to bookmark the current file-backed document
+  location. The bookmark stores the document title/path, approximate source
+  line, and active heading anchor when available.
 
 Still planned:
 
-- Bookmark the current in-reader GUI/TUI location with keyboard shortcuts.
+- Bookmark the current in-reader GUI location.
 - Navigate to heading anchors and scroll-progress targets, not only stored
   source lines.
 - Show saved bookmarks in the GUI navigation/sidebar area.

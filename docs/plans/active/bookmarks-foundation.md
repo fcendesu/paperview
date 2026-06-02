@@ -37,3 +37,5 @@ headless TUI commands to add, list, remove, and prune bookmarks.
 - 2026-06-02: Added `paperview-tui bookmark interactive`, an interactive
   bookmark picker that opens the selected bookmark in the reader near its
   stored source line when available.
+- 2026-06-02: Added TUI reader shortcut `m` to bookmark the current
+  file-backed document location with source-line and active-heading metadata.
