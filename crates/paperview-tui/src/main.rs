@@ -85,6 +85,9 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
         [command, action] if command == "bookmark" && action == "list" => {
             bookmark_list_command().map(|report| println!("{report}"))
         }
+        [command, action] if command == "bookmark" && action == "interactive" => {
+            app::run_bookmarks().map_err(|error| error.to_string())
+        }
         [command, action, index] if command == "bookmark" && action == "remove" => {
             bookmark_remove_command(
                 index
@@ -191,7 +194,7 @@ fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
 }
 
 fn usage_text() -> String {
-    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui tex clean <file.tex|dir>\n       paperview-tui tex doctor\n       paperview-tui bookmark list\n       paperview-tui bookmark add <file> [--anchor slug|--line number]\n       paperview-tui bookmark remove <index>\n       paperview-tui bookmark prune\n       paperview-tui config path\n       paperview-tui config edit"
+    "usage: paperview-tui [file ...]\n       paperview-tui search <query> [path] [--interactive]\n       paperview-tui stats <file> [--json]\n       paperview-tui perf <file>\n       paperview-tui perf startup [file]\n       paperview-tui export <file> --to html|pdf\n       paperview-tui tex compile <file.tex> [--open]\n       paperview-tui tex clean <file.tex|dir>\n       paperview-tui tex doctor\n       paperview-tui bookmark list\n       paperview-tui bookmark interactive\n       paperview-tui bookmark add <file> [--anchor slug|--line number]\n       paperview-tui bookmark remove <index>\n       paperview-tui bookmark prune\n       paperview-tui config path\n       paperview-tui config edit"
         .to_owned()
 }
 

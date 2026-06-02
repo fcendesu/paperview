@@ -16,13 +16,15 @@ The first implemented slice supports:
 - Add, list, remove, and prune bookmarks through headless TUI commands:
   `bookmark add <file> [--anchor slug|--line number]`, `bookmark list`,
   `bookmark remove <index>`, and `bookmark prune`.
+- Open an interactive TUI bookmark picker with `bookmark interactive`; selected
+  bookmarks open in the reader near their stored source line when available.
 
 Still planned:
 
 - Bookmark the current in-reader GUI/TUI location with keyboard shortcuts.
-- Navigate from a bookmark back to a document location.
+- Navigate to heading anchors and scroll-progress targets, not only stored
+  source lines.
 - Show saved bookmarks in the GUI navigation/sidebar area.
-- Add an interactive TUI bookmark list.
 
 Bookmarks are distinct from:
 
@@ -40,7 +42,8 @@ Bookmarks are distinct from:
   metadata. Exact pixel scroll offsets are frontend-specific and should not be
   the only stored target.
 - Bookmark persistence can prune missing document paths through the shared
-  collection and the `paperview-tui bookmark prune` command.
+  collection, the `paperview-tui bookmark prune` command, and the interactive
+  picker startup path.
 
 ## Decisions And Gaps
 

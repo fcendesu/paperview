@@ -7,9 +7,9 @@ use std::{
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use paperview_core::{
-    Config, ConfigStore, Document, EditSession, FileEntry, FileWatcher, History, HistoryStore,
-    OpenDocuments, PresentationDeck, SearchMatch, SplitResize, SplitViewState, WatchEvent,
-    WorkspaceSearchMatch, ZenModeState,
+    Bookmark, BookmarkStore, Bookmarks, Config, ConfigStore, Document, EditSession, FileEntry,
+    FileWatcher, History, HistoryStore, OpenDocuments, PresentationDeck, SearchMatch, SplitResize,
+    SplitViewState, WatchEvent, WorkspaceSearchMatch, ZenModeState,
     parser::{Block as MarkdownBlock, TocItem},
     presentation_deck, toggle_task_line_source, watch_file,
 };
@@ -52,6 +52,14 @@ pub fn run_workspace_search(
     let mut terminal = ratatui::try_init()?;
     let result =
         WorkspaceSearchApp::new(query, root, matches, HistoryStore::default()).run(&mut terminal);
+    ratatui::restore();
+    result
+}
+
+pub fn run_bookmarks() -> io::Result<()> {
+    let mut terminal = ratatui::try_init()?;
+    let result =
+        BookmarkApp::new(BookmarkStore::default(), HistoryStore::default()).run(&mut terminal);
     ratatui::restore();
     result
 }
@@ -230,10 +238,22 @@ impl ReaderApp {
     }
 
     fn new_at_source_line(document: Document, line_number: usize) -> Self {
+        Self::new_at_source_line_with_status(
+            document,
+            line_number,
+            format!("Opened search result at line {line_number}"),
+        )
+    }
+
+    fn new_at_source_line_with_status(
+        document: Document,
+        line_number: usize,
+        status: String,
+    ) -> Self {
         let mut app = Self::new(document);
         app.scroll = line_number.saturating_sub(1) as u16;
         app.scroll = app.scroll.min(app.max_scroll());
-        app.status = Some(format!("Opened search result at line {line_number}"));
+        app.status = Some(status);
         app
     }
 
@@ -1592,6 +1612,185 @@ struct WorkspaceSearchApp {
     status: Option<String>,
 }
 
+#[derive(Debug)]
+struct BookmarkApp {
+    bookmarks: Bookmarks,
+    list_state: ListState,
+    bookmark_store: BookmarkStore,
+    history_store: HistoryStore,
+    status: Option<String>,
+}
+
+impl BookmarkApp {
+    fn new(bookmark_store: BookmarkStore, history_store: HistoryStore) -> Self {
+        let mut status = None;
+        let mut bookmarks = bookmark_store.load().unwrap_or_else(|error| {
+            status = Some(error.to_string());
+            Bookmarks::new()
+        });
+        let pruned = bookmarks.prune_missing();
+        if pruned > 0
+            && let Err(error) = bookmark_store.save(&bookmarks)
+        {
+            status = Some(error.to_string());
+        }
+        let mut list_state = ListState::default();
+        if !bookmarks.is_empty() {
+            list_state.select(Some(0));
+        }
+
+        Self {
+            bookmarks,
+            list_state,
+            bookmark_store,
+            history_store,
+            status,
+        }
+    }
+
+    fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        loop {
+            terminal.draw(|frame| self.draw(frame))?;
+
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                    KeyCode::Char('j') | KeyCode::Down => self.select_next(),
+                    KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
+                    KeyCode::Char('p') => self.prune_missing(),
+                    KeyCode::Enter => {
+                        if let Some((document, line_number)) = self.open_selected() {
+                            ReaderApp::new_at_source_line_with_status(
+                                document,
+                                line_number,
+                                format!("Opened bookmark at line {line_number}"),
+                            )
+                            .run(terminal)?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        let [header, body, footer] = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(2),
+        ])
+        .areas(frame.area());
+
+        frame.render_widget(
+            Paragraph::new(" PaperView - Bookmarks ")
+                .style(theme::shell())
+                .block(Block::default().borders(Borders::BOTTOM)),
+            header,
+        );
+
+        if self.bookmarks.is_empty() {
+            frame.render_widget(
+                Paragraph::new("No bookmarks.")
+                    .block(Block::default().title("Bookmarks").borders(Borders::ALL))
+                    .style(theme::reader())
+                    .wrap(Wrap { trim: true }),
+                body,
+            );
+        } else {
+            let items = self
+                .bookmarks
+                .entries()
+                .iter()
+                .map(bookmark_item)
+                .collect::<Vec<_>>();
+            let list = List::new(items)
+                .block(Block::default().title("Bookmarks").borders(Borders::ALL))
+                .highlight_symbol("> ")
+                .highlight_style(theme::list_highlight());
+
+            frame.render_stateful_widget(list, body, &mut self.list_state);
+        }
+
+        let status = self
+            .status
+            .as_deref()
+            .unwrap_or("Enter opens selected bookmark - j/k move - p prunes - q quits");
+        frame.render_widget(Paragraph::new(status).style(theme::status()), footer);
+    }
+
+    fn select_next(&mut self) {
+        let len = self.bookmarks.entries().len();
+        if len == 0 {
+            return;
+        }
+
+        let next = self
+            .list_state
+            .selected()
+            .map_or(0, |index| (index + 1).min(len - 1));
+        self.list_state.select(Some(next));
+    }
+
+    fn select_previous(&mut self) {
+        let len = self.bookmarks.entries().len();
+        if len == 0 {
+            return;
+        }
+
+        let previous = self
+            .list_state
+            .selected()
+            .map_or(0, |index| index.saturating_sub(1));
+        self.list_state.select(Some(previous));
+    }
+
+    fn prune_missing(&mut self) {
+        let removed = self.bookmarks.prune_missing();
+        if let Err(error) = self.bookmark_store.save(&self.bookmarks) {
+            self.status = Some(error.to_string());
+        } else {
+            self.status = Some(format!("Pruned {removed} missing bookmark(s)"));
+        }
+        self.list_state.select(clamp_bookmark_selection(
+            self.list_state.selected(),
+            self.bookmarks.entries().len(),
+        ));
+    }
+
+    fn open_selected(&mut self) -> Option<(Document, usize)> {
+        let index = self.list_state.selected()?;
+        let bookmark = self.bookmarks.entries().get(index)?;
+        let path = bookmark.path().to_path_buf();
+        let line_number = bookmark.source_line().unwrap_or(1);
+
+        match Document::open(&path) {
+            Ok(document) => {
+                self.record_opened_document(&document);
+                self.status = None;
+                Some((document, line_number))
+            }
+            Err(error) => {
+                self.status = Some(error.to_string());
+                None
+            }
+        }
+    }
+
+    fn record_opened_document(&mut self, document: &Document) {
+        let mut history = self.history_store.load().unwrap_or_else(|error| {
+            self.status = Some(error.to_string());
+            History::new()
+        });
+        history.record_document(document);
+        if let Err(error) = self.history_store.save(&history) {
+            self.status = Some(error.to_string());
+        }
+    }
+}
+
 impl WorkspaceSearchApp {
     fn new(
         query: String,
@@ -1762,6 +1961,14 @@ fn clamp_toc_selection(selection: Option<usize>, len: usize) -> Option<usize> {
 }
 
 fn clamp_search_selection(selection: Option<usize>, len: usize) -> Option<usize> {
+    if len == 0 {
+        None
+    } else {
+        Some(selection.unwrap_or(0).min(len - 1))
+    }
+}
+
+fn clamp_bookmark_selection(selection: Option<usize>, len: usize) -> Option<usize> {
     if len == 0 {
         None
     } else {
@@ -1974,6 +2181,24 @@ fn history_item(entry: &FileEntry) -> ListItem<'static> {
             entry.path().display().to_string(),
             theme::list_meta(),
         )),
+    ])
+}
+
+fn bookmark_item(bookmark: &Bookmark) -> ListItem<'static> {
+    let mut meta = bookmark.path().display().to_string();
+    if let Some(anchor) = bookmark.heading_anchor() {
+        meta.push_str(&format!(" #{anchor}"));
+    }
+    if let Some(line) = bookmark.source_line() {
+        meta.push_str(&format!(" line {line}"));
+    }
+
+    ListItem::new(vec![
+        Line::from(Span::styled(
+            bookmark.title().to_owned(),
+            theme::list_title(),
+        )),
+        Line::from(Span::styled(meta, theme::list_meta())),
     ])
 }
 
@@ -2257,9 +2482,10 @@ mod tests {
     use ratatui::style::Modifier;
 
     use super::{
-        DashboardApp, EDIT_VIEWPORT_LINES, EditMode, OpenPathMode, PresentationMode, ReaderApp,
-        ReaderFocus, SearchHighlights, SearchMode, WorkspaceSearchApp, clamp_search_selection,
-        clamp_toc_selection, cursor_line_column, document_text, edit_preview_max_scroll, tab_line,
+        BookmarkApp, DashboardApp, EDIT_VIEWPORT_LINES, EditMode, OpenPathMode, PresentationMode,
+        ReaderApp, ReaderFocus, SearchHighlights, SearchMode, WorkspaceSearchApp,
+        clamp_bookmark_selection, clamp_search_selection, clamp_toc_selection, cursor_line_column,
+        document_text, edit_preview_max_scroll, tab_line,
     };
     use crate::theme;
 
@@ -3005,6 +3231,68 @@ mod tests {
     }
 
     #[test]
+    fn bookmark_selection_is_bounded() {
+        assert_eq!(clamp_bookmark_selection(Some(3), 2), Some(1));
+        assert_eq!(clamp_bookmark_selection(Some(0), 0), None);
+        assert_eq!(clamp_bookmark_selection(None, 2), Some(0));
+    }
+
+    #[test]
+    fn bookmark_picker_opens_selected_bookmark_near_line() {
+        let stem = temp_stem("bookmark-picker-open");
+        let document_path = std::env::temp_dir().join(format!("{stem}.md"));
+        let bookmark_path = std::env::temp_dir().join(format!("{stem}-bookmarks.toml"));
+        let history_path = std::env::temp_dir().join(format!("{stem}-history.toml"));
+        fs::write(&document_path, "# Pick Me\n\nOne.\n\nTwo.\n\nThree.").expect("write document");
+        let mut bookmarks = paperview_core::Bookmarks::new();
+        bookmarks.add(paperview_core::Bookmark::new(&document_path, "Pick Me").with_source_line(5));
+        let bookmark_store = paperview_core::BookmarkStore::new(&bookmark_path);
+        bookmark_store.save(&bookmarks).expect("save bookmarks");
+        let history_store = paperview_core::HistoryStore::new(&history_path);
+        let mut app = BookmarkApp::new(bookmark_store, history_store);
+
+        let (document, line_number) = app.open_selected().expect("open selected bookmark");
+
+        assert_eq!(document.path(), Some(&document_path));
+        assert_eq!(line_number, 5);
+        let reader = ReaderApp::new_at_source_line_with_status(
+            document,
+            line_number,
+            format!("Opened bookmark at line {line_number}"),
+        );
+        assert_eq!(reader.scroll, 4);
+        assert_eq!(reader.status.as_deref(), Some("Opened bookmark at line 5"));
+
+        fs::remove_file(document_path).expect("remove document");
+        fs::remove_file(bookmark_path).expect("remove bookmarks");
+        fs::remove_file(history_path).expect("remove history");
+    }
+
+    #[test]
+    fn bookmark_picker_prunes_missing_entries() {
+        let stem = temp_stem("bookmark-picker-prune");
+        let document_path = std::env::temp_dir().join(format!("{stem}.md"));
+        let missing_path = std::env::temp_dir().join(format!("{stem}-missing.md"));
+        let bookmark_path = std::env::temp_dir().join(format!("{stem}-bookmarks.toml"));
+        let history_path = std::env::temp_dir().join(format!("{stem}-history.toml"));
+        fs::write(&document_path, "# Present").expect("write document");
+        let mut bookmarks = paperview_core::Bookmarks::new();
+        bookmarks.add(paperview_core::Bookmark::new(&document_path, "Present"));
+        bookmarks.add(paperview_core::Bookmark::new(&missing_path, "Missing"));
+        let bookmark_store = paperview_core::BookmarkStore::new(&bookmark_path);
+        bookmark_store.save(&bookmarks).expect("save bookmarks");
+        let history_store = paperview_core::HistoryStore::new(&history_path);
+
+        let app = BookmarkApp::new(bookmark_store, history_store);
+
+        assert_eq!(app.bookmarks.entries().len(), 1);
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        fs::remove_file(document_path).expect("remove document");
+        fs::remove_file(bookmark_path).expect("remove bookmarks");
+    }
+
+    #[test]
     fn dashboard_selection_is_bounded() {
         let mut app = DashboardApp::new(HistoryStore::new("missing-history.toml"));
         app.history.record(FileEntry::new("one.md", "One"));
@@ -3457,6 +3745,15 @@ mod tests {
         fs::write(&path, source).expect("write test document");
 
         path
+    }
+
+    fn temp_stem(name: &str) -> String {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after Unix epoch")
+            .as_nanos();
+
+        format!("paperview-tui-{nanos}-{name}")
     }
 
     fn key(code: KeyCode) -> KeyEvent {

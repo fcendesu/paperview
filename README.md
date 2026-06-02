@@ -172,6 +172,7 @@ cargo run -p paperview-tui -- bookmark add docs/PRD.md
 cargo run -p paperview-tui -- bookmark add docs/PRD.md --line 42
 cargo run -p paperview-tui -- bookmark add docs/PRD.md --anchor phase-2
 cargo run -p paperview-tui -- bookmark list
+cargo run -p paperview-tui -- bookmark interactive
 cargo run -p paperview-tui -- bookmark remove 0
 cargo run -p paperview-tui -- bookmark prune
 ```

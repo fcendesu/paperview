@@ -34,3 +34,6 @@ headless TUI commands to add, list, remove, and prune bookmarks.
   command foundation.
 - 2026-06-02: Added core `Bookmark`, `Bookmarks`, and `BookmarkStore`
   persistence plus headless TUI `bookmark list/add/remove/prune` commands.
+- 2026-06-02: Added `paperview-tui bookmark interactive`, an interactive
+  bookmark picker that opens the selected bookmark in the reader near its
+  stored source line when available.
