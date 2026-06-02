@@ -23,10 +23,11 @@ The first implemented slice supports:
   line, and active heading anchor when available.
 - Show saved bookmarks in the GUI left sidebar alongside recent-file history;
   clicking a bookmark opens its document.
+- Bookmark the current GUI document from the header when the active document is
+  file-backed. The sidebar refreshes immediately after saving.
 
 Still planned:
 
-- Bookmark the current in-reader GUI location.
 - Navigate to heading anchors and scroll-progress/source-line targets in the
   GUI, not only open bookmarked documents.
 

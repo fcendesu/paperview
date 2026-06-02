@@ -42,6 +42,7 @@ pub struct PaperView {
     history: History,
     history_store: HistoryStore,
     bookmarks: Bookmarks,
+    bookmark_store: BookmarkStore,
     status: Status,
     is_drag_hovered: bool,
     zen_mode: ZenModeState,
@@ -69,6 +70,7 @@ pub struct PaperView {
 enum Status {
     Empty,
     Loaded(PathBuf),
+    Bookmarked { title: String, path: PathBuf },
     CompilingTex(PathBuf),
     CompiledTex { source: PathBuf, output: PathBuf },
     CleanedTex { source: PathBuf, output: PathBuf },
@@ -80,6 +82,7 @@ enum Status {
 pub enum Message {
     OpenHistory(PathBuf),
     OpenBookmark(PathBuf),
+    BookmarkActiveDocument,
     FileChanged(PathBuf),
     WatchFailed(String),
     FileHovered(PathBuf),
@@ -152,6 +155,7 @@ struct LoadedAppState {
     history: History,
     history_store: HistoryStore,
     bookmarks: Bookmarks,
+    bookmark_store: BookmarkStore,
 }
 
 impl PaperView {
@@ -218,6 +222,7 @@ impl PaperView {
                             history,
                             history_store,
                             bookmarks,
+                            bookmark_store,
                         },
                         zen_mode,
                         split_primary_width,
@@ -238,6 +243,7 @@ impl PaperView {
                             history,
                             history_store,
                             bookmarks,
+                            bookmark_store,
                         },
                         zen_mode,
                         split_primary_width,
@@ -263,6 +269,7 @@ impl PaperView {
                                 history,
                                 history_store,
                                 bookmarks,
+                                bookmark_store,
                                 status: Status::Loaded(path),
                                 is_drag_hovered: false,
                                 zen_mode,
@@ -296,6 +303,7 @@ impl PaperView {
                                 history,
                                 history_store,
                                 bookmarks,
+                                bookmark_store,
                             },
                             zen_mode,
                             split_primary_width,
@@ -316,6 +324,7 @@ impl PaperView {
                             history,
                             history_store,
                             bookmarks,
+                            bookmark_store,
                         },
                         zen_mode,
                         split_primary_width,
@@ -340,6 +349,7 @@ impl PaperView {
             history: loaded.history,
             history_store: loaded.history_store,
             bookmarks: loaded.bookmarks,
+            bookmark_store: loaded.bookmark_store,
             status,
             is_drag_hovered: false,
             zen_mode,
@@ -395,6 +405,7 @@ impl Status {
         match self {
             Self::Empty => "empty",
             Self::Loaded(_) => "loaded",
+            Self::Bookmarked { .. } => "bookmarked",
             Self::CompilingTex(_) => "compiling_tex",
             Self::CompiledTex { .. } => "compiled_tex",
             Self::CleanedTex { .. } => "cleaned_tex",
@@ -412,6 +423,7 @@ pub fn update(state: &mut PaperView, message: Message) -> Task<Message> {
         Message::OpenBookmark(path) => {
             return state.open_path(path);
         }
+        Message::BookmarkActiveDocument => state.bookmark_active_document(),
         Message::FileChanged(path) => {
             state.reload_path(path);
         }
@@ -575,6 +587,31 @@ impl PaperView {
                     Status::Error(format!("failed to remove {}: {error}", output.display()));
             }
         }
+    }
+
+    fn bookmark_active_document(&mut self) {
+        let Some(document) = self.documents.active() else {
+            self.status = Status::Error("open a document before bookmarking".to_owned());
+            return;
+        };
+        let Some(mut bookmark) = paperview_core::Bookmark::from_document(document) else {
+            self.status = Status::Error("bookmarks require a file-backed document".to_owned());
+            return;
+        };
+        if let Some(anchor) = self.active_toc_anchor() {
+            bookmark = bookmark.with_heading_anchor(anchor);
+        }
+
+        self.bookmarks.add(bookmark.clone());
+        if let Err(error) = self.bookmark_store.save(&self.bookmarks) {
+            self.status = Status::Error(error.to_string());
+            return;
+        }
+
+        self.status = Status::Bookmarked {
+            title: bookmark.title().to_owned(),
+            path: bookmark.path().to_path_buf(),
+        };
     }
 
     fn open_dropped_files(&mut self, paths: impl IntoIterator<Item = PathBuf>) -> Task<Message> {
@@ -1026,6 +1063,17 @@ impl PaperView {
             .toc()
             .into_iter()
             .find_map(|item| (item.slug == anchor).then_some(item.block_index))
+    }
+
+    fn active_toc_anchor(&self) -> Option<String> {
+        let block_index = self.active_toc_block_index?;
+        self.documents
+            .active()?
+            .parsed()
+            .toc()
+            .into_iter()
+            .find(|item| item.block_index == block_index)
+            .map(|item| item.slug)
     }
 
     fn update_search_query(&mut self, query: String) -> Task<Message> {
@@ -2163,6 +2211,9 @@ fn header(state: &PaperView) -> Element<'_, Message> {
                 state.history_store.path().display()
             ),
             Status::Loaded(path) => path.display().to_string(),
+            Status::Bookmarked { title, path } => {
+                format!("Bookmarked {title} - {}", path.display())
+            }
             Status::CompilingTex(path) => format!("Compiling {}", path.display()),
             Status::CompiledTex { source, output } => {
                 format!("Compiled {} -> {}", source.display(), output.display())
@@ -2224,6 +2275,14 @@ fn header(state: &PaperView) -> Element<'_, Message> {
     } else {
         present_button
     };
+    let bookmark_button = button(text("Bookmark").size(13))
+        .padding([7, 12])
+        .style(move |_, status| theme::header_action_button(false, status));
+    let bookmark_button = if state.documents.active().and_then(Document::path).is_some() {
+        bookmark_button.on_press(Message::BookmarkActiveDocument)
+    } else {
+        bookmark_button
+    };
     let previous_slide = button(text("<").size(13))
         .padding([7, 10])
         .style(move |_, status| theme::header_action_button(false, status));
@@ -2263,6 +2322,7 @@ fn header(state: &PaperView) -> Element<'_, Message> {
             search_controls,
             compiled_tex_controls,
             presentation_controls,
+            bookmark_button,
             present_button,
             edit_button,
             save_button,
@@ -2428,6 +2488,7 @@ fn empty_state(status: &Status) -> Element<'_, Message> {
             "Launch with paperview-gui <file> to preview the native reader shell.",
         ),
         Status::Loaded(_) => ("Document loaded", ""),
+        Status::Bookmarked { .. } => ("Bookmark saved", "Added to the sidebar."),
         Status::CompilingTex(_) => ("Compiling LaTeX", "Tectonic is generating a PDF."),
         Status::CompiledTex { .. } => ("LaTeX compiled", "Generated PDF opened externally."),
         Status::CleanedTex { .. } => ("LaTeX artifact cleaned", "Generated PDF was removed."),
@@ -2594,6 +2655,53 @@ mod tests {
         assert!(
             matches!(state.status, super::Status::Loaded(ref loaded_path) if loaded_path == &path)
         );
+    }
+
+    #[test]
+    fn gui_bookmarks_active_document_and_refreshes_sidebar_state() {
+        let path = temp_doc("gui-bookmark-active.md", "# Saved Place\n\nBody");
+        let history_store = temp_store("gui-bookmark-active-history.toml");
+        let config_store = test_config_store(&history_store);
+        let bookmark_store = test_bookmark_store(&history_store);
+        let mut state = PaperView::from_args_with_stores(
+            [OsString::from(&path)],
+            history_store,
+            config_store,
+            bookmark_store.clone(),
+        );
+
+        apply(&mut state, Message::BookmarkActiveDocument);
+
+        assert_eq!(state.bookmarks.entries().len(), 1);
+        let bookmark = &state.bookmarks.entries()[0];
+        assert_eq!(bookmark.path(), path.as_path());
+        assert_eq!(bookmark.title(), "Saved Place");
+        assert_eq!(bookmark.heading_anchor(), Some("saved-place"));
+        assert_eq!(
+            bookmark_store
+                .load()
+                .expect("load bookmarks")
+                .entries()
+                .len(),
+            1
+        );
+        assert!(
+            matches!(state.status, super::Status::Bookmarked { ref title, path: ref saved_path }
+                if title == "Saved Place" && saved_path == &path)
+        );
+
+        fs::remove_file(path).expect("remove document");
+        fs::remove_file(bookmark_store.path()).expect("remove bookmarks");
+    }
+
+    #[test]
+    fn gui_bookmark_requires_active_document() {
+        let mut state = PaperView::from_args_with_store([], temp_store("gui-bookmark-empty.toml"));
+
+        apply(&mut state, Message::BookmarkActiveDocument);
+
+        assert!(matches!(state.status, super::Status::Error(ref error)
+                if error == "open a document before bookmarking"));
     }
 
     #[test]
