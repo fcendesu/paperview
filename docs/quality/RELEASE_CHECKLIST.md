@@ -81,6 +81,51 @@ rm -f docs/PRD.html docs/PRD.pdf
   local links, search, TOC navigation, tabs, split view, Zen Mode, drag and
   drop, local image previews, and remote-image placeholder behavior.
 
+### Manual GUI Visual Smoke Runbook
+
+Use this runbook when automated GUI screenshot capture or scripted interaction
+is unavailable. Run with isolated stores so the smoke pass does not mutate local
+history or bookmarks:
+
+```sh
+PAPERVIEW_HISTORY_PATH=/tmp/paperview-gui-manual-smoke-history.toml \
+PAPERVIEW_BOOKMARKS_PATH=/tmp/paperview-gui-manual-smoke-bookmarks.toml \
+cargo run -p paperview-gui -- docs/PRD.md
+```
+
+Verify these visible behaviors before claiming the GUI visual smoke complete:
+
+- Reader opens `docs/PRD.md` with readable typography, no overlapping sidebars,
+  and visible history/TOC rails.
+- TOC items click through to matching sections and the active TOC state updates
+  while scrolling.
+- Header search accepts a query, highlights matches, and previous/next controls
+  move the active match.
+- Opening another Markdown file creates or activates a tab; tab switching and
+  close behavior remain visually stable.
+- Split View can be enabled with two open documents, resized, and disabled
+  without layout overlap.
+- Zen Mode hides distracting chrome and returns to the normal layout cleanly.
+- Bookmark creation adds the current document/location to the bookmark rail,
+  and selecting the bookmark returns near the saved heading or reading
+  position.
+- Local document links open the target as a PaperView tab, while external links
+  use the platform opener.
+- A disposable task-list file can be toggled through the GUI checkbox and the
+  source file changes from unchecked to checked or back.
+- Local image previews render metadata or bitmap previews, and remote image URLs
+  show placeholders without blocking the reader.
+- A `.tex` file opens the status panel, shows compile diagnostics or success,
+  and exposes external-open/reopen/clean actions when an artifact exists.
+- Dragging one or more supported files into the window opens them as tabs.
+
+After the pass, remove the isolated stores:
+
+```sh
+rm -f /tmp/paperview-gui-manual-smoke-history.toml \
+  /tmp/paperview-gui-manual-smoke-bookmarks.toml
+```
+
 2026-05-26 local TUI interactive smoke status:
 
 - Passed reader startup, visible reader/TOC rendering, scrolling, search submit
