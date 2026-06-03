@@ -31,10 +31,9 @@ The generated fixture PDF and Tectonic byproducts under
 
 Latest `.tex` smoke result:
 
-- 2026-06-02: `Tectonic 0.16.9` at `/opt/homebrew/bin/tectonic` successfully
-  generated `docs/fixtures/minimal.pdf` through the PaperView command above;
-  the generated PDF was removed afterward. This result predates the managed
-  `.paperview/tex/` artifact path.
+- 2026-06-03: `cargo run -p paperview-tui -- tex doctor` found
+  `Tectonic 0.16.9` through PATH/default discovery and successfully compiled
+  the managed smoke artifact at `docs/fixtures/.paperview/tex/minimal.pdf`.
 
 ## Dependency Audit
 

@@ -120,6 +120,34 @@ tar -tzf target/dist/paperview-v0.1.0-aarch64-apple-darwin.tar.gz
 file target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-gui target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-tui
 ```
 
+Current local packaging baseline, refreshed on 2026-06-03 from macOS arm64:
+
+| Binary | Path | Format | Size | Bytes |
+| :--- | :--- | :--- | ---: | ---: |
+| GUI | `target/release/paperview-gui` | Mach-O 64-bit executable arm64 | 17M | 17,770,608 |
+| TUI | `target/release/paperview-tui` | Mach-O 64-bit executable arm64 | 2.1M | 2,232,880 |
+
+Current local v0.1 archive baseline, refreshed on 2026-06-03 from macOS arm64:
+
+| Artifact | Path | Format | Size | Bytes |
+| :--- | :--- | :--- | ---: | ---: |
+| Archive | `target/dist/paperview-v0.1.0-aarch64-apple-darwin.tar.gz` | gzip-compressed tar archive | 7.6M | 7,978,704 |
+| GUI | `target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-gui` | Mach-O 64-bit executable arm64 | 17M | 17,770,608 |
+| TUI | `target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-tui` | Mach-O 64-bit executable arm64 | 2.1M | 2,232,880 |
+
+The 2026-06-03 release and archive build completed with:
+
+```sh
+cargo tree --workspace --depth 1
+cargo build --release --workspace
+scripts/package-release.sh
+tar -tzf target/dist/paperview-v0.1.0-aarch64-apple-darwin.tar.gz
+file target/release/paperview-gui target/release/paperview-tui \
+  target/dist/paperview-v0.1.0-aarch64-apple-darwin.tar.gz \
+  target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-gui \
+  target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-tui
+```
+
 ## Current Assessment
 
 - The project remains native Rust and avoids Electron, WebView, Node, Python,
@@ -130,6 +158,9 @@ file target/dist/paperview-v0.1.0-aarch64-apple-darwin/paperview-gui target/dist
   browser renderer.
 - Mermaid and LaTeX support currently use parser/source-preserving previews
   instead of external rendering engines.
+- Full `.tex` support invokes Tectonic through a configurable CLI adapter for
+  compile-time artifact generation. Tectonic is not bundled in the current
+  archive and remains a configured/PATH dependency for `.tex` compilation only.
 
 ## Open Release Questions
 

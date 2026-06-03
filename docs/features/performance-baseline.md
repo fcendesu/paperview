@@ -103,6 +103,19 @@ The GUI startup report includes:
     total with 1 history entry and 0 open documents.
   - `paperview-gui perf startup docs/PRD.md`: reader app-state startup reported
     4.65ms total, 23 active TOC items, and 0 remote image placeholders.
+- Current local samples on 2026-06-03:
+  - `perf docs/PRD.md`: total reported 9.96ms, 7,410 bytes, 165 source lines,
+    60 parsed blocks, 23 headings, 190 rendered TUI lines, 150 synthetic scroll
+    steps, 20.0KiB estimated memory, and all load/scroll/memory targets passing.
+  - `perf startup`: dashboard app-state startup reported 1.58ms total with 0
+    history entries.
+  - `perf startup docs/PRD.md`: reader startup reported 19.12ms total, 9.67ms
+    document open, 9.17ms app state, 190 rendered TUI lines, 23 TOC items, and
+    an enabled file watcher.
+  - `paperview-gui perf startup`: dashboard app-state startup reported
+    234.06ms total with 1 history entry and 0 open documents.
+  - `paperview-gui perf startup docs/PRD.md`: reader app-state startup reported
+    232.79ms total, 23 active TOC items, and 0 remote image placeholders.
 
 ## Decisions And Gaps
 

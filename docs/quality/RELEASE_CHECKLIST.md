@@ -22,6 +22,13 @@ cargo build --release --workspace
   `cargo clippy --workspace -- -D warnings`, `cargo test --workspace`, and
   `scripts/package-release.sh`.
 
+2026-06-03 local gate status:
+
+- Passed `cargo fmt --all`, `cargo clippy --workspace -- -D warnings`,
+  `cargo test --workspace`, `cargo tree --workspace --depth 1`,
+  `cargo build --release --workspace`, and `scripts/package-release.sh` on
+  macOS arm64 after closing the Bookmarks and Tectonic `.tex` roadmap slices.
+
 ## Smoke Commands
 
 Run the user-facing command surface against a repository document:
@@ -54,6 +61,16 @@ rm -f docs/PRD.html docs/PRD.pdf
 - Corrected the workspace-search smoke command to use the documented
   `search <query> [path]` argument order.
 - Removed generated `docs/PRD.html` and `docs/PRD.pdf` after the smoke pass.
+
+2026-06-03 local smoke status:
+
+- Passed the non-interactive smoke command set against `docs/PRD.md` on macOS
+  arm64, including stats, JSON stats, workspace search, HTML export, PDF
+  export, document perf, TUI startup perf, GUI startup perf, config path, and
+  Tectonic doctor.
+- Removed generated `docs/PRD.html` and `docs/PRD.pdf` after the smoke pass.
+- `tex doctor` found `Tectonic 0.16.9` through PATH/default discovery and
+  successfully compiled `docs/fixtures/.paperview/tex/minimal.pdf`.
 
 ## Interactive Smoke Checks
 
@@ -105,6 +122,8 @@ rm -f docs/PRD.html docs/PRD.pdf
 - Create the v0.1 archive with `scripts/package-release.sh`; the script writes
   `target/dist/paperview-v0.1.0-<target-triple>.tar.gz`.
 - Passed the v0.1 archive build on 2026-05-27 for macOS arm64. The archive
+  contained the GUI binary, TUI binary, README, and license.
+- Refreshed the v0.1 archive build on 2026-06-03 for macOS arm64. The archive
   contained the GUI binary, TUI binary, README, and license.
 
 ## Open Platform Gaps

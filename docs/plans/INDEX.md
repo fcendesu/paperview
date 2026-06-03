@@ -12,7 +12,8 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
-No active plans.
+- [Release Readiness](active/release-readiness.md) - v0.1 quality, smoke,
+  dependency, performance, and packaging refresh.
 
 ## Completed Plans
 
