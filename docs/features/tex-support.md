@@ -2,12 +2,11 @@
 
 ## Product Behavior
 
-PaperView does not currently open full `.tex` documents. `.tex` files are now
-recognized as a distinct supported file type, but they are not routed through
-the Markdown reader. Full `.tex` support will target Overleaf-compatible LaTeX
-sources through Tectonic-backed compilation.
+PaperView supports a first Tectonic-backed `.tex` workflow for
+Overleaf-compatible LaTeX sources. `.tex` files are recognized as a distinct
+supported file type and are not routed through the Markdown reader.
 
-The current first implementation slice:
+The completed first implementation slice:
 
 - Accepts `.tex` source files as a distinct file type.
 - Keeps `.tex` files out of `Document::open` so they are not parsed as
@@ -42,18 +41,21 @@ The current first implementation slice:
 - Reports missing compiler, compiler failure, missing output PDF, and output
   write errors as explicit compile errors.
 
-The next implementation slice should:
+Future implementation slices should:
 
 - Decide whether PaperView should bundle the Tectonic binary or continue with
   configured/PATH discovery.
+- Add embedded GUI PDF/page preview once a durable renderer is selected.
+- Add richer multi-file project workflows when Tectonic entry-file compilation
+  is not enough.
 - Preserve PaperView's existing Markdown-first reader behavior.
 
-Later slices can expose compiled `.tex` output in the GUI and TUI:
+Later slices can expose richer compiled `.tex` output in the GUI and TUI:
 
 - GUI: preview the compiled PDF artifact once a durable PDF/page renderer is
   selected.
-- TUI: show compile status, diagnostics, and generated artifact paths rather
-  than attempting terminal page rendering.
+- TUI: keep compile status, diagnostics, and generated artifact paths visible
+  rather than attempting terminal page rendering.
 
 ## Implementation Notes
 
@@ -108,7 +110,7 @@ Later slices can expose compiled `.tex` output in the GUI and TUI:
 
 ## Verification Expectations
 
-Initial `.tex` support should include:
+Initial `.tex` support verification includes:
 
 ```sh
 cargo fmt --all
@@ -129,9 +131,9 @@ are ignored and should remain uncommitted if a manual compile leaves them behind
 
 The latest local smoke result:
 
-- Date: 2026-06-02.
-- Tectonic: `Tectonic 0.16.9` at `/opt/homebrew/bin/tectonic`.
+- Date: 2026-06-03.
+- Tectonic: `Tectonic 0.16.9` from PATH/default discovery.
 - Command:
-  `cargo run -p paperview-tui -- tex compile docs/fixtures/minimal.tex`.
-- Result: generated a valid `docs/fixtures/minimal.pdf`, then removed it. This
-  result predates the managed `.paperview/tex/` artifact path.
+  `cargo run -p paperview-tui -- tex doctor`.
+- Result: version detection passed and the managed smoke artifact
+  `docs/fixtures/.paperview/tex/minimal.pdf` compiled successfully.

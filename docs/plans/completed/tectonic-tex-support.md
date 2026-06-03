@@ -122,3 +122,6 @@ Out of scope for the first slice:
   cleaned states. Successful compiles now preserve meaningful Tectonic
   diagnostics in GUI state and show source/output paths plus `Open PDF` and
   `Clean PDF` actions in the main reader area.
+- 2026-06-03: Closed the first Tectonic `.tex` support slice after updating the
+  tracker, PRD, feature record, and smoke result. Embedded PDF preview,
+  bundling policy, and richer multi-file LaTeX workflows remain future work.

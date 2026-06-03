@@ -81,8 +81,8 @@ The application should feel **fast, quiet, focused, and native.**
 - **Table of Contents:** Auto-generated from Markdown headers.
 - **Scroll Sync:** Highlights current section in TOC during scrolling.
 - **Search:** In-document text search.
-- **Bookmarks:** Planned persistent document-location bookmarks for returning
-  to important files, headings, or reading positions.
+- **Bookmarks:** Persistent document-location bookmarks for returning to
+  important files, headings, source lines, or reading positions.
 
 ### 7.4 CLI & Interaction Model
 PaperView provides a context-aware CLI and a suite of "headless" tools.
@@ -95,6 +95,8 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
 **Subcommands (Documentation Toolkit):**
 - **`paperview search <query>`**: Uses `ripgrep` to search the current workspace/folder and lists results in the TUI for selection.
 - **`paperview export <file> --to [pdf|html]`**: Headless conversion of Markdown to "Paper" style documents.
+- **`paperview tex compile|clean|doctor`**: Tectonic-backed `.tex` artifact
+  compile, cleanup, and diagnostics commands.
 - **`paperview config [path|edit]`**: Manages settings (TOML). `path` shows the file location; `edit` opens it in the default editor.
 - **`paperview stats <file>`**: Prints metadata (Word count, Reading time, Heading structure) directly to the console without launching a UI.
 
@@ -133,6 +135,9 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
   workspace search panel.)*
 - **Export:** Support for HTML and PDF export. *(Implemented for standalone HTML
   and text-first PDF output.)*
+- **Bookmarks:** Persistent document-location bookmarks. *(Implemented with
+  shared persistence, TUI commands/picker/reader shortcut, and GUI
+  sidebar/header navigation.)*
 
 ### Phase 3: Technical Advanced & Presentation
 - LaTeX/Math support ($inline$ and $$block$$). *(Foundation implemented with
@@ -140,9 +145,11 @@ PaperView provides a context-aware CLI and a suite of "headless" tools.
   text-first PDF export. Full formula typesetting remains missing.)*
 - **Presentation Mode:** One-click conversion of headings/rules into slides.
   *(Implemented across core, GUI, and TUI.)*
-- Full `.tex` support is planned through Tectonic-backed compilation for
-  existing Overleaf/LaTeX documents. The first active slice is a core/headless
-  compile-check path before embedded GUI preview work.
+- Tectonic `.tex` support for existing Overleaf/LaTeX documents. *(First slice
+  implemented with core compile artifacts, TUI compile/clean/doctor commands,
+  GUI async compile, external PDF open/clean actions, managed `.paperview/tex/`
+  artifacts, and diagnostics/status panels. Embedded PDF preview, bundling, and
+  richer multi-file project workflows remain deferred.)*
 - **Knowledge Graph** visual connections between linked Markdown files are
   deferred out of the current roadmap scope.
 

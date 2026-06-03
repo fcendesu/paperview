@@ -12,14 +12,16 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
-- [Tectonic `.tex` Support](active/tectonic-tex-support.md) - full LaTeX
-  document compilation path for Overleaf-compatible sources.
+No active plans.
 
 ## Completed Plans
 
 - [Bookmarks Foundation](completed/bookmarks-foundation.md) - shared bookmark
   persistence, TUI commands/picker/reader shortcut, and GUI sidebar/header
   behavior.
+- [Tectonic `.tex` Support](completed/tectonic-tex-support.md) - first
+  Tectonic-backed `.tex` compile, clean, doctor, GUI artifact, and diagnostics
+  workflow.
 - [GUI Global Search](completed/gui-global-search.md) - Iced access to the
   ripgrep-backed workspace search model.
 - [Presentation Mode](completed/presentation-mode.md) - Phase 3
