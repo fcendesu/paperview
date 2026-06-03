@@ -122,6 +122,22 @@ rm -f docs/PRD.html docs/PRD.pdf
 - GUI interactive smoke is complete for the documented v0.1 macOS arm64 local
   checks.
 
+2026-06-03 local GUI smoke status:
+
+- Launched `paperview-gui docs/PRD.md` with isolated history and bookmark
+  stores; macOS process inspection confirmed a live `paperview-gui` process.
+- The current environment blocked display capture (`screencapture` could not
+  create an image from the display) and blocked scripted GUI keystrokes through
+  System Events, so this pass did not claim a visual/pixel-level GUI smoke.
+- Passed the full `cargo test -p paperview-gui` suite covering GUI state and
+  event behavior for reader startup, local links, search, TOC navigation, tabs,
+  split view and resizing, Zen Mode, bookmarks, `.tex` status/actions,
+  drag/drop events, local/remote image handling, task toggles, and workspace
+  search.
+- Cleaned up the launched GUI process and isolated `/tmp` smoke stores.
+- A visual/manual GUI interactive smoke remains open for the 2026-06-03
+  release-readiness pass.
+
 ## Packaging Baseline
 
 - Draft v0.1 release notes live in `docs/RELEASE_NOTES.md`.

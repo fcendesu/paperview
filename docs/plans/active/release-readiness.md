@@ -57,3 +57,7 @@ Run the documented non-interactive smoke commands from
   reader startup, scrolling, search, TOC jump, split view and resizing, Zen
   Mode, open-path prompt, isolated bookmark creation, clean quit, and
   disposable-file task toggle all passed.
+- 2026-06-03: Ran a limited GUI smoke refresh. `paperview-gui docs/PRD.md`
+  launched under isolated stores and the full `cargo test -p paperview-gui`
+  suite passed. Display capture and scripted keystrokes were blocked by the
+  local environment, so a visual/manual GUI interactive pass remains open.
