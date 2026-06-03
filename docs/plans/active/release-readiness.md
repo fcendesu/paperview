@@ -53,3 +53,7 @@ Run the documented non-interactive smoke commands from
   `paperview-tui`, `README.md`, and `LICENSE.md`.
 - 2026-06-03: Updated quality docs with current performance samples, release
   artifact sizes, and the latest `tex doctor` smoke result.
+- 2026-06-03: Refreshed TUI interactive smoke on macOS arm64 with a PTY run:
+  reader startup, scrolling, search, TOC jump, split view and resizing, Zen
+  Mode, open-path prompt, isolated bookmark creation, clean quit, and
+  disposable-file task toggle all passed.

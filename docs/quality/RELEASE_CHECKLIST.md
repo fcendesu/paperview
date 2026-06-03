@@ -90,6 +90,19 @@ rm -f docs/PRD.html docs/PRD.pdf
   removed the file afterward.
 - GUI interactive smoke remains open.
 
+2026-06-03 local TUI interactive smoke status:
+
+- Passed reader startup, visible reader/TOC rendering, scrolling, search submit
+  with `n`/`N` navigation, TOC focus and jump, split view with two documents,
+  split resizing, Zen Mode toggle, open-path prompt opening
+  `docs/features/bookmarks.md` as a third tab, bookmark creation with an
+  isolated `/tmp` bookmark store, and clean quit.
+- Passed task-list toggle behavior on a disposable `/tmp` Markdown file by
+  scrolling to the task source line, pressing Space, verifying the status line,
+  and confirming the file changed to `- [x] Verify task toggle`.
+- Removed the disposable task file and isolated bookmark store afterward.
+- GUI interactive smoke remains open for the 2026-06-03 release-readiness pass.
+
 2026-05-26 local GUI interactive smoke status:
 
 - Passed GUI launch through a temporary macOS app wrapper, reader startup,
