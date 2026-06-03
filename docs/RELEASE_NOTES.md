@@ -22,15 +22,17 @@ Platform scope:
 
 - Native Iced GUI reader with history, tabs, split view, TOC navigation, search,
   Zen Mode, local document links, task checkbox writeback, live reload, native
-  drag/drop, local image previews, and remote-image placeholders.
+  drag/drop, local image previews, remote-image placeholders, bookmarks, and
+  `.tex` compile/status actions.
 - Ratatui TUI reader with recent-files dashboard, tabs, split view, TOC
   navigation, search, Zen Mode, task checkbox writeback, live reload, and
-  open-path workflow.
+  open-path and bookmark workflows.
 - Shared Markdown parser support for headings, paragraphs, lists, blockquotes,
   code blocks, tables, task lists, inline bold/italic/code/link spans, images,
   LaTeX math previews, and Mermaid flowchart previews.
 - Headless toolkit commands for document stats, workspace search, HTML/PDF
-  export, config management, and performance baselines.
+  export, config management, performance baselines, bookmarks, and Tectonic
+  `.tex` compile/clean/doctor workflows.
 - Dependency-light HTML/PDF export without external browser, WebView, Node,
   Python, or PDF-renderer runtime requirements.
 
@@ -39,11 +41,17 @@ Platform scope:
 - macOS `.app`, DMG, signing, notarization, Homebrew, and installer packaging
   are deferred.
 - Linux and Windows archives are deferred until platform packaging checks pass.
+- The 2026-06-03 Codex GUI smoke pass confirmed launch under isolated stores
+  and full GUI state/event tests, but display capture and scripted keystrokes
+  were blocked by the local environment. A manual/visual GUI smoke should be
+  completed before tagging or publishing.
 - Real native window/event-loop startup timing and real scroll frame timing are
   not yet measured; current performance notes rely on headless app-state and
   deterministic workload baselines.
 - LaTeX and Mermaid support are readable/source-preserving foundations, not full
   rich renderers.
+- Tectonic is not bundled in the release archive; `.tex` compile workflows
+  require a working `tectonic` binary on `PATH` or in the configured path.
 - PDF export is text-first and does not yet include rich diagram or formula
   rendering.
 - Wide-table scrolling, exact GUI layout geometry, background-tab watching, and
@@ -58,6 +66,10 @@ Platform scope:
 - TUI interactive smoke passed for reader startup, scrolling, search, TOC
   navigation, task toggling on a disposable file, split view, Zen Mode,
   open-path behavior, and clean quit.
-- GUI interactive smoke passed for reader startup, search, TOC navigation,
+- Prior GUI interactive smoke passed for reader startup, search, TOC navigation,
   history opening, tabs, split view, Zen Mode, local image metadata, remote
   image placeholders, local document link opening, and native drag/drop.
+- Latest GUI smoke on 2026-06-03 confirmed process launch under isolated
+  history/bookmark stores, and `cargo test -p paperview-gui` passed. Visual
+  screenshot capture and scripted keyboard interaction were blocked by the
+  local environment, so a final manual/visual GUI smoke remains open.

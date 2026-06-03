@@ -61,3 +61,8 @@ Run the documented non-interactive smoke commands from
   launched under isolated stores and the full `cargo test -p paperview-gui`
   suite passed. Display capture and scripted keystrokes were blocked by the
   local environment, so a visual/manual GUI interactive pass remains open.
+- 2026-06-03: Recorded the remaining release limitations in release notes:
+  manual/visual GUI smoke, Linux/Windows packaging, real event-loop/frame
+  timing, and non-bundled Tectonic remain open before a public release claim.
+- 2026-06-03: Closed the Codex-executable release-readiness refresh with
+  current local evidence recorded and outstanding non-local/manual gaps listed.

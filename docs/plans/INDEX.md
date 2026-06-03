@@ -12,11 +12,12 @@ Create a plan before work that spans multiple crates, changes architecture, intr
 
 ## Active Plans
 
-- [Release Readiness](active/release-readiness.md) - v0.1 quality, smoke,
-  dependency, performance, and packaging refresh.
+No active plans.
 
 ## Completed Plans
 
+- [Release Readiness](completed/release-readiness.md) - v0.1 quality, smoke,
+  dependency, performance, and packaging refresh.
 - [Bookmarks Foundation](completed/bookmarks-foundation.md) - shared bookmark
   persistence, TUI commands/picker/reader shortcut, and GUI sidebar/header
   behavior.
